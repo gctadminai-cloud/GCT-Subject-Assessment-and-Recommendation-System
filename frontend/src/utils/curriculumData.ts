@@ -1175,9 +1175,13 @@ export function generateCurriculumRecommendations(
     const liveDef = curriculumCatalog.find(c => normalizeSubjCode(c.code) === defNorm);
     const defSem = defDef?.semester ?? Number(liveDef?.semester ?? 1);
 
-    // ONLY recommend for enrollment in the current term IF it matches targetSemester!
-    // For Summer (targetSemester === 3), allow retaking ANY deficiency from any semester!
-    const isEligibleForTerm = targetSemester === 3 || defSem === targetSemester;
+    // ONLY recommend for enrollment in the current term IF the deficiency's offering semester matches targetSemester!
+    // Institutional Curriculum Rule:
+    // - 1st sem subjects are offered in 1st sem only.
+    // - 2nd sem subjects (such as IT 5) are offered in 2nd sem only.
+    // - Summer (semester 3) is strictly for summer-designated curriculum subjects.
+    // Regular 1st or 2nd sem failed subjects MUST NOT be recommended during Summer; they must be retaken in their designated semester.
+    const isEligibleForTerm = defSem === targetSemester;
 
     if (isEligibleForTerm) {
       alreadyRecommendedCodes.add(defNorm);

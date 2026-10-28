@@ -1856,8 +1856,9 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
 
                         {(() => {
                           const cs = curriculumSubjects.find(c => normalizeSubjCode(c.code) === normalizeSubjCode(def.code));
-                          const defSem = cs ? Number(cs.semester) : (def.term && /2nd|second/i.test(def.term) ? 2 : 1);
+                          const defSem = cs ? Number(cs.semester) : (def.term && /summer/i.test(def.term) ? 3 : def.term && /2nd|second/i.test(def.term) ? 2 : 1);
                           const isCurrentSemOffering = defSem === analysis.targetSemester;
+                          const semLabel = defSem === 1 ? '1st Sem' : defSem === 2 ? '2nd Sem' : 'Summer';
                           return (
                             <div style={{
                               fontSize: '0.68rem',
@@ -1869,8 +1870,8 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                               fontWeight: 600
                             }}>
                               {isCurrentSemOffering
-                                ? `✓ Offered this ${defSem === 1 ? '1st' : '2nd'} Sem (included in recommendations)`
-                                : `📅 Offered in ${defSem === 1 ? '1st' : '2nd'} Sem only (retake in next AY ${defSem === 1 ? '1st' : '2nd'} Sem)`}
+                                ? `✓ Offered this ${semLabel} (included in recommendations)`
+                                : `📅 Offered in ${semLabel} only (retake in next AY ${semLabel})`}
                             </div>
                           );
                         })()}

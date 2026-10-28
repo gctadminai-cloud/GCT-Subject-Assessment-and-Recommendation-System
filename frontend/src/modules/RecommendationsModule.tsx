@@ -22,7 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 
 interface RecommendationsModuleProps {
@@ -481,17 +482,121 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         effectiveYear = Math.min(4, Math.max(1, effectiveYear));
       }
 
+      // Track all academic years with grade records for this student
+      const studentAys = new Set<string>();
+      let latestStudentAy = '';
+      let latestStudentAyYear = 0;
+      effectiveGrades.forEach(g => {
+        const ay = (g.academicYear || (g as any).academic_year || g.term?.match(/\d{4}-\d{4}/)?.[0] || '').trim();
+        if (ay) {
+          studentAys.add(ay);
+          const startYr = parseInt(ay.split('-')[0] || '0', 10);
+          if (startYr > latestStudentAyYear) {
+            latestStudentAyYear = startYr;
+            latestStudentAy = ay;
+          }
+        }
+      });
+
+      // 🎓 FINISHED 4TH YEAR DETECTION:
+      // A student has finished 4th year if:
+      // 1. Student status is explicitly 'graduated' or 'completed', or catalog standing > 4
+      // 2. The student has passed culminating 4th year requirements:
+      //    - BSIT: passed OJT-IT (or OJT) or passed all 4th year subjects (CP 2, IT E3, IT E4, IT E5, OJT-IT)
+      //    - BSCS: passed OJT-CS (or OJT) or passed all 4th year subjects (CS 19, CS E4, THS 2, CS E5, OJT-CS)
+      //    - Culminating 4th year 2nd sem subjects passed (e.g. OJT / Practicum / Capstone 2 + Y4 S2)
+      let isFinished4thYear = (st as any).status === 'graduated' ||
+        (st as any).status === 'completed' ||
+        Number(st.year || (st as any).year_level || 1) > 4;
+
+      if (!isFinished4thYear && effectiveGrades.length > 0) {
+        const passedCodes = new Set<string>();
+        let hasPassedY4S2 = false;
+
+        effectiveGrades.forEach(g => {
+          const isDrop =
+            g.status === 'dropped' ||
+            g.isDropped === true ||
+            g.rawGrade === '9' ||
+            g.grade === 9 ||
+            String(g.rawGrade || '').toUpperCase() === 'DRP';
+          const num = Number(g.grade);
+          const isPass = !isDrop && !isNaN(num) && num > 0 && num <= 3.0;
+
+          if (isPass) {
+            const norm = normalizeSubjCode(g.code || g.title || (g as any).subjectId || (g as any).subject_code || '');
+            if (norm) passedCodes.add(norm);
+
+            const yLvl = Number(g.yearLevel || (g as any).year_level || 0);
+            const isSem2 = String(g.semester).toLowerCase().includes('second') || String(g.semester) === '2' || Boolean(g.term && /2nd|second/i.test(g.term));
+            if (yLvl === 4 && isSem2) {
+              hasPassedY4S2 = true;
+            }
+          }
+        });
+
+        const hasPassedOjt =
+          passedCodes.has('ojtit') ||
+          passedCodes.has('ojtcs') ||
+          passedCodes.has('ojt') ||
+          Array.from(passedCodes).some(c => c.includes('ojt'));
+
+        const isBsit = String(st.program || '').toUpperCase().includes('IT');
+        const isBscs = String(st.program || '').toUpperCase().includes('CS');
+
+        let allY4Passed = false;
+        if (isBsit) {
+          const bsitY4 = ['cp2', 'ite3', 'ite4', 'ite5'];
+          allY4Passed = (hasPassedOjt || passedCodes.has('ojtit')) && bsitY4.every(c => passedCodes.has(c));
+        } else if (isBscs) {
+          const bscsY4 = ['cs19', 'cse4', 'ths2', 'cse5'];
+          allY4Passed = (hasPassedOjt || passedCodes.has('ojtcs')) && bscsY4.every(c => passedCodes.has(c));
+        }
+
+        if (hasPassedOjt || allY4Passed || (hasPassedY4S2 && (passedCodes.has('cp2') || passedCodes.has('ths2')))) {
+          isFinished4thYear = true;
+        }
+      }
+
       return {
         ...st,
         year: effectiveYear,
         hasDeficiencies,
-        deficiencyCount
+        deficiencyCount,
+        isFinished4thYear,
+        academicYears: Array.from(studentAys),
+        latestAcademicYear: latestStudentAy
       };
     });
   }, [mockStudents, mockAcademicGrades, selectedStudentLoadedGrades, isGradesLoading, selectedRecStudentId, analysis, displayedHasDeficiencies, displayedBreakdown]);
 
-  const filteredStudentList = useMemo(() => {
+  // 🎯 Academic Year & Graduation Filter for Subject Recommendations:
+  // 1. Exclude students who finished their 4th year / graduated (they have completed their studies and do not need recommendations).
+  // 2. When an Academic Year is adjusted / selected (selectedAcademicYear !== 'all'):
+  //    Only show students who have records in that academic year, or who are eligible/targeted for that active term.
+  const eligibleStudentsInAy = useMemo(() => {
     return studentListOptions.filter(st => {
+      // Hard rule: NEVER show students who finished 4th year / graduated in subject recommendations
+      if (st.isFinished4thYear) {
+        return false;
+      }
+
+      // If Academic Year filter is active ('all' shows all eligible non-graduated students)
+      if (selectedAcademicYear !== 'all') {
+        const hasRecordsInAy = st.academicYears.includes(selectedAcademicYear);
+        const isEligibleForActiveAy =
+          selectedAcademicYear === activeAcademicYear &&
+          (st.academicYears.length === 0 || st.latestAcademicYear === selectedAcademicYear);
+
+        return hasRecordsInAy || isEligibleForActiveAy;
+      }
+
+      return true;
+    });
+  }, [studentListOptions, selectedAcademicYear, activeAcademicYear]);
+
+  const filteredStudentList = useMemo(() => {
+    return eligibleStudentsInAy.filter(st => {
       const search = studentSearchInput.toLowerCase().trim();
       const stId = String(st.student_id || '').toLowerCase();
       const stName = String(st.name || '').toLowerCase();
@@ -509,7 +614,21 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
 
       return matchesSearch && matchesFilter;
     });
-  }, [studentListOptions, studentSearchInput, studentFilterType]);
+  }, [eligibleStudentsInAy, studentSearchInput, studentFilterType]);
+
+  // Keep selected student synchronized when Academic Year changes or current selection becomes ineligible
+  useEffect(() => {
+    if (eligibleStudentsInAy.length > 0) {
+      const isCurrentlySelectedValid = eligibleStudentsInAy.some(
+        s => matchStudentId(s.student_id, selectedRecStudentId) || matchStudentId(s.id, selectedRecStudentId)
+      );
+      if (!isCurrentlySelectedValid && selectedRecStudentId) {
+        setSelectedRecStudentId(eligibleStudentsInAy[0].student_id);
+      }
+    } else if (studentListOptions.length > 0 && eligibleStudentsInAy.length === 0 && selectedRecStudentId) {
+      setSelectedRecStudentId('');
+    }
+  }, [selectedAcademicYear, eligibleStudentsInAy]);
 
   const isUserActivelySearching = studentSearchInput.trim().length > 0;
   const displayedList = filteredStudentList;
@@ -745,7 +864,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                All ({mockStudents.length})
+                All ({eligibleStudentsInAy.length})
               </button>
               <button
                 type="button"
@@ -761,7 +880,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                ⚠️ Deficient ({studentListOptions.filter(s => s.hasDeficiencies).length})
+                ⚠️ Deficient ({eligibleStudentsInAy.filter(s => s.hasDeficiencies).length})
               </button>
               <button
                 type="button"
@@ -777,7 +896,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                ✓ Regular ({studentListOptions.filter(s => !s.hasDeficiencies).length})
+                ✓ Regular ({eligibleStudentsInAy.filter(s => !s.hasDeficiencies).length})
               </button>
             </div>
           </div>
@@ -1065,7 +1184,11 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                     </option>
                   ))
                 ) : (
-                  <option value="" disabled>📭 No matching students found — try a different search</option>
+                  <option value="" disabled>
+                    {selectedAcademicYear !== 'all'
+                      ? `📭 No eligible students found for AY ${selectedAcademicYear}`
+                      : '📭 No matching students found — try a different search'}
+                  </option>
                 )}
               </select>
               {(studentSearchInput || studentFilterType !== 'all') && (
@@ -1166,11 +1289,10 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#2563EB',
-                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.15)',
-                  animation: 'spin 1.2s linear infinite'
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.15)'
                 }}
               >
-                <RotateCcw size={22} />
+                <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
               </div>
               <div style={{ textAlign: 'center' }}>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>

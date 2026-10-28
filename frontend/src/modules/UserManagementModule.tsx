@@ -1398,17 +1398,20 @@ export const UserManagementModule: React.FC = () => {
             {/* Header */}
             <div style={{
               padding: '1.2rem 1.5rem',
-              background: 'linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)',
+              background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #1D4ED8 100%)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 4px 20px -2px rgba(30, 58, 138, 0.25)',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexShrink: 0
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  padding: '0.45rem',
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  padding: '0.5rem',
                   borderRadius: '10px',
                   display: 'flex',
                   alignItems: 'center',
@@ -1417,12 +1420,25 @@ export const UserManagementModule: React.FC = () => {
                   <ShieldCheck size={22} color="#FBBF24" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+                  <h3 style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    margin: 0,
+                    lineHeight: 1.2,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.15)'
+                  }}>
                     Student Identity & Photo Verification Review
                   </h3>
-                  <span style={{ fontSize: '0.78rem', color: '#DBEAFE' }}>
+                  <p style={{
+                    fontSize: '0.8rem',
+                    color: '#DBEAFE',
+                    margin: 0,
+                    marginTop: '0.2rem',
+                    fontWeight: 500
+                  }}>
                     Review official student ID documents and live face selfie before authorization
-                  </span>
+                  </p>
                 </div>
               </div>
               <button
@@ -1431,15 +1447,18 @@ export const UserManagementModule: React.FC = () => {
                 disabled={reviewSubmitting}
                 style={{
                   background: 'rgba(255, 255, 255, 0.15)',
-                  border: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
                   borderRadius: '8px',
                   color: '#FFFFFF',
                   padding: '6px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease'
                 }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
               >
                 <X size={20} />
               </button>

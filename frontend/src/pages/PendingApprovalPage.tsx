@@ -22,10 +22,10 @@ export const PendingApprovalPage: React.FC = () => {
           Registration Pending Approval
         </h2>
 
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-          Hello <strong>{user?.full_name}</strong>. Your student registration account has been successfully received by Garcia College of Technology.
+        <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+          Hello <strong>{user?.full_name}</strong>. Your student registration account has been successfully verified via OTP and received by Garcia College of Technology.
           <br /><br />
-          Per institutional policy, your account must be verified and approved by the <strong>Admin or Registrar Staff</strong> member before you can access your grade dashboard.
+          Per institutional policy, your account must be approved by the <strong>Registrar Admin</strong>. Once approved, the system will automatically generate a secure password valid for one week and dispatch it to your Gmail address ({user?.email}).
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>

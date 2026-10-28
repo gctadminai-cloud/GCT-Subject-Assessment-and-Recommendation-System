@@ -21,6 +21,174 @@ function stripEmojis(text) {
 }
 
 /**
+ * Official Institutional FAQs for Garcia College of Technology
+ */
+const GCT_OFFICIAL_FAQS = [
+  {
+    id: 1,
+    questionEn: "What are the admission requirements for new college students?",
+    questionTl: "Ano ang admission requirements para sa bagong estudyante sa kolehiyo?",
+    patterns: [
+      /requirements?\s+for\s+new\s+(?:college\s+)?students?/i,
+      /admission\s+requirements?/i,
+      /requirements?\s+ng\s+(?:mga\s+)?bagong\s+estudyante/i,
+      /requirements?\s+sa\s+freshm[ae]n/i,
+      /freshm[ae]n\s+requirements?/i,
+      /new\s+(?:college\s+)?student\s+requirements?/i
+    ],
+    answerEn: `**Admission Requirements for New College Students:**\n- High School Report (SF 9)\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
+    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- High School Report (SF 9)\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
+  },
+  {
+    id: 2,
+    questionEn: "What are the requirements for old students?",
+    questionTl: "Ano ang requirements para sa dating estudyante (old students)?",
+    patterns: [
+      /requirements?\s+for\s+old\s+students?/i,
+      /old\s+students?\s+requirements?/i,
+      /requirements?\s+ng\s+(?:mga\s+)?dating\s+estudyante/i,
+      /continuing\s+students?\s+requirements?/i
+    ],
+    answerEn: `**Requirements for Old Students:**\n- Clearance from the previous semester\n- School ID\n- Grades from the previous semester`,
+    answerTl: `**Mga Kinakailangan para sa Dating Estudyante (Old Students):**\n- Clearance mula sa nakaraang semestre\n- School ID\n- Mga Marka (Grades) mula sa nakaraang semestre`
+  },
+  {
+    id: 3,
+    questionEn: "What are the requirements for transferees?",
+    questionTl: "Ano ang requirements para sa transferees?",
+    patterns: [
+      /requirements?\s+for\s+transferees?/i,
+      /transferees?\s+requirements?/i,
+      /requirements?\s+ng\s+(?:mga\s+)?transferee/i,
+      /requirements?\s+kapag\s+lumipat/i
+    ],
+    answerEn: `**Requirements for Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy of college subjects taken\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
+    answerTl: `**Mga Kinakailangan para sa Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy ng mga nakuhang college subjects\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
+  },
+  {
+    id: 4,
+    questionEn: "Can transferees have their previous subjects credited?",
+    questionTl: "Maaari bang ma-credit ang nakaraang subjects ng transferees?",
+    patterns: [
+      /(?:previous\s+)?subjects?\s+(?:credited|accredited)/i,
+      /credited\s+(?:ang\s+)?(?:dating\s+)?subjects?/i,
+      /can\s+transferees?\s+have\s+(?:their\s+)?previous\s+subjects?\s+credited/i,
+      /ma-?credit\s+(?:ba\s+)?(?:ang\s+)?(?:dating\s+)?subjects?/i,
+      /accreditation\s+of\s+subjects?/i
+    ],
+    answerEn: `**Accreditation of Subjects for Transferees:**\nYes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.`,
+    answerTl: `**Pag-credit ng mga Nakaraang Subjects para sa Transferees:**\nOpo. Maaaring mag-apply ang mga transferee para sa accreditation ng kanilang mga subjects sa pamamagitan ng Office of the Registrar, batay sa pagsusuri at pag-apruba ng College Dean.`
+  },
+  {
+    id: 5,
+    questionEn: "How can I contact the GCT College Registrar?",
+    questionTl: "Paano makikipag-ugnayan sa GCT College Registrar?",
+    patterns: [
+      /contact\s+(?:the\s+)?(?:gct\s+)?(?:college\s+)?registrar/i,
+      /registrar\s+(?:contact|phone|telephone|email|number)/i,
+      /paano\s+makontak\s+ang\s+registrar/i,
+      /tawag\s+sa\s+registrar/i,
+      /gctregistrar\.collegedept2021/i
+    ],
+    answerEn: `**GCT College Registrar Contact Information:**\nThe College Registrar can be contacted at:\n- **Phone:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Office Hours:** Monday to Friday, 8:00 AM – 5:00 PM`,
+    answerTl: `**Impormasyon sa Pakikipag-ugnayan sa GCT College Registrar:**\nMaaaring makontak ang College Registrar sa:\n- **Telepono:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Oras ng Tanggapan:** Lunes hanggang Biyernes, 8:00 AM – 5:00 PM`
+  },
+  {
+    id: 6,
+    questionEn: "What is GCT's mission?",
+    questionTl: "Ano ang misyon ng GCT?",
+    patterns: [
+      /gct(?:'s)?\s+mission/i,
+      /mission\s+of\s+gct/i,
+      /misyon\s+ng\s+gct/i,
+      /what\s+is\s+gct\s+mission/i
+    ],
+    answerEn: `**GCT's Mission:**\nGCT aims to provide quality education and develop the full potential and capabilities of individuals.`,
+    answerTl: `**Misyon ng GCT:**\nLayunin ng GCT na magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.`
+  },
+  {
+    id: 7,
+    questionEn: "When was Garcia College of Technology established?",
+    questionTl: "Kailan naitatag ang Garcia College of Technology?",
+    patterns: [
+      /when\s+was\s+(?:garcia|gct)\s+(?:established|founded)/i,
+      /kailan\s+(?:naitatag|tinatag)\s+ang\s+(?:gct|garcia)/i,
+      /year\s+(?:established|founded)/i,
+      /established\s+in\s+1968/i
+    ],
+    answerEn: `**Establishment of Garcia College of Technology:**\nGarcia College of Technology (GCT) was established in **1968**.`,
+    answerTl: `**Pagtatatag ng Garcia College of Technology:**\nAng Garcia College of Technology (GCT) ay naitatag noong taong **1968**.`
+  },
+  {
+    id: 8,
+    questionEn: "Where is Garcia College of Technology located?",
+    questionTl: "Saan matatagpuan ang Garcia College of Technology?",
+    patterns: [
+      /where\s+is\s+(?:garcia|gct)\s+located/i,
+      /location\s+of\s+(?:gct|garcia)/i,
+      /saan\s+matatagpuan\s+ang\s+(?:gct|garcia)/i,
+      /saan\s+ang\s+(?:gct|garcia)/i,
+      /campus\s+(?:address|location)/i
+    ],
+    answerEn: `**Garcia College of Technology Location:**\nGCT is located on **Osmeña Avenue, Estancia, Kalibo, Aklan**.`,
+    answerTl: `**Lokasyon ng Garcia College of Technology:**\nAng GCT ay matatagpuan sa **Osmeña Avenue, Estancia, Kalibo, Aklan**.`
+  }
+];
+
+const GCT_FAQS_CONTEXT_BLOCK = `
+OFFICIAL GCT INSTITUTIONAL FAQs & FACTS:
+1. Admission Requirements for New College Students:
+   - High School Report (SF 9)
+   - Certificate of Good Moral Character
+   - Four (4) recent 1x1 ID pictures
+   - Photocopy of PSA Birth Certificate
+2. Requirements for Old Students:
+   - Clearance from the previous semester
+   - School ID
+   - Grades from the previous semester
+3. Requirements for Transferees:
+   - Transfer Credentials / Honorable Dismissal
+   - Certified copy of college subjects taken
+   - Certificate of Good Moral Character
+   - Four (4) recent 1x1 ID pictures
+   - Photocopy of PSA Birth Certificate
+4. Transferee Subject Crediting / Accreditation:
+   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.
+5. GCT College Registrar Contact:
+   - Phone: (036) 262-8621
+   - Email: gctregistrar.collegedept2021@gmail.com
+   - Office Hours: Monday to Friday, 8:00 AM - 5:00 PM
+6. GCT Mission:
+   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.
+7. Year Established:
+   - Garcia College of Technology was established in 1968.
+8. Campus Location:
+   - Osmeña Avenue, Estancia, Kalibo, Aklan.
+`;
+
+function matchGctFaq(query, isTagalog = false) {
+  if (!query || typeof query !== 'string') return null;
+  const q = query.trim();
+
+  // If user asked general "faq", "faqs", or "frequently asked questions"
+  if (/^(?:faqs?|frequently\s+asked\s+questions?|listahan\s+ng\s+faqs?)$/i.test(q.replace(/[^\w\s]/g, '').trim())) {
+    return isTagalog
+      ? `### Garcia College of Technology — Mga Madalas Itanong (FAQs)\n\n1. **Admission Requirements (New College Students):**\n   - High School Report (SF 9)\n   - Certificate of Good Moral Character\n   - Apat (4) na 1×1 ID pictures\n   - Photocopy ng PSA Birth Certificate\n\n2. **Requirements para sa Dating Estudyante (Old Students):**\n   - Clearance mula sa nakaraang semestre\n   - School ID\n   - Grades mula sa nakaraang semestre\n\n3. **Requirements para sa Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy ng subjects taken\n   - Certificate of Good Moral Character\n   - Apat (4) na 1×1 ID pictures\n   - Photocopy ng PSA Birth Certificate\n\n4. **Pag-credit ng Subjects para sa Transferees:**\n   - Opo. Maaaring mag-apply para sa accreditation sa Office of the Registrar, subject to approval ng College Dean.\n\n5. **Pakikipag-ugnayan sa Registrar:**\n   - Telepono: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **Misyon ng GCT:**\n   - Magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\n7. **Kailan Naitatag:**\n   - Naitatag noong taong 1968.\n\n8. **Lokasyon:**\n   - Osmeña Avenue, Estancia, Kalibo, Aklan.`
+      : `### Garcia College of Technology — Frequently Asked Questions (FAQs)\n\n1. **Admission Requirements for New College Students:**\n   - High School Report (SF 9)\n   - Certificate of Good Moral Character\n   - Four (4) recent 1×1 ID pictures\n   - Photocopy of PSA Birth Certificate\n\n2. **Requirements for Old Students:**\n   - Clearance from the previous semester\n   - School ID\n   - Grades from the previous semester\n\n3. **Requirements for Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy of college subjects taken\n   - Certificate of Good Moral Character\n   - Four (4) recent 1×1 ID pictures\n   - Photocopy of PSA Birth Certificate\n\n4. **Can transferees have previous subjects credited?**\n   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\n5. **How to contact the GCT College Registrar:**\n   - Phone: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **GCT's Mission:**\n   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\n7. **When Established:**\n   - GCT was established in 1968.\n\n8. **Campus Location:**\n   - GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.`;
+  }
+
+  for (const item of GCT_OFFICIAL_FAQS) {
+    for (const pattern of item.patterns) {
+      if (pattern.test(q)) {
+        return isTagalog ? item.answerTl : item.answerEn;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Checks if a query is completely out of scope of the GCT Subject Assessment & Recommendation System
  */
 function isOutOfScopeQuery(query) {
@@ -28,7 +196,7 @@ function isOutOfScopeQuery(query) {
   if (!q) return false;
 
   // Never flag system, academic, or institutional terms as out of scope
-  const academicTerms = /\b(gct|garcia|student|grades?|subject|course|curriculum|bsit|bscs|prereq|prerequisite|eval|evaluation|standing|passed|failed|fail|retake|drop|dropped|advising|recommend|recommendation|registrar|enroll|enrol|enrollment|register|registration|account|login|portal|gwa|units|schedule|section|slip|clearance|graduation|academic|thesis|capstone|threshold|officer|staff|admin|system|feature|capabilities|help|ano kaya mo|tulong|opinion|opinyon|tingin|advice|advise|suggest|suhestiyon)\b/i;
+  const academicTerms = /\b(gct|garcia|student|grades?|subject|course|curriculum|bsit|bscs|prereq|prerequisite|eval|evaluation|standing|passed|failed|fail|retake|drop|dropped|advising|recommend|recommendation|registrar|enroll|enrol|enrollment|register|registration|account|login|portal|gwa|units|schedule|section|slip|clearance|graduation|academic|thesis|capstone|threshold|officer|staff|admin|system|feature|capabilities|help|ano kaya mo|tulong|opinion|opinyon|tingin|advice|advise|suggest|suhestiyon|requirements?|admission|admissions|transferees?|accreditation|accredited|credited|credit|contact|phone|telephone|email|mission|misyon|established|founded|tinatag|naitatag|1968|location|located|address|osmena|osmeña|kalibo|aklan|faq|faqs|sf\s*9|birth\s*certificate|good\s*moral|honorable\s*dismissal)\b/i;
   if (academicTerms.test(q)) {
     return false;
   }
@@ -655,7 +823,7 @@ async function getActiveAcademicTerm(supabaseClient) {
 /**
  * Flexible student search by ID, name, or substring
  */
-async function findTargetStudent(query, supabase) {
+async function searchStudentInText(query, supabase) {
   // Check for ID pattern: e.g. 10526, 2023-0001, GCT-10526, 9364, 12310
   const idMatch = query.match(/\b\d{4}-\d{4,5}\b/) || query.match(/\b\d{4,6}\b/) || query.match(/\bGCT-\d+\b/i);
   const targetId = idMatch ? idMatch[0].trim() : null;
@@ -737,6 +905,38 @@ async function findTargetStudent(query, supabase) {
       if (matchedCount >= 2) {
         return s;
       }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Flexible student search by ID, name, or substring, with conversation history recall
+ * Recalls target student when Registrar sends broken sentences, follow-ups, or pronouns
+ */
+async function findTargetStudent(query, supabase, history = []) {
+  // 1. Direct match on current query
+  const directMatch = await searchStudentInText(query, supabase);
+  if (directMatch) return directMatch;
+
+  // 2. If user sent broken continuation message (e.g. sent incomplete first part, then continuation)
+  if (Array.isArray(history) && history.length > 0) {
+    const userTurns = history.filter(h => h && (h.sender === 'user' || h.role === 'user') && h.text);
+    const lastUserTurn = userTurns[userTurns.length - 1];
+    if (lastUserTurn && lastUserTurn.text && lastUserTurn.text.trim() !== query.trim()) {
+      const combined = `${lastUserTurn.text} ${query}`;
+      const combinedMatch = await searchStudentInText(combined, supabase);
+      if (combinedMatch) return combinedMatch;
+    }
+
+    // 3. Check recent conversation turns (latest to oldest) to recall previously discussed student
+    const recentReversed = [...history].reverse();
+    for (const turn of recentReversed) {
+      const text = turn.text || turn.content || '';
+      if (!text) continue;
+      const turnMatch = await searchStudentInText(text, supabase);
+      if (turnMatch) return turnMatch;
     }
   }
 
@@ -877,7 +1077,16 @@ async function getStudentRecordsAndRecs(student, supabase) {
 
 async function queryChatbot(req, res) {
   try {
-    const { query } = req.body;
+    const { query, history } = req.body;
+
+    // Format conversation history for multi-turn context recall and continuity
+    const formattedHistory = Array.isArray(history) && history.length > 0
+      ? history
+          .filter(h => h && h.text && typeof h.text === 'string')
+          .slice(-8)
+          .map(h => `${(h.sender === 'user' || h.role === 'user') ? 'User' : 'Assistant'}: ${h.text.replace(/\n+/g, ' ').trim()}`)
+          .join('\n')
+      : '';
     if (!query) {
       return res.status(400).json({ error: 'Query text is required' });
     }
@@ -913,8 +1122,27 @@ async function queryChatbot(req, res) {
     // Strict requirement: No student records, grades, or personal info allowed!
     // Must login first to access any student-specific information.
     // =========================================================================
+    const faqMatch = matchGctFaq(query, userIsTagalog);
+
     if (userRole === 'guest') {
-      const isRegistrationOrPublic = /\b(create account|create student account|how to register|register|sign up|signup|how to apply|apply|programs|program|course|courses|offer|admissions|admission|office hours|campus|location|contact|registrar office)\b/i.test(query);
+      if (faqMatch) {
+        assistantResponse = faqMatch;
+        systemPrompt = `You are the official GCT AI Assistant for Garcia College of Technology.
+User status: Unauthenticated Visitor / Guest.
+The user asked an official institutional FAQ about Garcia College of Technology.
+Official GCT Institutional Fact:
+${faqMatch}
+
+${GCT_FAQS_CONTEXT_BLOCK}
+
+PRIMARY LANGUAGE DIRECTIVE:
+Answer in ${userIsTagalog ? 'Tagalog / Filipino' : 'English'}.
+Strictly follow the zero emojis rule.
+Answer accurately according to the official GCT facts provided above.
+
+USER MESSAGE: "${query}"`;
+      } else {
+      const isRegistrationOrPublic = /\b(create account|create student account|how to register|register|sign up|signup|how to apply|apply|programs|program|course|courses|offer|admissions|admission|office hours|campus|location|contact|registrar office|faq|faqs)\b/i.test(query);
 
       const isConfidentialStudentQuery = /\b(grade|grades|gwa|record|records|transcript|passed|failed|fail|retake|prereq|prerequisite|eval|evaluation|standing|who is|status of|profile of|user list|students list|password|passwords)\b/i.test(query) || (/\b\d{4,6}\b/.test(query) && !isRegistrationOrPublic);
 
@@ -962,12 +1190,19 @@ PRIMARY LANGUAGE DIRECTIVE:
 - STRICT ZERO EMOJIS RULE: Under no circumstances should you include emojis or decorative smiley symbols. Keep the reply clean and elegant.
 - SCOPE RESTRICTION: You are STRICTLY an assistant for GCT admissions, programs, and registration. If the user asks about anything unrelated (such as weather, sports, general trivia, cooking, or general news), politely apologize and state that it is outside your scope because you are solely for the GCT Subject Assessment and Recommendation System.
 
+RECENT CONVERSATION HISTORY (FOR MULTI-TURN RECALL & CONTINUITY):
+${formattedHistory || 'No previous messages in this session.'}
+
+CONVERSATION CONTINUITY & RECALL DIRECTIVE:
+- When the Registrar sends a message that continues a prior thought, was sent before finishing typing, or uses pronouns/follow-ups (e.g. "kanya", "ito", "pala", "ano pa", "next semester"), RECALL the recent context above and seamlessly respond with full awareness of the conversation.
+
 USER MESSAGE: "${query}"
 
 Instructions:
 - Directly, politely, and helpfully reply to the user's message.
 - Answer in the same language as the user (English default; Tagalog/Taglish if user spoke Tagalog).
 - Be conversational and answer whatever question they asked about GCT.`;
+      }
       }
     }
 
@@ -978,6 +1213,24 @@ Instructions:
     // =========================================================================
     else if (userRole === 'student') {
       const ownStudentId = String(req.user.student_id || req.user.username || '').replace(/^GCT-/i, '').trim();
+
+      if (faqMatch) {
+        assistantResponse = faqMatch;
+        systemPrompt = `You are the official GCT AI Academic Advising Assistant for Garcia College of Technology.
+User: ${userName} (Logged-in Student).
+The student asked an official institutional FAQ about Garcia College of Technology.
+Official GCT Institutional Fact:
+${faqMatch}
+
+${GCT_FAQS_CONTEXT_BLOCK}
+
+PRIMARY LANGUAGE DIRECTIVE:
+Answer in ${userIsTagalog ? 'Tagalog / Filipino' : 'English'}.
+Strictly follow the zero emojis rule.
+Answer accurately according to the official GCT facts provided above.
+
+USER MESSAGE: "${query}"`;
+      } else {
 
       // Check if student is attempting to query another student ID or other students
       const idMatches = query.match(/\b\d{4}-\d{4,5}\b/g) || query.match(/\b\d{4,6}\b/g) || query.match(/\bGCT-\d+\b/gi);
@@ -1185,6 +1438,7 @@ ${approvedRecsStr}
           systemPrompt = '';
         }
       }
+      }
     }
 
     // =========================================================================
@@ -1194,7 +1448,7 @@ ${approvedRecsStr}
     // =========================================================================
     else {
       // Check if querying a specific student by ID or Name
-      const targetStudent = await findTargetStudent(query, supabase);
+      const targetStudent = await findTargetStudent(query, supabase, history);
 
       if (targetStudent) {
         // Specific student found! Fetch their full records and generate requested file format

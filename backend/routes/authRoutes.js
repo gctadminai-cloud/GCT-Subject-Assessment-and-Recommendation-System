@@ -1,29 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const { loginUser, registerStudent, checkStudentStatus, getMe, forgotPassword, verifyOtp, resetPasswordWithOtp } = require('../controllers/authController');
+const {
+  loginUser,
+  sendRegistrationOtpHandler,
+  registerStudent,
+  checkStudentStatus,
+  getMe,
+  forgotPassword,
+  verifyOtp,
+  resetPasswordWithOtp
+} = require('../controllers/authController');
 const { authenticate } = require('../middleware/authMiddleware');
-
-// Multer memory storage for in-memory processing before upload to Supabase / local storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5 MB per file
-  },
-  fileFilter: (req, file, cb) => {
-    if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(null, false);
-    }
-  }
-});
-
-const uploadFields = upload.fields([
-  { name: 'id_front', maxCount: 1 },
-  { name: 'id_back', maxCount: 1 },
-  { name: 'selfie', maxCount: 1 }
-]);
 
 // POST /api/auth/login (Unified login for all roles)
 router.post('/login', loginUser);
@@ -40,8 +27,11 @@ router.post('/reset-password', resetPasswordWithOtp);
 // GET /api/auth/check-student/:studentId (Check First-Time vs Returning status and fetch student DB record)
 router.get('/check-student/:studentId', checkStudentStatus);
 
-// POST /api/auth/register (Student self-registration with ID photos & selfie)
-router.post('/register', uploadFields, registerStudent);
+// POST /api/auth/send-registration-otp (Request 6-digit OTP sent to Gmail for student registration)
+router.post('/send-registration-otp', sendRegistrationOtpHandler);
+
+// POST /api/auth/register (Student self-registration with manual info + Gmail OTP)
+router.post('/register', registerStudent);
 
 // GET /api/auth/me (Returns active authenticated user profile & student record)
 router.get('/me', authenticate, getMe);

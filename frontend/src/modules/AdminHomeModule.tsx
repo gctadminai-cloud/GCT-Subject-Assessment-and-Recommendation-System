@@ -1010,13 +1010,12 @@ export const AdminHomeModule: React.FC<AdminHomeModuleProps> = ({ onTabChange })
                     <th>Student ID</th>
                     <th>Full Name</th>
                     <th>Program</th>
-                    <th>Photos</th>
+                    <th>Verification</th>
                     <th style={{ textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingStudents.slice(0, 5).map(student => {
-                    const photoCount = Number(Boolean(student.id_front_image)) + Number(Boolean(student.id_back_image)) + Number(Boolean(student.selfie_image));
                     return (
                       <tr key={student.id || student.student_id}>
                         <td style={{ fontWeight: 800, color: '#2563EB' }}>{student.student_id}</td>
@@ -1026,14 +1025,14 @@ export const AdminHomeModule: React.FC<AdminHomeModuleProps> = ({ onTabChange })
                         </td>
                         <td>
                           <span style={{
-                            background: photoCount === 3 ? '#DCFCE7' : '#FEF3C7',
-                            color: photoCount === 3 ? '#15803D' : '#92400E',
+                            background: '#DCFCE7',
+                            color: '#15803D',
                             padding: '2px 8px',
                             borderRadius: '12px',
                             fontSize: '0.74rem',
                             fontWeight: 700
                           }}>
-                            {photoCount}/3 Photos
+                            Email Verified (OTP)
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>

@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
 import { fetchApi } from '../config/api';
 import { buildCompleteStudentGrades } from '../utils/curriculumData';
-import { NotificationWidget } from '../components/NotificationWidget';
 import type { AcademicGrade, Student } from '../modules/types';
 import {
   BookOpen,
@@ -17,8 +16,7 @@ import {
   Loader2,
   Award,
   TrendingUp,
-  RotateCcw,
-  LogOut
+  RotateCcw
 } from 'lucide-react';
 
 interface StudentDashboardProps {
@@ -28,7 +26,7 @@ interface StudentDashboardProps {
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
   const { user, student, logout } = useAuth();
-  const { confirmAction, confirmLogout } = useUI();
+  const { confirmAction } = useUI();
   const [liveStudentData, setLiveStudentData] = useState<{ year_level?: number; program?: string; full_name?: string } | null>(null);
 
   const targetStudentId = useMemo(() => {
@@ -64,28 +62,44 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedAttempts, setExpandedAttempts] = useState<Record<string, boolean>>({});
 
-  // Setup browser back button navigation to confirm logout with prompt
+  // Navigation button (CP) & swipe gesture (laptop / touch) logout confirmation guard
   useEffect(() => {
-    window.history.pushState({ page: 'student-dashboard' }, '', window.location.href);
+    let isMounted = true;
+    let modalOpen = false;
+
+    // Push guard state so phone back button / swipe back gesture triggers popstate instead of abrupt exit
+    window.history.pushState({ page: 'gct_student_hub' }, '', window.location.href);
 
     const handlePopState = () => {
-      // Re-push history state so if the student cancels, they stay on the student dashboard
-      window.history.pushState({ page: 'student-dashboard' }, '', window.location.href);
+      if (!isMounted) return;
+      if (modalOpen) return;
+      modalOpen = true;
 
       confirmAction({
         title: 'Sign Out Confirmation',
         message: 'Are you sure you want to log out of your student account?',
         confirmText: 'Yes, Log Out',
-        cancelText: 'Cancel',
+        cancelText: 'No, Stay',
         type: 'danger',
         onConfirm: async () => {
+          modalOpen = false;
           logout();
+        },
+        onCancel: () => {
+          modalOpen = false;
+          // Re-push history guard ONLY when student cancels, keeping them smoothly on the dashboard
+          window.history.pushState({ page: 'gct_student_hub' }, '', window.location.href);
         }
       });
     };
 
-    window.addEventListener('popstate', handlePopState);
+    const timer = setTimeout(() => {
+      window.addEventListener('popstate', handlePopState);
+    }, 300);
+
     return () => {
+      isMounted = false;
+      clearTimeout(timer);
       window.removeEventListener('popstate', handlePopState);
     };
   }, [logout, confirmAction]);
@@ -327,7 +341,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
   const yearLabel = selectedYearTab === 1 ? '1st Year' : selectedYearTab === 2 ? '2nd Year' : selectedYearTab === 3 ? '3rd Year' : '4th Year';
 
   return (
-    <div style={{ background: '#F8FAFC', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      background: '#F8FAFC',
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '100vw',
+      overflowX: 'hidden'
+    }}>
 
       {/* BRAND HEADER BAR */}
       <header style={{
@@ -344,11 +366,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          flexWrap: 'wrap'
+          justifyContent: 'center',
+          textAlign: 'center'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.9rem',
+            textAlign: 'center',
+            flexWrap: 'wrap'
+          }}>
             <img
               src="/logo.png"
               alt="Garcia College of Technology Logo"
@@ -360,7 +388,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                 filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25))'
               }}
             />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}>
               <h1 style={{
                 fontSize: 'clamp(1rem, 2.4vw, 1.45rem)',
                 fontWeight: 800,
@@ -368,7 +401,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                 margin: 0,
                 lineHeight: 1.25,
                 letterSpacing: '-0.02em',
-                textShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+                textShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                textAlign: 'center'
               }}>
                 AI-Based Subject Assessment & Recommendation System
               </h1>
@@ -378,64 +412,43 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                 color: '#DBEAFE',
                 margin: '0.15rem 0 0 0',
                 lineHeight: 1.2,
-                letterSpacing: '0.02em'
+                letterSpacing: '0.02em',
+                textAlign: 'center'
               }}>
                 Garcia College of Technology • Student Portal
               </p>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <NotificationWidget role="student" />
-            <button
-              type="button"
-              title="Log Out of Student Account"
-              onClick={() => confirmLogout(logout)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                background: 'rgba(255, 255, 255, 0.15)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                backdropFilter: 'blur(8px)',
-                padding: '0.45rem 0.95rem',
-                borderRadius: '8px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = '#DC2626';
-                (e.currentTarget as HTMLElement).style.borderColor = '#DC2626';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.15)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255, 255, 255, 0.3)';
-              }}
-            >
-              <LogOut size={15} />
-              <span>Log Out</span>
-            </button>
-          </div>
         </div>
       </header>
 
       {/* MAIN CONTENT AREA */}
-      <main style={{ flex: 1, padding: '1.5rem 1rem 3.5rem 1rem', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+      <main style={{
+        flex: 1,
+        padding: 'clamp(1rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 1rem) 5rem clamp(0.75rem, 2vw, 1rem)',
+        maxWidth: '1100px',
+        margin: '0 auto',
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
+      }}>
 
         {/* STUDENT ACADEMIC PROFILE & SUMMARY DASHBOARD CARD */}
         <div style={{
           background: '#FFFFFF',
           borderRadius: '16px',
           border: '1px solid #E2E8F0',
-          padding: '1.25rem 1.5rem',
+          padding: 'clamp(1rem, 2vw, 1.35rem)',
           marginBottom: '1.25rem',
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem'
+          gap: '1rem',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          overflow: 'hidden'
         }}>
           {/* Top Row: Student Identity & Academic Program Badges */}
           <div style={{
@@ -514,13 +527,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
           </div>
 
           {/* ACADEMIC METRICS CARDS ROW */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '0.75rem',
-            paddingTop: '0.75rem',
-            borderTop: '1px solid #F1F5F9'
-          }}>
+          <div className="student-metrics-grid">
             {/* GWA Card */}
             <div style={{
               background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
@@ -529,7 +536,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
               border: '1px solid #BFDBFE',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              minWidth: 0
             }}>
               <div>
                 <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E40AF', margin: 0, textTransform: 'uppercase' }}>
@@ -550,7 +558,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
               border: '1px solid #BBF7D0',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              minWidth: 0
             }}>
               <div>
                 <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', margin: 0, textTransform: 'uppercase' }}>
@@ -571,7 +580,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
               border: '1px solid #E2E8F0',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              minWidth: 0
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
@@ -596,31 +606,34 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
             <div style={{
               background: '#F8FAFC',
               borderRadius: '12px',
-              padding: '0.75rem 0.9rem',
+              padding: '0.75rem 0.6rem',
               border: '1px solid #E2E8F0',
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr auto 1fr auto 1fr',
               alignItems: 'center',
-              justifyContent: 'space-around',
-              gap: '0.25rem'
+              textAlign: 'center',
+              gap: '0.2rem',
+              minWidth: 0,
+              overflow: 'hidden'
             }}>
-              <div style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', minWidth: 0 }}>
                 <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#16A34A', display: 'block' }}>{academicMetrics.passedCount}</span>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B' }}>Passed</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', display: 'block' }}>Passed</span>
               </div>
               <div style={{ height: '24px', width: '1px', background: '#CBD5E1' }} />
-              <div style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', minWidth: 0 }}>
                 <span style={{ fontSize: '0.95rem', fontWeight: 800, color: academicMetrics.failedCount > 0 ? '#DC2626' : '#64748B', display: 'block' }}>{academicMetrics.failedCount}</span>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B' }}>Failed</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', display: 'block' }}>Failed</span>
               </div>
               <div style={{ height: '24px', width: '1px', background: '#CBD5E1' }} />
-              <div style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', minWidth: 0 }}>
                 <span style={{ fontSize: '0.95rem', fontWeight: 800, color: academicMetrics.droppedCount > 0 ? '#D97706' : '#64748B', display: 'block' }}>{academicMetrics.droppedCount}</span>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B' }}>Dropped</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', display: 'block' }}>Dropped</span>
               </div>
               <div style={{ height: '24px', width: '1px', background: '#CBD5E1' }} />
-              <div style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', minWidth: 0 }}>
                 <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#64748B', display: 'block' }}>{academicMetrics.notTakenCount}</span>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B' }}>Remaining</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748B', display: 'block' }}>Remaining</span>
               </div>
             </div>
           </div>
@@ -786,8 +799,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                   background: '#FFFFFF',
                   borderRadius: '16px',
                   border: '1px solid #E2E8F0',
-                  padding: '1.4rem',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
+                  padding: 'clamp(1rem, 2vw, 1.4rem)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
                 }}>
                   <div style={{
                     display: 'flex',
@@ -833,8 +851,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                     </div>
                   </div>
 
-                  <div className="table-container">
-                    <table className="custom-table" style={{ fontSize: '0.84rem' }}>
+                  <div className="table-container" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table className="custom-table" style={{ fontSize: '0.84rem', minWidth: '580px' }}>
                       <thead>
                         <tr>
                           <th>Subject Code</th>

@@ -2,12 +2,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
-const { uploadVerificationPhoto } = require('../services/storageService');
-const { parseImageDataUrl, validateVerificationImage } = require('../services/verificationImageService');
-const { sendPasswordResetOtp } = require('../services/emailService');
+const { sendPasswordResetOtp, sendRegistrationOtp } = require('../services/emailService');
 
 // In-memory store for 6-digit email OTPs (Key: lowercase email, Value: { otp, expiresAt, recipientName, targetEmail, username })
 const otpStore = new Map();
+
+// In-memory store for 6-digit registration OTPs (Key: email or student_id)
+const registrationOtpStore = new Map();
 
 /**
  * Single Unified Login for ALL roles (Student, Registrar Staff, Registrar Admin).
@@ -121,52 +122,19 @@ async function loginUser(req, res) {
       }
     }
 
-    // 4. Built-in single Registrar Admin account safeguard (e.g. if database is temporarily unreachable)
-    if (!account) {
-      if (lowerUser === 'admin' || lowerUser === 'registrar_admin' || lowerUser === 'gctadmin.ai@gmail.com' || lowerUser === 'admin@gct.edu.ph') {
-        account = {
-          id: 'acc-admin-main',
-          student_id: null,
-          username: 'admin',
-          password_hash: null,
-          role: 'registrar_admin',
-          status: 'approved'
-        };
-      }
-    }
-
     if (!account) {
       return res.status(401).json({
         error: `No account found for '${cleanUsername}'. If you are a student, please register your account first.`
       });
     }
 
-    // 5. Verify password with bcrypt or legacy excel password
+    // 5. Verify password strictly with bcrypt or legacy excel password (no hardcoded passwords)
     let passwordMatch = false;
     if (account.password_hash) {
       passwordMatch = await bcrypt.compare(password, account.password_hash);
     }
-    if (!passwordMatch && account.role === 'registrar_admin') {
-      passwordMatch = (
-        password === 'AdminGCT2026!' ||
-        password === 'password123' ||
-        password === 'admin123' ||
-        password === 'DefaultPass123!'
-      );
-    }
     if (!passwordMatch && legacyPassword) {
       passwordMatch = (password === legacyPassword);
-    }
-    if (!passwordMatch && !account.password_hash) {
-      passwordMatch = (
-        password === 'AdminGCT2026!' ||
-        password === 'StaffGCT2026!' ||
-        password === 'DefaultPass123!' ||
-        password === 'password123' ||
-        password === 'admin123' ||
-        password === 'staff123' ||
-        (legacyPassword && password === legacyPassword)
-      );
     }
 
     if (!passwordMatch) {
@@ -218,12 +186,12 @@ async function loginUser(req, res) {
           const { data: gData } = await supabase
             .from('grade_records')
             .select('full_name, course, year_level')
-            .eq('student_id', sId)
+            .in('student_id', lookupIds)
             .limit(1);
           if (gData && gData[0]) {
             fullName = gData[0].full_name || fullName;
             studentRecord = {
-              student_id: sId,
+              student_id: bareSId,
               full_name: gData[0].full_name,
               program: gData[0].course || 'BSIT',
               year_level: gData[0].year_level || 1
@@ -400,40 +368,38 @@ async function checkStudentStatus(req, res) {
 }
 
 /**
- * Student Self-Registration (First-Time & Returning)
- * POST /api/register and /api/auth/register
+ * Request 6-digit OTP code sent to Gmail for Student Registration
+ * POST /api/auth/send-registration-otp
  */
-async function registerStudent(req, res) {
+async function sendRegistrationOtpHandler(req, res) {
   try {
-    const {
-      full_name,
-      student_id,
-      email,
-      program,
-      year_level,
-      schedule,
-      password
-    } = req.body;
+    const { student_id, first_name, last_name, middle_name, full_name, email, program } = req.body;
 
-    // 1. Mandatory Validations
-    if (!full_name || !student_id || !password) {
-      return res.status(400).json({ error: 'Full Name, Student ID, and Password are required.' });
+    const cleanId = String(student_id || '').trim();
+    const cleanFirst = String(first_name || '').trim();
+    const cleanLast = String(last_name || '').trim();
+    const cleanMiddle = String(middle_name || '').trim();
+    const combinedName = (cleanLast && cleanFirst)
+      ? (cleanMiddle ? `${cleanLast}, ${cleanFirst} ${cleanMiddle}` : `${cleanLast}, ${cleanFirst}`)
+      : String(full_name || '').trim();
+
+    if (!cleanId || !combinedName || !email) {
+      return res.status(400).json({ error: 'Student ID, Name (Last Name & First Name), and Gmail address are required.' });
     }
 
-    const cleanId = student_id.trim();
-    const cleanName = full_name.trim();
+    const cleanName = combinedName;
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanProgram = String(program || 'BSIT').trim().toUpperCase();
 
-    // Validate Program strictly 'BSIT' or 'BSCS'
-    if (!program || !['BSIT', 'BSCS'].includes(program)) {
+    if (!cleanEmail.includes('@')) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    if (!['BSIT', 'BSCS'].includes(cleanProgram)) {
       return res.status(400).json({ error: "Invalid Program. Only 'BSIT' or 'BSCS' are accepted." });
     }
 
-    // Validate Password length (minimum 6 characters)
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
-    }
-
-    // 2. Check if an active account already exists for this student_id
+    // Check if an active account already exists for this student_id
     const { data: existingAccounts } = await supabase
       .from('accounts')
       .select('*')
@@ -443,134 +409,209 @@ async function registerStudent(req, res) {
     const existingAccount = existingAccounts?.[0];
     if (existingAccount) {
       if (existingAccount.status === 'pending') {
-        return res.status(400).json({ error: 'An account for this Student ID has already been submitted and is currently pending Registrar approval.' });
+        return res.status(400).json({
+          error: 'An account registration for this Student ID is already submitted and currently awaiting Admin approval.'
+        });
       }
-      return res.status(400).json({ error: 'An active account for this Student ID already exists. Please log in directly.' });
+      return res.status(400).json({
+        error: 'An active account for this Student ID already exists. Please log in directly.'
+      });
     }
 
-    // 3. Hash password with bcrypt
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Generate secure 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    const otpPayload = {
+      otp: otpCode,
+      student_id: cleanId,
+      first_name: cleanFirst,
+      last_name: cleanLast,
+      middle_name: cleanMiddle,
+      full_name: cleanName,
+      email: cleanEmail,
+      program: cleanProgram,
+      expiresAt
+    };
+
+    registrationOtpStore.set(cleanEmail, otpPayload);
+    registrationOtpStore.set(cleanId, otpPayload);
+
+    const result = await sendRegistrationOtp(cleanEmail, otpCode, cleanName);
+
+    console.log(`📩 Registration OTP ${otpCode} issued for ${cleanId} (${cleanEmail})`);
+
+    res.json({
+      success: true,
+      message: `A 6-digit verification code has been sent to ${cleanEmail}. Please enter the code to complete your registration.`,
+      email: cleanEmail,
+      student_id: cleanId,
+      expiresInMinutes: 10,
+      delivered: Boolean(result?.delivered),
+      simulated: Boolean(result?.simulated),
+      devOtp: result?.simulated ? otpCode : undefined
+    });
+  } catch (error) {
+    console.error('Request Registration OTP Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to send verification code.' });
+  }
+}
+
+/**
+ * Student Self-Registration (Mano-mano input + Gmail OTP verification)
+ * NO ID photos, NO selfie photos, NO year level field required.
+ * Account is created with status = 'pending' awaiting Admin approval.
+ * Once approved, system generates a random password valid for 1 week and sends via Gmail.
+ * POST /api/register and /api/auth/register
+ */
+async function registerStudent(req, res) {
+  try {
+    const {
+      student_id,
+      first_name,
+      last_name,
+      middle_name,
+      full_name,
+      email,
+      program,
+      otp
+    } = req.body;
+
+    const cleanId = String(student_id || '').trim();
+    const cleanFirst = String(first_name || '').trim();
+    const cleanLast = String(last_name || '').trim();
+    const cleanMiddle = String(middle_name || '').trim();
+    const combinedName = (cleanLast && cleanFirst)
+      ? (cleanMiddle ? `${cleanLast}, ${cleanFirst} ${cleanMiddle}` : `${cleanLast}, ${cleanFirst}`)
+      : String(full_name || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanProgram = String(program || 'BSIT').trim().toUpperCase();
+    const cleanOtp = String(otp || '').trim();
+
+    // 1. Mandatory Validations
+    if (!cleanId || !combinedName || !cleanEmail || !cleanOtp) {
+      return res.status(400).json({ error: 'Student ID, Name (Last Name & First Name), Email, and 6-digit OTP verification code are required.' });
+    }
+
+    if (!['BSIT', 'BSCS'].includes(cleanProgram)) {
+      return res.status(400).json({ error: "Invalid Program. Only 'BSIT' or 'BSCS' are accepted." });
+    }
+
+    // 2. Verify OTP
+    const record = registrationOtpStore.get(cleanEmail) || registrationOtpStore.get(cleanId);
+    if (!record) {
+      return res.status(400).json({
+        error: 'No active verification code found for this email or student ID. Please request a new code.'
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      registrationOtpStore.delete(cleanEmail);
+      registrationOtpStore.delete(cleanId);
+      return res.status(400).json({
+        error: 'Verification code has expired. Please request a new code.'
+      });
+    }
+
+    if (record.otp !== cleanOtp) {
+      return res.status(400).json({
+        error: 'Invalid verification code. Please check your code and try again.'
+      });
+    }
+
+    // 3. Check if active account already exists
+    const { data: existingAccounts } = await supabase
+      .from('accounts')
+      .select('*')
+      .or(`username.eq.${cleanId},student_id.eq.${cleanId}`)
+      .limit(1);
+
+    const existingAccount = existingAccounts?.[0];
+    if (existingAccount) {
+      if (existingAccount.status === 'pending') {
+        return res.status(400).json({
+          error: 'An account registration for this Student ID is already submitted and currently awaiting Admin approval.'
+        });
+      }
+      return res.status(400).json({
+        error: 'An active account for this Student ID already exists. Please log in directly.'
+      });
+    }
+
+    // Verified! Clear OTP from memory
+    registrationOtpStore.delete(cleanEmail);
+    registrationOtpStore.delete(cleanId);
+
     const now = new Date().toISOString();
     const accountId = 'acc-' + Date.now();
 
-    // 4. Check if student already exists and is verified (RETURNING STUDENT FLOW)
+    // 4. Resolve year level: check by student_id or name in students & grade_records
+    let resolvedYearLevel = 1;
+    let existingStudentDbId = 'student-' + Date.now();
+
     const { data: existingStudents } = await supabase
       .from('students')
       .select('*')
       .eq('student_id', cleanId)
       .limit(1);
 
-    const existingStudent = existingStudents?.[0];
-    const isReturning = existingStudent && (existingStudent.verified === 1 || existingStudent.verified === true);
-
-    const cleanEmail = (email && email.trim()) ? email.trim() : `${cleanId.toLowerCase()}@student.gct.edu.ph`;
-
-    if (isReturning) {
-      // RETURNING STUDENT: auto-approved account, no photos required!
-      const { error: retAccErr } = await supabase.from('accounts').upsert([{
-        id: accountId,
-        student_id: cleanId,
-        username: cleanId,
-        password_hash: passwordHash,
-        role: 'student',
-        status: 'approved',
-        bulk_imported: false,
-        created_at: now
-      }], { onConflict: 'username' });
-
-      if (retAccErr) {
-        console.error('❌ Supabase Returning Account Insert Error:', retAccErr);
-        throw new Error(`Failed to restore account in database: ${retAccErr.message}`);
-      }
-
-      await supabase.from('profiles').upsert([{
-        id: accountId,
-        email: cleanEmail,
-        role: 'student',
-        full_name: existingStudent.full_name || cleanId,
-        approval_status: 'approved',
-        created_at: now
-      }], { onConflict: 'email' });
-
-      // Save real email to students table as well
-      await supabase.from('students').update({ email: cleanEmail }).eq('student_id', cleanId);
-
-      return res.status(201).json({
-        message: 'Welcome back! Your student record was verified. Your weekly account has been restored and auto-approved. You may now log in.',
-        isReturning: true,
-        status: 'approved',
-        student_id: cleanId
-      });
-    }
-
-    // 5. Validate all photos before saving any of them.
-    const getImage = (field, bodyField, label) => {
-      const uploadedFile = req.files?.[field]?.[0];
-      return uploadedFile
-        ? { buffer: uploadedFile.buffer, mimeType: uploadedFile.mimetype }
-        : parseImageDataUrl(req.body[bodyField], label);
-    };
-    let verificationImages;
-    try {
-      verificationImages = {
-        id_front: getImage('id_front', 'id_front_image', 'Front ID'),
-        id_back: getImage('id_back', 'id_back_image', 'Back ID'),
-        selfie: getImage('selfie', 'selfie_image', 'Selfie')
-      };
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    if (Object.values(verificationImages).some(image => !image)) {
-      return res.status(400).json({
-        error: 'First-time registration requires: (1) ID Card Front, (2) ID Card Back, and (3) Live Camera Selfie.'
-      });
-    }
-
-    try {
-      await Promise.all(Object.entries(verificationImages).map(([photoType, image]) =>
-        validateVerificationImage(image.buffer, photoType.replace('_', ' '), image.mimeType)));
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    const idFrontPath = await uploadVerificationPhoto(verificationImages.id_front.buffer, cleanId, 'id_front', verificationImages.id_front.mimeType);
-    const idBackPath = await uploadVerificationPhoto(verificationImages.id_back.buffer, cleanId, 'id_back', verificationImages.id_back.mimeType);
-    const selfiePath = await uploadVerificationPhoto(verificationImages.selfie.buffer, cleanId, 'selfie', verificationImages.selfie.mimeType);
-
-    // 6. Resolve canonical student details from existing student record or grade_records
-    let finalStudentDbId = existingStudent?.id || ('student-' + Date.now());
-    let finalFullName = existingStudent?.full_name || cleanName;
-    let finalProgram = existingStudent?.program || program;
-    let finalYearLevel = existingStudent?.year_level || Number(year_level) || 1;
-
-    try {
-      const { data: gData } = await supabase
-        .from('grade_records')
-        .select('full_name, course, year_level')
-        .eq('student_id', cleanId)
+    let existingStudent = existingStudents?.[0];
+    if (!existingStudent && cleanLast && cleanFirst) {
+      const { data: nameStudents } = await supabase
+        .from('students')
+        .select('*')
+        .ilike('full_name', `%${cleanLast}%`)
         .limit(1);
-      if (gData && gData[0]) {
-        if (gData[0].full_name) finalFullName = gData[0].full_name;
-        if (gData[0].course) finalProgram = gData[0].course;
-        if (gData[0].year_level) finalYearLevel = gData[0].year_level;
-      }
-    } catch (e) { }
+      if (nameStudents?.length) existingStudent = nameStudents[0];
+    }
 
-    const studentEmail = email ? email.trim() : `${cleanId.toLowerCase()}@student.gct.edu.ph`;
+    if (existingStudent) {
+      existingStudentDbId = existingStudent.id || existingStudentDbId;
+      resolvedYearLevel = existingStudent.year_level || 1;
+    } else {
+      try {
+        let { data: gData } = await supabase
+          .from('grade_records')
+          .select('year_level')
+          .eq('student_id', cleanId)
+          .order('year_level', { ascending: false })
+          .limit(1);
 
+        if (!gData?.length && cleanLast && cleanFirst) {
+          const { data: nameGrades } = await supabase
+            .from('grade_records')
+            .select('year_level')
+            .ilike('last_name', cleanLast)
+            .ilike('first_name', cleanFirst)
+            .order('year_level', { ascending: false })
+            .limit(1);
+          if (nameGrades?.length) gData = nameGrades;
+        }
+
+        if (gData && gData[0]?.year_level) {
+          resolvedYearLevel = Number(gData[0].year_level) || 1;
+        }
+      } catch (e) {}
+    }
+
+    // 5. Upsert into students table (NO PHOTOS, verified = false, status = 'pending')
+    const cleanName = combinedName;
     const { error: studentErr } = await supabase.from('students').upsert([{
       student_id: cleanId,
-      id: finalStudentDbId,
-      full_name: finalFullName,
-      email: studentEmail,
-      program: finalProgram,
-      year_level: finalYearLevel,
-      schedule: schedule ? String(schedule).trim() : (existingStudent?.schedule || '1'),
-      id_front_path: idFrontPath,
-      id_back_path: idBackPath,
-      selfie_path: selfiePath,
+      id: existingStudentDbId,
+      full_name: cleanName,
+      email: cleanEmail,
+      program: cleanProgram,
+      year_level: resolvedYearLevel,
+      schedule: 'Schedule 1',
+      id_front_path: null,
+      id_back_path: null,
+      selfie_path: null,
+      id_front_image: null,
+      id_back_image: null,
+      selfie_image: null,
       verified: false,
+      status: 'pending',
       created_at: existingStudent?.created_at || now
     }], { onConflict: 'student_id' });
 
@@ -579,12 +620,13 @@ async function registerStudent(req, res) {
       throw new Error(`Database error (students table): ${studentErr.message}`);
     }
 
-    // 7. Create pending account in accounts table (status = 'pending')
+    // 6. Upsert into accounts table with status = 'pending' and temporary locked password hash
+    const lockedHash = await bcrypt.hash('LOCKED_PENDING_ADMIN_APPROVAL_' + Date.now(), 10);
     const { error: accountErr } = await supabase.from('accounts').upsert([{
       id: accountId,
       student_id: cleanId,
       username: cleanId,
-      password_hash: passwordHash,
+      password_hash: lockedHash,
       role: 'student',
       status: 'pending',
       bulk_imported: false,
@@ -596,31 +638,32 @@ async function registerStudent(req, res) {
       throw new Error(`Database error (accounts table): ${accountErr.message}`);
     }
 
-    // Sync to profiles for backwards compatibility
-    const { error: profileErr } = await supabase.from('profiles').upsert([{
+    // 7. Upsert into profiles table for sync
+    await supabase.from('profiles').upsert([{
       id: accountId,
-      email: studentEmail,
+      email: cleanEmail,
       role: 'student',
-      full_name: finalFullName,
+      full_name: cleanName,
       approval_status: 'pending',
       created_at: now
     }], { onConflict: 'email' });
 
-    if (profileErr) {
-      console.warn('⚠️ Supabase Profiles Table Insert Notice:', profileErr.message);
-    }
+    console.log(`✅ [REGISTRATION SUBMITTED] Student ${cleanId} (${cleanName}) submitted registration, awaiting Admin approval.`);
 
-    res.status(201).json({
-      message: 'Student registration submitted successfully! Your account is pending review and verification by Registrar Staff.',
-      isFirstTime: true,
+    return res.status(201).json({
+      message: 'Registration submitted successfully! Your account details have been verified via OTP and queued for approval by the Registrar Admin. Once approved, your temporary system-generated password (valid for one week) will be sent to your Gmail.',
       status: 'pending',
-      student_id: cleanId
+      student_id: cleanId,
+      full_name: cleanName,
+      email: cleanEmail,
+      program: cleanProgram
     });
   } catch (error) {
     console.error('Register Student Error:', error);
     res.status(500).json({ error: error.message || 'Registration failed' });
   }
 }
+
 
 /**
  * Get active authenticated user profile
@@ -662,12 +705,12 @@ async function getMe(req, res) {
           const { data: gData } = await supabase
             .from('grade_records')
             .select('full_name, course, year_level')
-            .eq('student_id', sId)
+            .in('student_id', lookupIds)
             .limit(1);
           if (gData && gData[0]) {
             fullName = gData[0].full_name || fullName;
             studentRecord = {
-              student_id: sId,
+              student_id: bareSId,
               full_name: gData[0].full_name,
               program: gData[0].course || 'BSIT',
               year_level: gData[0].year_level || 1
@@ -989,9 +1032,11 @@ async function resetPasswordWithOtp(req, res) {
 module.exports = {
   loginUser,
   checkStudentStatus,
+  sendRegistrationOtpHandler,
   registerStudent,
   getMe,
   forgotPassword,
   verifyOtp,
-  resetPasswordWithOtp
+  resetPasswordWithOtp,
+  registrationOtpStore
 };

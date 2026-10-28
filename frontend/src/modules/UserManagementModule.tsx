@@ -12,14 +12,13 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
-  CreditCard,
-  Camera,
   ShieldCheck,
-  Maximize2,
   Eye,
   EyeOff,
   Lock,
-  User
+  User,
+  UserCheck,
+  KeyRound
 } from 'lucide-react';
 import { useRegistrarData } from './RegistrarDataContext';
 import { fetchApi } from '../config/api';
@@ -59,15 +58,16 @@ export const UserManagementModule: React.FC = () => {
   };
 
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
   const handleApproveRegistration = async (student: Student) => {
     if (reviewSubmitting) return false;
     setReviewSubmitting(true);
     try {
-      await fetchApi(`/students/${student.student_id || student.id}/approval`, {
+      const res = await fetchApi(`/students/${student.student_id || student.id}/approval`, {
         method: 'PUT',
         body: JSON.stringify({ approval_status: 'approved' })
       });
-      showToast(`Approved registration for ${student.name}! Student account is now active in Supabase.`, 'success');
+      showToast(`Approved registration for ${student.name}! System-generated password sent to ${res.email || student.email} (valid for 1 week).`, 'success');
       refreshStudents();
       return true;
     } catch (err: any) {
@@ -682,62 +682,52 @@ export const UserManagementModule: React.FC = () => {
                   <th>Full Name</th>
                   <th>Email</th>
                   <th>Program</th>
-                  <th>Year Level</th>
-                  <th>Verification Photos</th>
+                  <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPendingStudents.map(student => {
-                  const photoCount = Number(Boolean(student.id_front_image)) + Number(Boolean(student.id_back_image)) + Number(Boolean(student.selfie_image));
                   return (
                     <tr key={student.id}>
                       <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{student.student_id}</td>
                       <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{student.name}</td>
                       <td style={{ color: 'var(--text-muted)' }}>{student.email}</td>
                       <td><span className={`badge badge-${student.program}`}>{student.program}</span></td>
-                      <td>Year {student.year}</td>
                       <td>
-                        <button
-                          type="button"
-                          onClick={() => setVerificationStudent(student)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: photoCount > 0 ? '#EFF6FF' : '#FEF3C7',
-                            color: photoCount > 0 ? 'var(--primary)' : '#92400E',
-                            border: photoCount > 0 ? '1px solid #BFDBFE' : '1px solid #FDE68A',
-                            padding: '0.35rem 0.75rem',
-                            borderRadius: '8px',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.background = photoCount > 0 ? '#DBEAFE' : '#FDE68A';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.background = photoCount > 0 ? '#EFF6FF' : '#FEF3C7';
-                          }}
-                        >
-                          <CreditCard size={14} />
-                          <span>Review info & photos</span>
-                          <span style={{
-                            fontSize: '0.7rem',
-                            background: photoCount === 3 ? '#22C55E' : photoCount > 0 ? '#3B82F6' : '#E2E8F0',
-                            color: '#FFFFFF',
-                            padding: '1px 5px',
-                            borderRadius: '10px',
-                            fontWeight: 800
-                          }}>
-                            {photoCount}/3
-                          </span>
-                        </button>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          border: '1px solid #BBF7D0',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
+                        }}>
+                          <CheckCircle2 size={13} /> Email Verified (OTP)
+                        </span>
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => setVerificationStudent(student)}
+                            className="btn btn-primary btn-sm"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              padding: '0.35rem 0.75rem'
+                            }}
+                            title="Review and approve student registration"
+                          >
+                            <UserCheck size={14} /> Review & Approve
+                          </button>
                           <button
                             onClick={() => {
                               setDeletingStudent(student);
@@ -750,7 +740,8 @@ export const UserManagementModule: React.FC = () => {
                               gap: '0.35rem',
                               background: '#DC2626',
                               borderColor: '#DC2626',
-                              color: '#FFFFFF'
+                              color: '#FFFFFF',
+                              padding: '0.35rem 0.65rem'
                             }}
                             title="Delete pending registration permanently from Supabase"
                           >
@@ -1497,236 +1488,81 @@ export const UserManagementModule: React.FC = () => {
               </div>
             </div>
 
-            {/* Photos Grid Scrollable Body */}
+            {/* Student Info & Approval Details */}
             <div style={{
               flex: 1,
-              padding: '1.25rem 1.5rem',
+              padding: '1.5rem',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
               gap: '1.25rem'
             }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
-
-                {/* 1. FRONT ID PHOTO CARD */}
-                <div style={{
-                  background: '#FFFFFF',
-                  borderRadius: '12px',
-                  border: '1px solid #CBD5E1',
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <div style={{
-                    padding: '0.65rem 0.95rem',
-                    background: '#F1F5F9',
-                    borderBottom: '1px solid #E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1E293B' }}>
-                      🪪 Student ID (Front)
-                    </span>
-                    {verificationStudent.id_front_image && (
-                      <button
-                        onClick={() => setZoomedImage({ url: verificationStudent.id_front_image!, title: `${verificationStudent.name} - ID (Front)` })}
-                        style={{
-                          background: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          borderRadius: '6px',
-                          padding: '2px 7px',
-                          fontSize: '0.7rem',
-                          color: 'var(--primary)',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.2rem'
-                        }}
-                      >
-                        <Maximize2 size={11} /> Zoom
-                      </button>
-                    )}
-                  </div>
-                  <div style={{
-                    padding: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '170px',
-                    background: '#FAFAFA'
-                  }}>
-                    {verificationStudent.id_front_image ? (
-                      <img
-                        src={verificationStudent.id_front_image}
-                        alt="Front ID"
-                        onClick={() => setZoomedImage({ url: verificationStudent.id_front_image!, title: `${verificationStudent.name} - ID (Front)` })}
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '180px',
-                          objectFit: 'contain',
-                          borderRadius: '8px',
-                          border: '1px solid #E2E8F0',
-                          cursor: 'zoom-in'
-                        }}
-                      />
-                    ) : (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '0.82rem' }}>
-                        <CreditCard size={32} style={{ marginBottom: '0.4rem', opacity: 0.5 }} />
-                        <p style={{ margin: 0 }}>No Front ID Photo Provided</p>
-                      </div>
-                    )}
-                  </div>
+              <div style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '1rem'
+              }}>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Student ID Number</span>
+                  <strong style={{ fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 800 }}>{verificationStudent.student_id}</strong>
                 </div>
-
-                {/* 2. BACK ID PHOTO CARD */}
-                <div style={{
-                  background: '#FFFFFF',
-                  borderRadius: '12px',
-                  border: '1px solid #CBD5E1',
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <div style={{
-                    padding: '0.65rem 0.95rem',
-                    background: '#F1F5F9',
-                    borderBottom: '1px solid #E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1E293B' }}>
-                      🪪 Student ID (Back)
-                    </span>
-                    {verificationStudent.id_back_image && (
-                      <button
-                        onClick={() => setZoomedImage({ url: verificationStudent.id_back_image!, title: `${verificationStudent.name} - ID (Back)` })}
-                        style={{
-                          background: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          borderRadius: '6px',
-                          padding: '2px 7px',
-                          fontSize: '0.7rem',
-                          color: 'var(--primary)',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.2rem'
-                        }}
-                      >
-                        <Maximize2 size={11} /> Zoom
-                      </button>
-                    )}
-                  </div>
-                  <div style={{
-                    padding: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '170px',
-                    background: '#FAFAFA'
-                  }}>
-                    {verificationStudent.id_back_image ? (
-                      <img
-                        src={verificationStudent.id_back_image}
-                        alt="Back ID"
-                        onClick={() => setZoomedImage({ url: verificationStudent.id_back_image!, title: `${verificationStudent.name} - ID (Back)` })}
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '180px',
-                          objectFit: 'contain',
-                          borderRadius: '8px',
-                          border: '1px solid #E2E8F0',
-                          cursor: 'zoom-in'
-                        }}
-                      />
-                    ) : (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '0.82rem' }}>
-                        <CreditCard size={32} style={{ marginBottom: '0.4rem', opacity: 0.5 }} />
-                        <p style={{ margin: 0 }}>No Back ID Photo Provided</p>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Academic Program</span>
+                  <span className={`badge badge-${verificationStudent.program}`} style={{ fontSize: '0.85rem' }}>{verificationStudent.program}</span>
                 </div>
-
-                {/* 3. STUDENT SELFIE PHOTO CARD */}
-                <div style={{
-                  background: '#FFFFFF',
-                  borderRadius: '12px',
-                  border: '1px solid #CBD5E1',
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <div style={{
-                    padding: '0.65rem 0.95rem',
-                    background: '#F1F5F9',
-                    borderBottom: '1px solid #E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1E293B' }}>
-                      🤳 Live Face Selfie
-                    </span>
-                    {verificationStudent.selfie_image && (
-                      <button
-                        onClick={() => setZoomedImage({ url: verificationStudent.selfie_image!, title: `${verificationStudent.name} - Face Selfie` })}
-                        style={{
-                          background: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          borderRadius: '6px',
-                          padding: '2px 7px',
-                          fontSize: '0.7rem',
-                          color: 'var(--primary)',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.2rem'
-                        }}
-                      >
-                        <Maximize2 size={11} /> Zoom
-                      </button>
-                    )}
-                  </div>
-                  <div style={{
-                    padding: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '170px',
-                    background: '#FAFAFA'
-                  }}>
-                    {verificationStudent.selfie_image ? (
-                      <img
-                        src={verificationStudent.selfie_image}
-                        alt="Selfie"
-                        onClick={() => setZoomedImage({ url: verificationStudent.selfie_image!, title: `${verificationStudent.name} - Face Selfie` })}
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '180px',
-                          objectFit: 'contain',
-                          borderRadius: '8px',
-                          border: '1px solid #E2E8F0',
-                          cursor: 'zoom-in'
-                        }}
-                      />
-                    ) : (
-                      <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '0.82rem' }}>
-                        <Camera size={32} style={{ marginBottom: '0.4rem', opacity: 0.5 }} />
-                        <p style={{ margin: 0 }}>No Selfie Photo Provided</p>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Full Name</span>
+                  <strong style={{ fontSize: '1rem', color: '#0F172A' }}>{verificationStudent.name}</strong>
                 </div>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Registered Gmail</span>
+                  <strong style={{ fontSize: '0.95rem', color: '#0F172A' }}>{verificationStudent.email}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Identity Verification Status</span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#DCFCE7',
+                    color: '#15803D',
+                    padding: '3px 9px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700
+                  }}>
+                    <CheckCircle2 size={14} /> Email Verified via OTP
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B', display: 'block', fontWeight: 600 }}>Account Authorization</span>
+                  <span className="badge badge-warning" style={{ fontSize: '0.8rem' }}>Pending Admin Approval</span>
+                </div>
+              </div>
 
+              {/* Informative Notice Box */}
+              <div style={{
+                background: '#FEF3C7',
+                border: '2px solid #F59E0B',
+                borderRadius: '12px',
+                padding: '1.1rem 1.25rem',
+                color: '#92400E'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <KeyRound size={20} color="#B45309" />
+                  <strong style={{ fontSize: '0.92rem' }}>
+                    Automatic System-Generated Password & Weekly Reset
+                  </strong>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: '#78350F' }}>
+                  Clicking <strong>Authorize & Approve Student</strong> will automatically generate a secure random password, update their account in Supabase, and send an approval email directly to <strong>{verificationStudent.email}</strong>.
+                  <br /><br />
+                  ⏱️ <strong>Weekly Validity Notice:</strong> The generated password is valid for <strong>ONE WEEK</strong>. The system automatically resets passwords every week for all active students.
+                </p>
               </div>
             </div>
 

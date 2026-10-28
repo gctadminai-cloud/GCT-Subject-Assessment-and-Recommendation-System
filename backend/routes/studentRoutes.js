@@ -8,7 +8,9 @@ const {
   createStudent,
   updateStudent,
   deleteStudent,
-  serveLocalPhoto
+  serveLocalPhoto,
+  triggerWeeklyReset,
+  triggerWeeklyResetNotice
 } = require('../controllers/studentController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
@@ -17,6 +19,12 @@ router.get('/', authenticate, requireRole('registrar_staff', 'registrar_admin'),
 
 // Registrar view pending verifications queue
 router.get('/pending', authenticate, requireRole('registrar_staff', 'registrar_admin'), getPendingVerifications);
+
+// Manual trigger for weekly student password reset (Admin only)
+router.post('/trigger-weekly-reset', authenticate, requireRole('registrar_admin'), triggerWeeklyReset);
+
+// Manual trigger for weekly student password reset early reminder notice (Admin only)
+router.post('/trigger-weekly-reset-notice', authenticate, requireRole('registrar_admin'), triggerWeeklyResetNotice);
 
 // Serve local verification photo (Registrar only)
 router.get('/photo/:folder/:filename', authenticate, requireRole('registrar_staff', 'registrar_admin'), serveLocalPhoto);
@@ -34,3 +42,4 @@ router.put('/:id', authenticate, requireRole('registrar_staff', 'registrar_admin
 router.delete('/:id', authenticate, requireRole('registrar_staff', 'registrar_admin'), deleteStudent);
 
 module.exports = router;
+

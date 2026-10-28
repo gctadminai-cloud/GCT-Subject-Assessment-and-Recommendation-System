@@ -30,7 +30,6 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [activeModal, setActiveModal] = useState<ConfirmModalOptions | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
 
   // Snackbar Toast Handler
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
@@ -68,14 +67,12 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const handleModalConfirm = async () => {
     if (!activeModal) return;
+    const modalToExecute = activeModal;
+    setActiveModal(null);
     try {
-      setModalLoading(true);
-      await activeModal.onConfirm();
-      setActiveModal(null);
+      await modalToExecute.onConfirm();
     } catch (err: any) {
       showToast(err.message || 'Action failed', 'error');
-    } finally {
-      setModalLoading(false);
     }
   };
 
@@ -171,53 +168,55 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             position: 'fixed',
             inset: 0,
             zIndex: 10000,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(15, 23, 42, 0.7)',
+            WebkitBackdropFilter: 'blur(4px)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '1rem',
-            animation: 'fadeIn 0.2s ease'
+            padding: '1.25rem',
+            animation: 'fadeIn 0.15s ease-out'
           }}
         >
           <div
             style={{
               background: '#FFFFFF',
               borderRadius: '16px',
-              maxWidth: '440px',
+              maxWidth: '400px',
               width: '100%',
-              padding: '1.75rem',
+              padding: '1.5rem',
               boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
               border: '1px solid rgba(226, 232, 240, 0.8)',
               textAlign: 'center',
-              animation: 'popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+              animation: 'popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+              willChange: 'transform, opacity'
             }}
           >
             {/* Modal Header Icon */}
             <div
               style={{
-                width: '56px',
-                height: '56px',
+                width: '52px',
+                height: '52px',
                 borderRadius: '50%',
                 background: activeModal.type === 'danger' ? '#FEE2E2' : '#EFF6FF',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '1rem'
+                marginBottom: '0.85rem'
               }}
             >
               {activeModal.type === 'danger' ? (
-                <LogOut size={26} color="#DC2626" />
+                <LogOut size={24} color="#DC2626" />
               ) : (
-                <HelpCircle size={26} color="#2563EB" />
+                <HelpCircle size={24} color="#2563EB" />
               )}
             </div>
 
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.4rem' }}>
               {activeModal.title}
             </h3>
 
-            <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1.75rem' }}>
+            <p style={{ color: '#475569', fontSize: '0.88rem', lineHeight: 1.45, marginBottom: '1.5rem' }}>
               {activeModal.message}
             </p>
 
@@ -226,9 +225,16 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               <button
                 type="button"
                 onClick={handleModalCancel}
-                disabled={modalLoading}
                 className="btn btn-secondary"
-                style={{ flex: 1, padding: '0.75rem', fontSize: '0.9rem', borderRadius: '10px' }}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  fontSize: '0.9rem',
+                  borderRadius: '10px',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  cursor: 'pointer'
+                }}
               >
                 {activeModal.cancelText || 'No, Cancel'}
               </button>
@@ -236,7 +242,6 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               <button
                 type="button"
                 onClick={handleModalConfirm}
-                disabled={modalLoading}
                 className={`btn ${activeModal.type === 'danger' ? 'btn-danger' : 'btn-primary'}`}
                 style={{
                   flex: 1,
@@ -244,10 +249,13 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
                   fontSize: '0.9rem',
                   borderRadius: '10px',
                   background: activeModal.type === 'danger' ? '#DC2626' : undefined,
-                  color: '#FFFFFF'
+                  color: '#FFFFFF',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
+                  cursor: 'pointer'
                 }}
               >
-                {modalLoading ? 'Processing...' : (activeModal.confirmText || 'Yes, Confirm')}
+                {activeModal.confirmText || 'Yes, Confirm'}
               </button>
             </div>
           </div>
@@ -265,7 +273,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           to { opacity: 1; }
         }
         @keyframes popIn {
-          from { transform: scale(0.9) translateY(10px); opacity: 0; }
+          from { transform: scale(0.95) translateY(6px); opacity: 0; }
           to { transform: scale(1) translateY(0); opacity: 1; }
         }
       `}</style>

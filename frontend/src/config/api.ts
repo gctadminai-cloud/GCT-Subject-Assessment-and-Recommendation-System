@@ -1,4 +1,22 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    // When accessed from another device on the local network (e.g. phone),
+    // always use relative /api so Vite's dev proxy forwards to local backend
+    if (!isLocalhost) {
+      return '/api';
+    }
+  }
+
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (!envUrl || envUrl.trim() === '' || envUrl.includes('localhost:5000')) {
+    return '/api';
+  }
+  return envUrl;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}, userContext?: any) {
   const headers: Record<string, string> = {

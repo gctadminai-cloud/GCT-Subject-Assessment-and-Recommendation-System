@@ -1,7 +1,10 @@
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 const { supabase } = require('../config/supabase');
 const { getSignedPhotoUrl, LOCAL_UPLOAD_DIR } = require('../services/storageService');
+const { sendStudentApprovalPassword } = require('../services/emailService');
+const { generateRandomPassword, rotateWeeklyStudentPasswordsNow, sendWeeklyResetEarlyNoticeToStudents } = require('../cron/weeklyReset');
 
 /**
  * Staff/Admin view all students with verification status and photo URLs.
@@ -243,22 +246,20 @@ async function getPendingVerifications(req, res) {
       return !s.verified || acct?.status === 'pending';
     });
 
-    const pending = await Promise.all(pendingRows.map(async r => {
+    const pending = pendingRows.map(r => {
       const acct = accountsMap.get(r.student_id);
       return {
         student_id: r.student_id,
         full_name: r.full_name,
         program: r.program,
         year_level: r.year_level,
-        schedule: r.schedule || 'Block A',
+        email: r.email || `${r.student_id.toLowerCase()}@student.gct.edu.ph`,
+        schedule: r.schedule || 'Schedule 1',
         verified: Boolean(r.verified),
         account_status: acct?.status || 'pending',
-        created_at: r.created_at,
-        id_front_url: await getSignedPhotoUrl(r.id_front_path),
-        id_back_url: await getSignedPhotoUrl(r.id_back_path),
-        selfie_url: await getSignedPhotoUrl(r.selfie_path)
+        created_at: r.created_at
       };
-    }));
+    });
 
     res.json(pending);
   } catch (error) {
@@ -411,54 +412,135 @@ async function updateStudentApproval(req, res) {
     const isVerified = approval_status === 'approved';
     await supabase
       .from('students')
-      .update({ verified: isVerified })
+      .update({ verified: isVerified, status: approval_status })
       .or(`student_id.eq.${studentId},id.eq.${studentId}`);
 
-    // 3. Update or create accounts table row
-    const { data: existingAccounts } = await supabase
-      .from('accounts')
-      .select('*')
-      .or(`student_id.eq.${studentId},username.eq.${studentId}`)
-      .limit(1);
+    let generatedPassword = null;
+    const targetEmail = studentRow?.email || `${studentId.toLowerCase()}@student.gct.edu.ph`;
+    const targetName = studentRow?.full_name || studentId;
 
-    if (existingAccounts && existingAccounts.length > 0) {
-      await supabase
+    if (approval_status === 'approved') {
+      // Generate secure random password valid for one week
+      generatedPassword = generateRandomPassword();
+      const passwordHash = await bcrypt.hash(generatedPassword, 10);
+      const now = new Date().toISOString();
+
+      // Upsert into accounts table
+      const { data: existingAccounts } = await supabase
         .from('accounts')
-        .update({ status: approval_status })
-        .or(`student_id.eq.${studentId},username.eq.${studentId}`);
-    } else if (approval_status === 'approved') {
-      // Upsert missing account row in Supabase so the approved student can log in
-      const bcrypt = require('bcryptjs');
-      const defaultPassHash = await bcrypt.hash('DefaultPass123!', 10);
+        .select('*')
+        .or(`student_id.eq.${studentId},username.eq.${studentId}`)
+        .limit(1);
+
+      if (existingAccounts && existingAccounts.length > 0) {
+        await supabase
+          .from('accounts')
+          .update({
+            status: 'approved',
+            password_hash: passwordHash,
+            role: 'student',
+            bulk_imported: false
+          })
+          .or(`student_id.eq.${studentId},username.eq.${studentId}`);
+      } else {
+        await supabase
+          .from('accounts')
+          .insert([{
+            id: `acc-${Date.now()}`,
+            student_id: studentId,
+            username: studentId,
+            password_hash: passwordHash,
+            role: 'student',
+            status: 'approved',
+            bulk_imported: false,
+            created_at: now
+          }]);
+      }
+
+      // Sync profiles table for backwards compatibility
+      const profileFilters = [`id.eq.${id}`, `email.ilike.${studentId.toLowerCase()}%`];
+      if (studentRow?.email) profileFilters.push(`email.eq.${studentRow.email}`);
       await supabase
-        .from('accounts')
-        .insert([{
-          id: `acc-${Date.now()}`,
-          student_id: studentId,
-          username: studentId,
-          password_hash: defaultPassHash,
-          role: 'student',
-          status: 'approved',
-          created_at: new Date().toISOString()
-        }]);
+        .from('profiles')
+        .update({ approval_status: 'approved', password_hash: passwordHash })
+        .or(profileFilters.join(','));
+
+      // Send system-generated password to student's Gmail with 1-week notice
+      await sendStudentApprovalPassword(targetEmail, targetName, studentId, generatedPassword);
+
+      console.log(`✅ [STUDENT APPROVAL] Student ${studentId} (${targetName}) approved. Password sent to ${targetEmail}.`);
+
+      return res.json({
+        message: `Student ${studentId} registration approved! System-generated password sent to ${targetEmail} (valid for 1 week).`,
+        studentId,
+        approval_status: 'approved',
+        verified: true,
+        generatedPassword,
+        email: targetEmail
+      });
     }
 
-    // Sync profiles table for backwards compatibility
-    const profileFilters = [`id.eq.${id}`, `email.ilike.${studentId.toLowerCase()}%`];
-    if (studentRow?.email) profileFilters.push(`email.eq.${studentRow.email}`);
-    await supabase
-      .from('profiles')
-      .update({ approval_status })
-      .or(profileFilters.join(','));
+    if (approval_status === 'rejected') {
+      await supabase
+        .from('accounts')
+        .update({ status: 'rejected' })
+        .or(`student_id.eq.${studentId},username.eq.${studentId}`);
+
+      const profileFilters = [`id.eq.${id}`, `email.ilike.${studentId.toLowerCase()}%`];
+      if (studentRow?.email) profileFilters.push(`email.eq.${studentRow.email}`);
+      await supabase
+        .from('profiles')
+        .update({ approval_status: 'rejected' })
+        .or(profileFilters.join(','));
+
+      return res.json({
+        message: `Student ${studentId} registration was rejected.`,
+        studentId,
+        approval_status: 'rejected',
+        verified: false
+      });
+    }
 
     res.json({
-      message: `Student ${studentId} verification successfully set to '${approval_status}'`,
+      message: `Student ${studentId} verification set to '${approval_status}'`,
       studentId,
       approval_status,
       verified: isVerified
     });
   } catch (error) {
     console.error('Update Student Approval Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Manual trigger for weekly student password reset (Admin only)
+ */
+async function triggerWeeklyReset(req, res) {
+  try {
+    const result = await rotateWeeklyStudentPasswordsNow({ sendNotifications: true });
+    res.json({
+      message: `Weekly reset triggered successfully: regenerated passwords for ${result.count || 0} student(s) with 1-week validity notice.`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Trigger Weekly Reset Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Manual trigger for weekly reset early reminder notification (Admin only)
+ */
+async function triggerWeeklyResetNotice(req, res) {
+  try {
+    const result = await sendWeeklyResetEarlyNoticeToStudents();
+    res.json({
+      message: `Early reminder notice triggered successfully: sent to ${result.count || 0} student(s).`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Trigger Weekly Reset Notice Error:', error);
     res.status(500).json({ error: error.message });
   }
 }
@@ -775,5 +857,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deleteStudent,
-  serveLocalPhoto
+  serveLocalPhoto,
+  triggerWeeklyReset,
+  triggerWeeklyResetNotice
 };

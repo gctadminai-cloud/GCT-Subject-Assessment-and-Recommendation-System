@@ -464,6 +464,64 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
   return <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>{blocks}</div>;
 };
 
+interface FAQItem {
+  id: number;
+  question: string;
+  category: string;
+  answer: string;
+}
+
+const GCT_INSTITUTIONAL_FAQS: FAQItem[] = [
+  {
+    id: 1,
+    question: 'What are the admission requirements for new college students?',
+    category: 'Admissions',
+    answer: '• High School Report (SF 9)\n• Certificate of Good Moral Character\n• Four (4) recent 1×1 ID pictures\n• Photocopy of PSA Birth Certificate'
+  },
+  {
+    id: 2,
+    question: 'What are the requirements for old students?',
+    category: 'Old Students',
+    answer: '• Clearance from the previous semester\n• School ID\n• Grades from the previous semester'
+  },
+  {
+    id: 3,
+    question: 'What are the requirements for transferees?',
+    category: 'Transferees',
+    answer: '• Transfer Credentials / Honorable Dismissal\n• Certified copy of college subjects taken\n• Certificate of Good Moral Character\n• Four (4) recent 1×1 ID pictures\n• Photocopy of PSA Birth Certificate'
+  },
+  {
+    id: 4,
+    question: 'Can transferees have their previous subjects credited?',
+    category: 'Transferees',
+    answer: 'Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.'
+  },
+  {
+    id: 5,
+    question: 'How can I contact the GCT College Registrar?',
+    category: 'Registrar Contact',
+    answer: 'The College Registrar can be contacted at (036) 262-8621 or gctregistrar.collegedept2021@gmail.com (Office Hours: Monday to Friday, 8:00 AM – 5:00 PM).'
+  },
+  {
+    id: 6,
+    question: "What is GCT's mission?",
+    category: 'Institution',
+    answer: 'GCT aims to provide quality education and develop the full potential and capabilities of individuals.'
+  },
+  {
+    id: 7,
+    question: 'When was Garcia College of Technology established?',
+    category: 'Institution',
+    answer: 'Garcia College of Technology (GCT) was established in 1968.'
+  },
+  {
+    id: 8,
+    question: 'Where is Garcia College of Technology located?',
+    category: 'Institution',
+    answer: 'GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.'
+  }
+];
+
 export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   initialOpen = false,
   onClose,
@@ -607,6 +665,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   }, [storageKey, user]);
 
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [showFaqModal, setShowFaqModal] = useState(false);
 
   const handleRequestClearHistory = () => {
     setShowClearConfirmModal(true);
@@ -635,16 +694,21 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
   const quickPrompts = isGuest
     ? [
-        'How do I create a student account?',
-        'What programs does GCT offer?',
-        'What are the requirements for enrollment?',
-        'Registrar office hours & campus location'
+        'Admission requirements for new students',
+        'Requirements for old students',
+        'Requirements for transferees',
+        'Can transferees have previous subjects credited?',
+        'How can I contact the GCT College Registrar?',
+        "What is GCT's mission & location?",
+        'How do I create a student account?'
       ]
     : isStudent
     ? [
+        'Requirements for old students',
+        'Can transferees have previous subjects credited?',
+        'How can I contact the GCT College Registrar?',
         'What is my cumulative GWA and standing?',
         'What subjects am I eligible for next semester?',
-        'What is your opinion on my academic standing and workload?',
         'Download my official academic record'
       ]
     : [
@@ -879,11 +943,24 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           : `[Attached files: ${fileNames}]`;
       }
 
+      // Extract recent conversation history so the backend AI can recall previous context,
+      // unbroken thoughts, and student references across multi-turn chats
+      const historyPayload = messages
+        .filter(m => m && m.text && !m.text.startsWith('Welcome to Garcia College of Technology'))
+        .slice(-10)
+        .map(m => ({
+          sender: m.sender,
+          text: m.text
+        }));
+
       const res = await fetchApi(
         '/chatbot/query',
         {
           method: 'POST',
-          body: JSON.stringify({ query: queryPayload })
+          body: JSON.stringify({
+            query: queryPayload,
+            history: historyPayload
+          })
         },
         user || { id: 'guest', role: 'guest', full_name: 'Visitor' }
       );
@@ -934,6 +1011,171 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+    const renderFaqModal = () => {
+    if (!showFaqModal) return null;
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          padding: '1rem'
+        }}
+        onClick={() => setShowFaqModal(false)}
+      >
+        <div
+          style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            maxWidth: '680px',
+            width: '100%',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            border: '1px solid #E2E8F0',
+            overflow: 'hidden'
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Modal Header */}
+          <div
+            style={{
+              padding: '1.25rem 1.5rem',
+              background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={20} color="#FFFFFF" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
+                  Garcia College of Technology — Institutional FAQs
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', opacity: 0.9 }}>
+                  Official questions & answers on admissions, requirements, and registrar services
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFaqModal(false)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: '#FFFFFF',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* FAQ List Scroll Area */}
+          <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {GCT_INSTITUTIONAL_FAQS.map(faq => (
+              <div
+                key={faq.id}
+                style={{
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '1rem 1.15rem',
+                  background: '#F8FAFC',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#1E3A8A' }}>
+                    {faq.id}. {faq.question}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFaqModal(false);
+                      handleSend(faq.question);
+                    }}
+                    style={{
+                      background: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      color: '#2563EB',
+                      borderRadius: '6px',
+                      padding: '0.25rem 0.6rem',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
+                    }}
+                    title="Send this question to the AI Assistant"
+                  >
+                    <Send size={11} /> Ask in Chat
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#334155', whiteSpace: 'pre-line', lineHeight: 1.55 }}>
+                  {faq.answer}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Modal Footer */}
+          <div
+            style={{
+              padding: '0.85rem 1.5rem',
+              borderTop: '1px solid #E2E8F0',
+              background: '#F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+              Have more questions? Ask our AI assistant anytime in the chat box!
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowFaqModal(false)}
+              style={{
+                background: '#1E293B',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '0.45rem 1rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderClearConfirmModal = () => {
     if (!showClearConfirmModal) return null;
@@ -1113,6 +1355,29 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                 ● Active GCT AI Knowledge Engine
               </span>
 
+              {(isGuest || isStudent) && (
+                <button
+                  type="button"
+                  onClick={() => setShowFaqModal(true)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    color: '#FFFFFF',
+                    borderRadius: '8px',
+                    padding: '0.45rem 0.85rem',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="View Official Institutional FAQs"
+                >
+                  <BookOpen size={14} /> FAQs
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleRequestClearHistory}
@@ -1462,6 +1727,31 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             background: '#FFFFFF'
           }}
         >
+          {(isGuest || isStudent) && (
+            <button
+              type="button"
+              onClick={() => setShowFaqModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+                border: '1px solid #1E3A8A',
+                borderRadius: '9999px',
+                padding: '0.4rem 0.95rem',
+                color: '#FFFFFF',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+              }}
+            >
+              <BookOpen size={13} />
+              Browse FAQs
+            </button>
+          )}
           {quickPrompts.map((qp, idx) => (
             <button
               key={idx}
@@ -1718,6 +2008,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         </div>
       </div>
       {renderClearConfirmModal()}
+        {renderFaqModal()}
     </>
   );
 }
@@ -2094,7 +2385,32 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             flexShrink: 0,
             background: '#FFFFFF'
           }}>
-            {quickPrompts.map((qp, idx) => (
+            {(isGuest || isStudent) && (
+            <button
+              type="button"
+              onClick={() => setShowFaqModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+                border: '1px solid #1E3A8A',
+                borderRadius: '9999px',
+                padding: '0.4rem 0.95rem',
+                color: '#FFFFFF',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+              }}
+            >
+              <BookOpen size={13} />
+              Browse FAQs
+            </button>
+          )}
+          {quickPrompts.map((qp, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -2299,6 +2615,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         </div>
       )}
       {renderClearConfirmModal()}
+        {renderFaqModal()}
     </>
   );
 };

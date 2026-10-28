@@ -147,12 +147,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem('gct_auth_token');
     sessionStorage.removeItem('gct_user_profile');
     sessionStorage.removeItem('gct_student_record');
+    sessionStorage.setItem('gct_auth_view', 'login');
     localStorage.removeItem('gct_auth_token');
     localStorage.removeItem('gct_user_profile');
     localStorage.removeItem('gct_student_record');
     try {
       localStorage.removeItem('gct_chat_history_guest');
     } catch (e) {}
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
   };
 
   return (

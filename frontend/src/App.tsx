@@ -56,18 +56,25 @@ const MainAppLayout: React.FC = () => {
   React.useEffect(() => {
     if (user) {
       setActiveTab('home');
-      if (typeof window !== 'undefined' && window.location.hash && window.location.hash !== '#register') {
-        window.location.hash = '';
+      if (typeof window !== 'undefined' && window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
     }
   }, [user?.id, user?.role]);
 
-  // When logged out, also ensure activeTab is reset to 'home' for the next session
+  // When logged out, also ensure activeTab is reset to 'home' and auth view goes straight to login
   React.useEffect(() => {
     if (!user) {
       setActiveTab('home');
+      setAuthViewState('login');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('gct_auth_view', 'login');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      }
     }
-  }, [user === null]);
+  }, [user]);
 
   React.useEffect(() => {
     const handleHashChange = () => {

@@ -462,6 +462,50 @@ a:hover {
     height: 82vh !important;
     border-radius: 14px !important;
   }
+}
+
+/* Student Dashboard Academic Metrics Grid */
+.student-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #F1F5F9;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 960px) {
+  .student-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Mobile Landscape Chatbot Floating Button */
+@media (max-height: 520px) {
+  .chatbot-floating-logo-btn {
+    bottom: 12px !important;
+    right: 12px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .chatbot-floating-logo-img {
+    width: 30px !important;
+    height: 30px !important;
+  }
+  .chatbot-online-badge {
+    width: 12px !important;
+    height: 12px !important;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

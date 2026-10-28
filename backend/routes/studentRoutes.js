@@ -20,11 +20,26 @@ router.get('/', authenticate, requireRole('registrar_staff', 'registrar_admin'),
 // Registrar view pending verifications queue
 router.get('/pending', authenticate, requireRole('registrar_staff', 'registrar_admin'), getPendingVerifications);
 
-// Manual trigger for weekly student password reset (Admin only)
-router.post('/trigger-weekly-reset', authenticate, requireRole('registrar_admin'), triggerWeeklyReset);
+// Middleware: Allows Registrar Admin OR Vercel Cron invocation
+const allowAdminOrCron = (req, res, next) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers['authorization'];
+  const isVercelCron = req.headers['x-vercel-cron'] === '1' || (cronSecret && authHeader === `Bearer ${cronSecret}`);
 
-// Manual trigger for weekly student password reset early reminder notice (Admin only)
-router.post('/trigger-weekly-reset-notice', authenticate, requireRole('registrar_admin'), triggerWeeklyResetNotice);
+  if (isVercelCron) {
+    return next();
+  }
+
+  return authenticate(req, res, () => {
+    return requireRole('registrar_admin')(req, res, next);
+  });
+};
+
+// Weekly student password reset (Admin or Vercel Cron)
+router.all('/trigger-weekly-reset', allowAdminOrCron, triggerWeeklyReset);
+
+// Weekly student password reset early reminder notice (Admin or Vercel Cron)
+router.all('/trigger-weekly-reset-notice', allowAdminOrCron, triggerWeeklyResetNotice);
 
 // Serve local verification photo (Registrar only)
 router.get('/photo/:folder/:filename', authenticate, requireRole('registrar_staff', 'registrar_admin'), serveLocalPhoto);

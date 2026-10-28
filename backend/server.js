@@ -61,7 +61,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   // Start weekly student accounts reset cron (every Monday at 12:00 AM)
   initWeeklyResetCron();
 

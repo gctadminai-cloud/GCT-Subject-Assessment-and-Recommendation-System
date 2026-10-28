@@ -1403,7 +1403,7 @@ export const UserManagementModule: React.FC = () => {
             {/* Header */}
             <div style={{
               padding: '1.2rem 1.5rem',
-              background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+              background: 'linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',

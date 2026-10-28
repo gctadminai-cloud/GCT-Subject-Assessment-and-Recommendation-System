@@ -344,12 +344,13 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
     let regularCount = 0;
     currentRecSubjects.forEach(s => {
       const isRetake = (s.remarks && s.remarks.toLowerCase().includes('retake')) ||
-        (s.prerequisites && s.prerequisites.toLowerCase().includes('retake'));
+        (s.prerequisites && s.prerequisites.toLowerCase().includes('retake')) ||
+        analysis.activeDeficiencies.some(d => normalizeSubjCode(d.code) === normalizeSubjCode(s.code));
       if (isRetake) retakeCount++;
       else regularCount++;
     });
     return { retakeCount, regularCount };
-  }, [currentRecSubjects]);
+  }, [currentRecSubjects, analysis.activeDeficiencies]);
 
   const displayedHasDeficiencies = displayedBreakdown.retakeCount > 0 || analysis.activeDeficiencies.length > 0;
 
@@ -399,8 +400,9 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
               g.rawGrade === '9' ||
               g.grade === 9 ||
               String(g.rawGrade || '').toUpperCase() === 'DRP';
+            const isZero = g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0';
             const num = Number(g.grade);
-            return !isDrop && !isNaN(num) && num > 0 && num <= 3.0;
+            return !isDrop && !isZero && !isNaN(num) && num >= 1.0 && num <= 3.0;
           });
 
           if (!hasEverPassed && attempts.length > 0) {
@@ -411,16 +413,18 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                 g.rawGrade === '9' ||
                 g.grade === 9 ||
                 String(g.rawGrade || '').toUpperCase() === 'DRP';
+              const isZero = g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0';
               const gNum = Number(g.grade);
               const rawNum = Number(g.rawGrade);
               const isFail =
                 g.status === 'failed' ||
+                isZero ||
                 g.grade === 5 ||
                 g.rawGrade === '5' ||
                 g.rawGrade === '5.0' ||
                 (g.grade !== null && g.grade !== undefined && !isNaN(gNum) && gNum > 3.0) ||
                 (g.rawGrade !== null && g.rawGrade !== undefined && !isNaN(rawNum) && rawNum > 3.0);
-              return isDrop || isFail;
+              return isDrop || isFail || g.status !== 'not_taken';
             });
 
             if (hasFailedOrDropped) {
@@ -1973,7 +1977,46 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                       </thead>
                       <tbody>
                         {currentRecSubjects.map((subj, idx) => {
-                          const isRetake = subj.remarks?.includes('Retake') || subj.prerequisites?.toLowerCase().includes('retake');
+                          const subjNorm = normalizeSubjCode(subj.code);
+                          const matchingDef = analysis.activeDeficiencies.find(d => normalizeSubjCode(d.code) === subjNorm);
+                          const priorAttempts = studentGrades.filter(g => normalizeSubjCode(g.code) === subjNorm);
+                          const hasPriorUnpassed = priorAttempts.some(g => {
+                            const isDrop = g.status === 'dropped' || g.isDropped || g.rawGrade === '9' || g.grade === 9 || String(g.rawGrade || '').toUpperCase() === 'DRP';
+                            const isZero = g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0';
+                            const num = Number(g.grade);
+                            return isDrop || isZero || g.status === 'failed' || g.grade === 5 || g.rawGrade === '5' || (!isNaN(num) && num > 3.0);
+                          });
+
+                          const isRetake = Boolean(
+                            subj.remarks?.toLowerCase().includes('retake') ||
+                            subj.prerequisites?.toLowerCase().includes('retake') ||
+                            matchingDef ||
+                            hasPriorUnpassed
+                          );
+
+                          let retakeNotice = '';
+                          if (isRetake) {
+                            if (matchingDef) {
+                              const isDrop = matchingDef.status === 'dropped';
+                              const gradeStr = (matchingDef.grade !== null && !isNaN(Number(matchingDef.grade)) && Number(matchingDef.grade) > 0) ? Number(matchingDef.grade).toFixed(2) : '5.00';
+                              retakeNotice = isDrop
+                                ? `Retake Required (Dropped in ${matchingDef.term})`
+                                : `Retake Required (Failed ${gradeStr} in ${matchingDef.term})`;
+                            } else if (priorAttempts.length > 0) {
+                              const latestPrior = priorAttempts[0];
+                              const isPriorDrop = latestPrior.status === 'dropped' || latestPrior.isDropped || latestPrior.rawGrade === '9' || latestPrior.grade === 9;
+                              const priorGradeStr = (latestPrior.grade !== null && !isNaN(Number(latestPrior.grade)) && Number(latestPrior.grade) > 0) ? Number(latestPrior.grade).toFixed(2) : '5.00';
+                              retakeNotice = isPriorDrop
+                                ? `Retake Required (Dropped in ${latestPrior.term || 'previous term'})`
+                                : `Retake Required (Previous attempt in ${latestPrior.term || 'previous term'} not passed - ${priorGradeStr})`;
+                            } else if (subj.remarks?.toLowerCase().includes('retake')) {
+                              retakeNotice = subj.remarks;
+                            } else if (subj.prerequisites?.toLowerCase().includes('retake')) {
+                              retakeNotice = subj.prerequisites;
+                            } else {
+                              retakeNotice = 'Retake Required (Previous attempt not passed)';
+                            }
+                          }
 
                           return (
                             <tr
@@ -2030,8 +2073,33 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                               <td style={{ padding: '0.9rem 1.15rem', textAlign: 'center', fontWeight: 700, color: '#1E293B', fontSize: '0.96rem' }}>
                                 {subj.totalUnits} <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>({subj.lecUnits}L/{subj.labUnits}P)</span>
                               </td>
-                              <td style={{ padding: '0.9rem 1.15rem', fontSize: '0.88rem', fontWeight: 600, color: isRetake ? '#B45309' : '#475569', lineHeight: 1.4 }}>
-                                {subj.prerequisites || subj.remarks || '— None'}
+                              <td style={{ padding: '0.9rem 1.15rem', fontSize: '0.88rem', lineHeight: 1.4 }}>
+                                {isRetake ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    <span
+                                      style={{
+                                        color: '#B45309',
+                                        fontWeight: 700,
+                                        fontSize: '0.86rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem'
+                                      }}
+                                    >
+                                      <AlertTriangle size={13} color="#D97706" style={{ flexShrink: 0 }} />
+                                      {retakeNotice}
+                                    </span>
+                                    {subj.prerequisites && !subj.prerequisites.toLowerCase().includes('retake') && (
+                                      <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+                                        {subj.prerequisites}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#475569', fontWeight: 600 }}>
+                                    {subj.prerequisites || subj.remarks || 'None required'}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );

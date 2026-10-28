@@ -122,9 +122,10 @@ async function getAcademicRecords(req, res) {
 
       const rawGradeStr = String(g.raw_grade || '').trim();
       const isDropped = rawGradeStr === '9' || g.grade === 9 || rawGradeStr.toUpperCase() === 'DRP' || (g.needs_review && rawGradeStr === '9');
-      const isFailed = rawGradeStr === '5' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped);
+      const isZero = g.grade === 0 || Number(g.grade) === 0 || rawGradeStr === '0' || rawGradeStr === '0.0';
+      const isFailed = isZero || rawGradeStr === '5' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped);
 
-      let status = 'passed';
+      let status = 'failed';
       let cleanGrade = null;
 
       if (isDropped) {
@@ -137,7 +138,7 @@ async function getAcademicRecords(req, res) {
         const num = Number(g.grade);
         if (!isNaN(num)) {
           cleanGrade = num;
-          status = num <= 3.0 ? 'passed' : 'failed';
+          status = (num >= 1.0 && num <= 3.0) ? 'passed' : 'failed';
         }
       }
 
@@ -148,7 +149,7 @@ async function getAcademicRecords(req, res) {
         studentName: g.full_name || `${g.first_name || ''} ${g.last_name || ''}`.trim(),
         subject_id: matchedSub?.id || subjClean,
         grade: cleanGrade,
-        raw_grade: g.raw_grade,
+        raw_grade: isZero ? '5.0' : g.raw_grade,
         is_dropped: isDropped,
         term: termFormatted,
         academic_year: g.academic_year,
@@ -169,8 +170,8 @@ async function getAcademicRecords(req, res) {
       if (mergedMap.has(recordKey)) {
         const existing = mergedMap.get(recordKey);
         const existDrop = existing.is_dropped;
-        const existPass = !existDrop && existing.grade !== null && existing.grade <= 3.0;
-        const newPass = !isDropped && cleanGrade !== null && cleanGrade <= 3.0;
+        const existPass = !existDrop && existing.grade !== null && existing.grade >= 1.0 && existing.grade <= 3.0;
+        const newPass = !isDropped && cleanGrade !== null && cleanGrade >= 1.0 && cleanGrade <= 3.0;
 
         if (newPass && !existPass) {
           mergedMap.set(recordKey, newEntry);

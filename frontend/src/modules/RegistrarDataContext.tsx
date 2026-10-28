@@ -210,12 +210,18 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
       if (Array.isArray(data)) {
         const liveGrades: AcademicGrade[] = data.map((r: any) => {
           const isDropped = Boolean(r.is_dropped || r.status === 'dropped' || String(r.raw_grade) === '9' || String(r.raw_grade).toUpperCase() === 'DRP');
-          const isFailed = !isDropped && (r.status === 'failed' || Number(r.grade) > 3.0 || Number(r.grade) === 5.0 || String(r.raw_grade) === '5');
-          const num = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          let status: 'passed' | 'failed' | 'dropped' = 'passed';
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0' || String(r.raw_grade).trim() === '0.00');
+          const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || String(r.raw_grade).trim() === '5' || String(r.raw_grade).trim() === '5.0');
+          const isPassingGrade = !isDropped && !isExplicitFail && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
+
+          let status: 'passed' | 'failed' | 'dropped' = 'failed';
           if (isDropped) status = 'dropped';
-          else if (isFailed) status = 'failed';
-          else status = 'passed';
+          else if (isPassingGrade) status = 'passed';
+          else status = 'failed';
+
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : null)));
+          const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {
             id: r.id || `rec-${Math.random()}`,
@@ -223,8 +229,8 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
             studentName: r.studentName || 'Student',
             code: r.subject?.code || r.subject_code || r.code || 'SUBJ101',
             title: r.subject?.title || r.subject_title || r.title || r.subjectTitle || 'Subject Course',
-            grade: isDropped ? null : num,
-            rawGrade: r.raw_grade,
+            grade: finalGrade,
+            rawGrade: finalRawGrade,
             status,
             isDropped,
             term: r.term || '2024-2025 1st Sem',
@@ -258,12 +264,18 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
       if (Array.isArray(data)) {
         const liveList: AcademicGrade[] = data.map((r: any) => {
           const isDropped = Boolean(r.is_dropped || r.status === 'dropped' || String(r.raw_grade) === '9' || String(r.raw_grade).toUpperCase() === 'DRP');
-          const isFailed = !isDropped && (r.status === 'failed' || Number(r.grade) > 3.0 || Number(r.grade) === 5.0 || String(r.raw_grade) === '5');
-          const num = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          let status: 'passed' | 'failed' | 'dropped' = 'passed';
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0' || String(r.raw_grade).trim() === '0.00');
+          const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || String(r.raw_grade).trim() === '5' || String(r.raw_grade).trim() === '5.0');
+          const isPassingGrade = !isDropped && !isExplicitFail && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
+
+          let status: 'passed' | 'failed' | 'dropped' = 'failed';
           if (isDropped) status = 'dropped';
-          else if (isFailed) status = 'failed';
-          else status = 'passed';
+          else if (isPassingGrade) status = 'passed';
+          else status = 'failed';
+
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : null)));
+          const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {
             id: r.id || `rec-${Math.random()}`,
@@ -272,8 +284,8 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
             code: r.subject?.code || r.code || r.subject_id,
             title: r.subject?.title || r.title || r.subject_id,
             units: Number(r.subject?.units || r.units || 3),
-            grade: isDropped ? null : num,
-            rawGrade: r.raw_grade,
+            grade: finalGrade,
+            rawGrade: finalRawGrade,
             status,
             isDropped,
             term: r.term || '2023-2024 1st Sem',

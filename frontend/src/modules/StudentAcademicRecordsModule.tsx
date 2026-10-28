@@ -730,12 +730,17 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       if (Array.isArray(data)) {
         const liveList: AcademicGrade[] = data.map((r: any) => {
           const isDropped = r.is_dropped || r.raw_grade === '9' || r.grade === 9 || r.status === 'dropped';
-          const isFailed = !isDropped && (r.status === 'failed' || r.grade === 5 || r.raw_grade === '5' || (r.grade !== null && Number(r.grade) > 3.0));
-          const num = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          let status: 'passed' | 'failed' | 'dropped' = 'passed';
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0');
+          const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+          const isFailed = !isDropped && (isZero || r.status === 'failed' || r.grade === 5 || r.raw_grade === '5' || (parsedNum !== null && (parsedNum > 3.0 || parsedNum === 5.0)));
+          const isPassingGrade = !isDropped && !isFailed && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
+          let status: 'passed' | 'failed' | 'dropped' = 'failed';
           if (isDropped) status = 'dropped';
-          else if (isFailed) status = 'failed';
-          else status = 'passed';
+          else if (isPassingGrade) status = 'passed';
+          else status = 'failed';
+
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isFailed ? 5.0 : null)));
+          const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {
             id: r.id || `rec-${Math.random()}`,
@@ -744,8 +749,8 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
             code: r.subject?.code || r.code || r.subject_id,
             title: r.subject?.title || r.title || r.subject_id,
             units: Number(r.subject?.units || r.units || 3),
-            grade: isDropped ? null : num,
-            rawGrade: r.raw_grade,
+            grade: finalGrade,
+            rawGrade: finalRawGrade,
             status,
             isDropped,
             term: r.term || '2023-2024 1st Sem',
@@ -2072,8 +2077,10 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                               {termGrades.map(g => {
                                 const isDropped = g.status === 'dropped' || g.isDropped;
                                 const isNotTaken = g.status === 'not_taken';
-                                const isFailed = !isDropped && !isNotTaken && (g.status === 'failed' || (g.grade !== null && Number(g.grade) > 3.0) || g.grade === 5);
-                                const isPassed = !isDropped && !isNotTaken && (g.status === 'passed' && g.grade !== null && Number(g.grade) <= 3.0);
+                                const isZero = !isDropped && !isNotTaken && (g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0');
+                                const num = Number(g.grade);
+                                const isFailed = !isDropped && !isNotTaken && (isZero || g.status === 'failed' || (g.grade !== null && num > 3.0) || g.grade === 5 || g.rawGrade === '5');
+                                const isPassed = !isDropped && !isNotTaken && !isFailed && (g.status === 'passed' && g.grade !== null && !isNaN(num) && num >= 1.0 && num <= 3.0);
                                 const isRetake = Boolean(g.isRetake);
 
                                 return (
@@ -2302,8 +2309,10 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                   {studentAcademicHistoryGrades.map(g => {
                     const isDropped = g.status === 'dropped' || g.isDropped;
                     const isNotTaken = g.status === 'not_taken';
-                    const isFailed = !isDropped && !isNotTaken && (g.status === 'failed' || (g.grade !== null && Number(g.grade) > 3.0) || g.grade === 5);
-                    const isPassed = !isDropped && !isNotTaken && (g.status === 'passed' && g.grade !== null && Number(g.grade) <= 3.0);
+                    const isZero = !isDropped && !isNotTaken && (g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0');
+                    const num = Number(g.grade);
+                    const isFailed = !isDropped && !isNotTaken && (isZero || g.status === 'failed' || (g.grade !== null && num > 3.0) || g.grade === 5 || g.rawGrade === '5');
+                    const isPassed = !isDropped && !isNotTaken && !isFailed && (g.status === 'passed' && g.grade !== null && !isNaN(num) && num >= 1.0 && num <= 3.0);
                     return (
                       <tr key={g.id} style={{ background: isFailed ? 'rgba(254, 242, 242, 0.4)' : undefined }}>
                         <td style={{ fontWeight: 800, color: isFailed ? '#DC2626' : (isNotTaken ? '#94A3B8' : '#2563EB') }}>{g.code}</td>

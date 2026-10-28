@@ -774,8 +774,9 @@ export function generateCurriculumRecommendations(
     // Realistic rule: passing grade in a later retake FOREVER clears the old failure.
     const passedAttempt = attempts.find(a => {
       const isDrop = a.status === 'dropped' || a.isDropped || a.rawGrade === '9' || a.grade === 9 || String(a.rawGrade).toUpperCase() === 'DRP';
+      const isZero = a.grade === 0 || Number(a.grade) === 0 || a.rawGrade === '0' || a.rawGrade === '0.0' || a.rawGrade === '0.00' || String(a.rawGrade).trim() === '0';
       const num = Number(a.grade);
-      return !isDrop && !isNaN(num) && num > 0 && num <= 3.0;
+      return !isDrop && !isZero && !isNaN(num) && num >= 1.0 && num <= 3.0;
     });
 
     if (passedAttempt) {
@@ -788,18 +789,20 @@ export function generateCurriculumRecommendations(
         totalGradedUnits += units;
       }
     } else {
-      // Check if there is an actual failed or dropped attempt
+      // Check if there is an actual failed, dropped, zero, or unpassed attempt
       const hasFailOrDrop = attempts.some(a => {
         const isDrop = a.status === 'dropped' || a.isDropped || a.rawGrade === '9' || a.grade === 9 || String(a.rawGrade).toUpperCase() === 'DRP';
+        const isZero = a.grade === 0 || Number(a.grade) === 0 || a.rawGrade === '0' || a.rawGrade === '0.0' || a.rawGrade === '0.00' || String(a.rawGrade).trim() === '0';
         const num = Number(a.grade);
-        const isFail = a.status === 'failed' || a.rawGrade === '5' || a.rawGrade === '5.0' || a.grade === 5 || (!isNaN(num) && num > 3.0);
-        return isDrop || isFail;
+        const isFail = a.status === 'failed' || isZero || a.rawGrade === '5' || a.rawGrade === '5.0' || a.grade === 5 || (!isNaN(num) && num > 3.0) || a.status !== 'passed';
+        return isDrop || isFail || a.status !== 'not_taken';
       });
 
       if (hasFailOrDrop) {
-        // No pass anywhere and has a recorded fail/drop attempt → active deficiency
+        // No pass anywhere and has a recorded fail/drop/unpassed attempt → active deficiency
         const latestAttempt = attempts[0];
         const isDrop = latestAttempt.status === 'dropped' || latestAttempt.isDropped || latestAttempt.rawGrade === '9' || latestAttempt.grade === 9 || String(latestAttempt.rawGrade).toUpperCase() === 'DRP';
+        const isLatestZero = latestAttempt.grade === 0 || Number(latestAttempt.grade) === 0 || latestAttempt.rawGrade === '0' || latestAttempt.rawGrade === '0.0' || String(latestAttempt.rawGrade).trim() === '0';
         const defDef = curriculumDefs.find(c => normalizeSubjCode(c.code) === normCode);
         const liveDef = curriculumCatalog.find(c => normalizeSubjCode(c.code) === normCode);
 
@@ -818,8 +821,8 @@ export function generateCurriculumRecommendations(
             units,
             lecUnits,
             labUnits,
-            grade: isDrop ? null : (Number(latestAttempt.grade) || 5.0),
-            rawGrade: latestAttempt.rawGrade || (isDrop ? '9' : '5'),
+            grade: isDrop ? null : (isLatestZero ? 5.0 : (Number(latestAttempt.grade) || 5.0)),
+            rawGrade: isDrop ? '9' : (isLatestZero ? '5.0' : (latestAttempt.rawGrade || '5.0')),
             status: isDrop ? 'dropped' : 'failed',
             term: latestAttempt.term || 'Previous Term',
             attemptCount: attempts.length,
@@ -1293,9 +1296,21 @@ export function generateCurriculumRecommendations(
       }
 
       const isBacklog = subj.yearLevel < targetYear;
-      const termRemark = isBacklog
+      const priorAttempts = gradesByCode.get(subjNorm) || [];
+      const hasPriorUnpassed = priorAttempts.some(a => a.status !== 'not_taken');
+      const latestPrior = priorAttempts[0];
+
+      let termRemark = isBacklog
         ? `Backlog Subject (${getTermLabel(subj.yearLevel, subj.semester)})`
         : `Regular Track Subject (${getTermLabel(targetYear, targetSemester)})`;
+
+      if (hasPriorUnpassed && latestPrior) {
+        const isPriorDrop = latestPrior.status === 'dropped' || latestPrior.isDropped || latestPrior.rawGrade === '9' || latestPrior.grade === 9;
+        const priorGradeStr = (latestPrior.grade !== null && !isNaN(Number(latestPrior.grade)) && Number(latestPrior.grade) > 0) ? Number(latestPrior.grade).toFixed(2) : '5.00';
+        termRemark = isPriorDrop
+          ? `Retake Required (Dropped in ${latestPrior.term || 'earlier term'})`
+          : `Retake Required (Previous attempt in ${latestPrior.term || 'earlier term'} not passed - ${priorGradeStr})`;
+      }
 
       recommendedSubjects.push({
         id: `rec-reg-${student.student_id}-${subjNorm}-${idx}`,

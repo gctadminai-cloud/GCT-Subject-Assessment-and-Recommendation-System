@@ -199,15 +199,16 @@ function evaluateStudent({
       : (record.raw_grade !== null && record.raw_grade !== undefined && record.raw_grade !== '')
         ? Number(record.raw_grade)
         : NaN;
-    const isPercentage = Number.isFinite(rawGradeVal) && rawGradeVal > 5.5;  // 60+ = percentage
-    const isNumericGwa = Number.isFinite(rawGradeVal) && rawGradeVal > 0 && rawGradeVal <= 5.0;
+    const isZero = rawGradeVal === 0 || String(record.grade).trim() === '0' || String(record.raw_grade).trim() === '0';
+    const isPercentage = !isZero && Number.isFinite(rawGradeVal) && rawGradeVal > 5.5;  // 60+ = percentage
+    const isNumericGwa = !isZero && Number.isFinite(rawGradeVal) && rawGradeVal > 0 && rawGradeVal <= 5.0;
 
-    const hasFailStatus = record.status === 'failed' || String(record.grade) === '5' || String(record.raw_grade) === '5';
+    const hasFailStatus = isZero || record.status === 'failed' || String(record.grade) === '5' || String(record.raw_grade) === '5';
     const hasGwaFail = isNumericGwa && rawGradeVal > 3.0;   // GWA 4,5 = failed in PH scale
     const hasPctFail = isPercentage && rawGradeVal < threshold;  // percentage below passing threshold
     const isFail = !isDrop && (hasFailStatus || hasGwaFail || hasPctFail);
 
-    let computedStatus = record.status || 'passed';
+    let computedStatus = record.status || 'failed';
     if (isDrop) {
       computedStatus = 'dropped';
     } else if (isFail) {
@@ -217,8 +218,10 @@ function evaluateStudent({
         computedStatus = rawGradeVal >= threshold ? 'passed' : 'failed';
       } else {
         // GWA (1-5) or passed percentage
-        computedStatus = rawGradeVal <= 3.0 ? 'passed' : 'failed';
+        computedStatus = (rawGradeVal >= 1.0 && rawGradeVal <= 3.0) ? 'passed' : 'failed';
       }
+    } else {
+      computedStatus = 'failed';
     }
 
     // Resolve subject: BOTH by explicit DB id (if any), code, and title (supports Excel imports)

@@ -133,7 +133,8 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
         const keys = Object.keys(row);
         const findVal = (...possibleKeys: string[]) => {
           for (const pk of possibleKeys) {
-            const matchKey = keys.find(k => k.trim().toLowerCase() === pk.toLowerCase());
+            const pkNorm = pk.trim().toLowerCase().replace(/[_\s-]+/g, '');
+            const matchKey = keys.find(k => k.trim().toLowerCase().replace(/[_\s-]+/g, '') === pkNorm);
             if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null && row[matchKey] !== '') {
               return row[matchKey];
             }
@@ -142,7 +143,14 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
         };
 
         const studentId = String(findVal('Student ID', 'student_id', 'ID', 'Student ID Number', 'StudentNo', 'id') || `STUDENT-${idx + 1}`).trim();
-        const name = String(findVal('Full Name', 'full_name', 'Name', 'Student Name', 'FullName', 'Student') || 'Student Name').trim();
+        let name = String(findVal('Full Name', 'full_name', 'Name', 'Student Name', 'FullName', 'Student') || '').trim();
+        if (!name) {
+          const ln = String(findVal('Last Name', 'last_name', 'LastName', 'Surname') || '').trim();
+          const fn = String(findVal('First Name', 'first_name', 'FirstName', 'GivenName') || '').trim();
+          if (ln && fn) name = `${ln}, ${fn}`;
+          else if (ln || fn) name = ln || fn;
+        }
+        if (!name) name = 'Student Name';
         const course = String(findVal('Course', 'course', 'Program', 'program', 'Degree Program', 'Degree') || 'BSIT').trim();
         const yearVal = findVal('Year Level', 'year_level', 'Year', 'Yr', 'YearLevel', 'year');
         const year = Number(yearVal) || 1;
@@ -560,6 +568,8 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
         method: 'DELETE'
       });
       showToast?.(`Grade record for ${target.code} deleted successfully from database.`, 'info');
+      if (refreshAcademicGrades) await refreshAcademicGrades('all');
+      if (refreshStudents) await refreshStudents();
     } catch (err: any) {
       console.error('Failed to delete grade record:', err);
       showToast?.(`Could not delete record: ${err.message || 'Error'}`, 'error');

@@ -35,7 +35,7 @@ interface StudentRecordsModuleProps {
 }
 
 export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOpenUploadModal }) => {
-  const { mockStudents, setMockStudents, refreshStudents, PROGRAM_CATALOG, getSchedules, addSchedule, deleteSchedule } = useRegistrarData();
+  const { mockStudents, setMockStudents, refreshStudents, refreshAcademicGrades, PROGRAM_CATALOG, getSchedules, addSchedule, deleteSchedule } = useRegistrarData();
   const { showToast } = useUI();
 
   const [studentSearch, setStudentSearch] = useState('');
@@ -191,6 +191,7 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
       setMockStudents(prev => prev.filter(s => s.id !== deletingStudent.id && s.student_id !== deletingStudent.student_id));
       showToast?.(`Student ${deletingStudent.name} deleted.`, 'info');
       if (refreshStudents) await refreshStudents();
+      if (refreshAcademicGrades) await refreshAcademicGrades('all');
     } catch (err: any) {
       console.error('Error deleting student:', err);
       showToast?.(err.message || 'Failed to delete student', 'error');

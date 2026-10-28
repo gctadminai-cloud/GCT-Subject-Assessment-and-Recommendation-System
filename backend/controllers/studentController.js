@@ -773,52 +773,39 @@ async function deleteStudent(req, res) {
     if (studentRow?.id) profFilters.push(`id.eq.${studentRow.id}`);
     await supabase.from('profiles').delete().or(profFilters.join(','));
 
-    // 3. Check if student has permanent grades in grade_records or academic_records
-    let hasGrades = false;
+    // 3. Delete student recommendations
     try {
-      const { data: grades } = await supabase
-        .from('grade_records')
-        .select('id')
-        .or(idVariants.map(v => `student_id.eq.${v}`).join(','))
-        .limit(1);
-      if (grades && grades.length > 0) hasGrades = true;
-
-      if (!hasGrades) {
-        const { data: acads } = await supabase
-          .from('academic_records')
-          .select('id')
-          .or(idVariants.map(v => `student_id.eq.${v}`).join(','))
-          .limit(1);
-        if (acads && acads.length > 0) hasGrades = true;
-      }
-    } catch (gErr) {
-      console.warn('Grade check error on student delete:', gErr);
-    }
-
-    if (hasGrades) {
-      // Keep student row for registrar historical grades, but deactivate account & clear registration photos
       await supabase
-        .from('students')
-        .update({
-          verified: false,
-          id_front_path: null,
-          id_back_path: null,
-          selfie_path: null,
-          id_front_image: null,
-          id_back_image: null,
-          selfie_image: null
-        })
-        .or(orFilter);
-    } else {
-      // No grade records: completely remove student record from Supabase
-      await supabase
-        .from('students')
+        .from('recommendations')
         .delete()
-        .or(orFilter);
+        .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+    } catch (rErr) {
+      console.warn('Recommendations clean notice on student delete:', rErr.message);
     }
+
+    // 4. Delete grade records and academic records to prevent orphan ghost records
+    try {
+      await supabase
+        .from('academic_records')
+        .delete()
+        .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+
+      await supabase
+        .from('grade_records')
+        .delete()
+        .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+    } catch (gErr) {
+      console.warn('Grade records clean notice on student delete:', gErr.message);
+    }
+
+    // 5. Completely remove student record from Supabase students table
+    await supabase
+      .from('students')
+      .delete()
+      .or(orFilter);
 
     res.json({
-      message: `Student account for '${studentId}' deleted successfully from Supabase.`,
+      message: `Student account and all associated records for '${studentId}' deleted successfully from Supabase.`,
       studentId
     });
   } catch (error) {

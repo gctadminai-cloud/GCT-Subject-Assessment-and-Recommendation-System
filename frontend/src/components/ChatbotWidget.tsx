@@ -820,7 +820,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             const findVal = (row: any, ...possibleKeys: string[]) => {
               const keys = Object.keys(row);
               for (const pk of possibleKeys) {
-                const matchKey = keys.find(k => k.trim().toLowerCase() === pk.toLowerCase());
+                const pkNorm = pk.trim().toLowerCase().replace(/[_\s-]+/g, '');
+                const matchKey = keys.find(k => k.trim().toLowerCase().replace(/[_\s-]+/g, '') === pkNorm);
                 if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null && row[matchKey] !== '') {
                   return row[matchKey];
                 }
@@ -833,13 +834,19 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
             rawRows.forEach(row => {
               const studentId = String(findVal(row, 'Student ID', 'student_id', 'ID', 'StudentID', 'StudentNo', 'Student No', 'Student Number', 'ID Number', 'id') || '').trim();
-              const name = String(findVal(row, 'Name', 'Student Name', 'Full Name', 'FullName', 'student_name', 'StudentName') || '').trim();
+              let name = String(findVal(row, 'Name', 'Student Name', 'Full Name', 'FullName', 'student_name', 'StudentName', 'full_name') || '').trim();
+              if (!name) {
+                const ln = String(findVal(row, 'Last Name', 'last_name', 'LastName', 'Surname') || '').trim();
+                const fn = String(findVal(row, 'First Name', 'first_name', 'FirstName', 'GivenName') || '').trim();
+                if (ln && fn) name = `${ln}, ${fn}`;
+                else if (ln || fn) name = ln || fn;
+              }
               const course = String(findVal(row, 'Course', 'Program', 'Degree', 'course', 'program') || 'BSIT').trim();
               const year = Number(findVal(row, 'Year', 'Year Level', 'Yr', 'year_level', 'year', 'YearLevel')) || 1;
               const code = String(findVal(row, 'Cat No.', 'Cat No', 'Subject Code', 'Code', 'Subject', 'subject_code', 'Course Code', 'SubjectCode', 'code', 'cat_no') || '').trim();
               const title = String(findVal(row, 'Descriptive Title', 'Title', 'Subject Title', 'Description', 'Subject Description', 'subject_title', 'title') || '').trim();
               const units = Number(findVal(row, 'Units', 'Unit', 'Credit Units', 'units', 'credit_units')) || 3;
-              const gradeVal = findVal(row, 'Grade', 'Grade (%)', 'Final Grade', 'grade', 'rating', 'Final Rating', 'final_grade');
+              const gradeVal = findVal(row, 'Grade', 'Grade (%)', 'Final Grade', 'grade', 'rating', 'Final Rating', 'final_grade', 'raw_grade');
               const semVal = String(findVal(row, 'Semester', 'semester', 'Sem', 'sem')).trim();
               const ayVal = String(findVal(row, 'Academic Year', 'academic_year', 'AY', 'ay')).trim();
               let term = String(findVal(row, 'Term', 'Academic Term', 'term')).trim();

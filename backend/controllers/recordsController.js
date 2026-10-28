@@ -517,7 +517,13 @@ async function batchUpdateRecords(req, res) {
       affectedStudentIds.add(cleanSid);
 
       // Student metadata
-      const studentName = String(r.studentName || r.name || r.full_name || r.fullName || '').trim();
+      let studentName = String(r.studentName || r.name || r.full_name || r.fullName || r.student_name || '').trim();
+      if (!studentName) {
+        const ln = String(r.last_name || r.lastName || '').trim();
+        const fn = String(r.first_name || r.firstName || '').trim();
+        if (ln && fn) studentName = `${ln}, ${fn}`;
+        else if (ln || fn) studentName = ln || fn;
+      }
       const course = String(r.course || r.program || 'BSIT').trim();
       const yearLevel = Number(r.year_level || r.year || r.yearLevel || 1);
 
@@ -613,7 +619,7 @@ async function batchUpdateRecords(req, res) {
 
     // 2. Ensure students exist in `students` table
     for (const [sid, stData] of studentsMap.entries()) {
-      const { data: exists } = await supabase.from('students').select('id').eq('student_id', sid).limit(1);
+      const { data: exists } = await supabase.from('students').select('id, full_name, program, year_level').eq('student_id', sid).limit(1);
       if (!exists || exists.length === 0) {
         await supabase.from('students').insert([{
           id: `student-${sid}`,
@@ -625,6 +631,21 @@ async function batchUpdateRecords(req, res) {
           verified: true,
           created_at: now
         }]);
+      } else {
+        const existingName = exists[0].full_name || '';
+        const isPlaceholder = !existingName || /^student\s+\d+$/i.test(existingName) || existingName.toLowerCase() === 'student';
+        const hasRealName = stData.full_name && !/^student\s+\d+$/i.test(stData.full_name);
+        
+        const updateFields = {
+          program: stData.program || exists[0].program || 'BSIT',
+          year_level: stData.year_level || exists[0].year_level || 1,
+          status: 'approved',
+          verified: true
+        };
+        if (hasRealName && isPlaceholder) {
+          updateFields.full_name = stData.full_name;
+        }
+        await supabase.from('students').update(updateFields).eq('id', exists[0].id);
       }
     }
 
@@ -704,6 +725,7 @@ async function deleteRecord(req, res) {
     const studentId = req.query.student_id || req.body.student_id;
     const subjectId = req.query.code || req.query.subject_id || req.query.subject || req.body.code || req.body.subject_id;
     const term = req.query.term || req.body.term;
+    const deleteAllForStudent = req.query.all === 'true' || req.params.id === 'all' || req.query.action === 'all';
 
     let targetStudentId = studentId ? String(studentId).trim() : null;
     let targetSubject = subjectId ? String(subjectId).trim() : null;
@@ -712,13 +734,41 @@ async function deleteRecord(req, res) {
     let deletedFromAcademicRecords = 0;
     let deletedFromGradeRecords = 0;
 
-    // 1. If explicit ID provided
-    if (recordId) {
+    // Handle bulk delete of all records for a student
+    if (targetStudentId && deleteAllForStudent) {
+      const cleanSid = targetStudentId.replace(/^GCT-/i, '').trim();
+      const sIds = [targetStudentId, cleanSid, `GCT-${cleanSid}`];
+      
+      const { data: acDels } = await supabase
+        .from('academic_records')
+        .delete()
+        .in('student_id', sIds)
+        .select();
+      if (acDels) deletedFromAcademicRecords = acDels.length;
+
+      const { data: grDels } = await supabase
+        .from('grade_records')
+        .delete()
+        .in('student_id', sIds)
+        .select();
+      if (grDels) deletedFromGradeRecords = grDels.length;
+
+      const updatedYearLevel = await syncStudentYearLevel(targetStudentId);
+      return res.json({
+        success: true,
+        message: `All academic records for student '${targetStudentId}' deleted successfully.`,
+        deletedFromAcademicRecords,
+        deletedFromGradeRecords,
+        year_level: updatedYearLevel
+      });
+    }
+
+    // 1. If explicit record ID provided
+    if (recordId && recordId !== 'all') {
       const idStr = String(recordId).trim();
       if (idStr.startsWith('gr-') || /^\d+$/.test(idStr)) {
         const numId = parseInt(idStr.replace(/^gr-/i, ''), 10);
         if (Number.isFinite(numId)) {
-          // Look up record details before deleting so we can also clean academic_records
           const { data: grData } = await supabase
             .from('grade_records')
             .select('student_id, subject, academic_year, semester')
@@ -737,7 +787,6 @@ async function deleteRecord(req, res) {
           if (!dErr) deletedFromGradeRecords++;
         }
       } else {
-        // Assume ID in academic_records
         const { data: acData } = await supabase
           .from('academic_records')
           .select('student_id, subject_id, term')
@@ -758,30 +807,54 @@ async function deleteRecord(req, res) {
       }
     }
 
-    // 2. Cross-delete from both tables using resolved student_id and subject
+    // 2. Cross-delete from both tables using resolved student_id and subject aliases
     if (targetStudentId && targetSubject) {
-      const cleanSub = targetSubject.replace(/\s+/g, ' ');
+      const cleanSid = targetStudentId.replace(/^GCT-/i, '').trim();
+      const sIds = [targetStudentId, cleanSid, `GCT-${cleanSid}`];
 
-      // Delete from academic_records
+      const cleanSub = targetSubject.replace(/\s+/g, ' ').trim();
+      const normSub = normalizeSubjCode(cleanSub);
+      const subjectAliases = new Set([cleanSub, normSub, targetSubject.trim()]);
+
+      try {
+        const cachedSubs = await getCachedSubjects();
+        (cachedSubs || []).forEach(s => {
+          if (s.code && (normalizeSubjCode(s.code) === normSub || s.code.toLowerCase() === cleanSub.toLowerCase())) {
+            subjectAliases.add(s.id);
+            subjectAliases.add(s.code);
+            if (s.title) subjectAliases.add(s.title);
+          }
+          if (s.id && s.id.toLowerCase() === cleanSub.toLowerCase()) {
+            subjectAliases.add(s.id);
+            if (s.code) subjectAliases.add(s.code);
+          }
+        });
+      } catch (subErr) {
+        console.warn('Subject lookup notice on delete:', subErr.message);
+      }
+
+      const aliasArray = Array.from(subjectAliases).filter(Boolean);
+
+      // Cross-delete from academic_records safely using .in() to avoid PostgREST query parse issues with spaces
       let acQuery = supabase
         .from('academic_records')
         .delete()
-        .eq('student_id', targetStudentId);
+        .in('student_id', sIds)
+        .in('subject_id', aliasArray);
 
-      acQuery = acQuery.or(`subject_id.eq.${cleanSub},subject_id.ilike.${cleanSub}`);
       if (targetTerm) {
         acQuery = acQuery.eq('term', targetTerm);
       }
       const { data: acDel, error: acErr } = await acQuery.select();
       if (!acErr && acDel) deletedFromAcademicRecords += acDel.length;
 
-      // Delete from grade_records
+      // Cross-delete from grade_records safely using .in()
       let grQuery = supabase
         .from('grade_records')
         .delete()
-        .eq('student_id', targetStudentId);
+        .in('student_id', sIds)
+        .in('subject', aliasArray);
 
-      grQuery = grQuery.or(`subject.eq.${cleanSub},subject.ilike.${cleanSub}`);
       if (targetTerm) {
         const ayMatch = targetTerm.match(/\d{4}-\d{4}/);
         if (ayMatch) {

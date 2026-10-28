@@ -849,16 +849,36 @@ async function searchStudentInText(query, supabase) {
     // 3. Fallback: check historical grade records if student is present there
     const { data: grStudent } = await supabase
       .from('grade_records')
-      .select('student_id, student_name')
-      .ilike('student_id', `%${clean}%`)
+      .select('student_id, full_name, first_name, last_name, course, year_level')
+      .or(`student_id.eq.${clean},student_id.eq.GCT-${clean}`)
       .limit(1);
     if (grStudent && grStudent.length > 0) {
+      const g = grStudent[0];
+      const gName = g.full_name || (g.first_name && g.last_name ? `${g.last_name}, ${g.first_name}` : 'Student');
       return {
-        id: grStudent[0].student_id,
-        student_id: grStudent[0].student_id,
-        name: grStudent[0].student_name || 'Student',
+        id: g.student_id,
+        student_id: g.student_id,
+        name: gName,
+        full_name: gName,
+        program: g.course || 'BSIT',
+        year_level: Number(g.year_level || 1)
+      };
+    }
+
+    // 4. Fallback: check academic_records if student has encoded records
+    const { data: arStudent } = await supabase
+      .from('academic_records')
+      .select('student_id')
+      .or(`student_id.eq.${clean},student_id.eq.GCT-${clean}`)
+      .limit(1);
+    if (arStudent && arStudent.length > 0) {
+      return {
+        id: arStudent[0].student_id,
+        student_id: arStudent[0].student_id,
+        name: `Student ${arStudent[0].student_id}`,
+        full_name: `Student ${arStudent[0].student_id}`,
         program: 'BSIT',
-        year_level: 3
+        year_level: 1
       };
     }
   }
@@ -884,10 +904,19 @@ async function searchStudentInText(query, supabase) {
     const fullName = (s.name || s.full_name || '').toLowerCase().trim();
     if (!fullName) continue;
 
-    // Full name match (e.g. "Francis Joseph Garcia")
+    // Full name match (e.g. "Francis Joseph Garcia" or "Sung Jinwoo")
     const cleanFull = fullName.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-    if (cleanFull.length > 5 && lowerQuery.includes(cleanFull)) {
+    if (cleanFull.length >= 3 && lowerQuery.includes(cleanFull)) {
       return s;
+    }
+
+    // Match reversed name (e.g. "Sung Jinwoo" when stored as "Jinwoo Sung" or vice versa)
+    const nameWords = cleanFull.split(' ').filter(Boolean);
+    if (nameWords.length >= 2) {
+      const reversed = `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`;
+      if (lowerQuery.includes(reversed)) {
+        return s;
+      }
     }
 
     const parts = fullName

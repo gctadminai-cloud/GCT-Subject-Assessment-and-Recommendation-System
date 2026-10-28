@@ -692,6 +692,8 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         method: 'DELETE'
       });
       showToast(`Grade record for ${target.code} deleted successfully from database.`, 'info');
+      if (refreshAcademicGrades) await refreshAcademicGrades('all');
+      if (refreshStudents) await refreshStudents();
     } catch (err: any) {
       console.error('Failed to delete grade record:', err);
       showToast(`Could not delete from database: ${err.message || 'Error'}`, 'error');
@@ -710,9 +712,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     }
     setShowDeleteGradeModal(false);
     setDeletingGradeRecord(null);
-    if (refreshStudents) {
-      refreshStudents().catch(() => { });
-    }
   };
 
   // -------------------------------------------------------------

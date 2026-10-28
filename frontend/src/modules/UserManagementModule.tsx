@@ -31,6 +31,7 @@ export const UserManagementModule: React.FC = () => {
     staffAccounts,
     refreshStudents,
     refreshStaffAccounts,
+    refreshAcademicGrades,
     showToast
   } = useRegistrarData();
 
@@ -227,6 +228,7 @@ export const UserManagementModule: React.FC = () => {
       });
       showToast(`Student user account for ${deletingStudent.student_id || deletingStudent.name} deleted from Supabase.`, 'success');
       if (refreshStudents) await refreshStudents();
+      if (refreshAcademicGrades) await refreshAcademicGrades('all');
       setShowDeleteStudentModal(false);
       setDeletingStudent(null);
     } catch (err: any) {

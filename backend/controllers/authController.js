@@ -603,7 +603,6 @@ async function registerStudent(req, res) {
       email: cleanEmail,
       program: cleanProgram,
       year_level: resolvedYearLevel,
-      schedule: 'Schedule 1',
       id_front_path: null,
       id_back_path: null,
       selfie_path: null,

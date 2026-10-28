@@ -1607,7 +1607,7 @@ ${recordsBreakdown}
       } 
       // General institutional inquiry
       else {
-        const { data: stData } = await supabase.from('students').select('id, student_id, full_name, program, year_level, schedule, status');
+        const { data: stData } = await supabase.from('students').select('id, student_id, full_name, program, year_level, status');
         const allStudents = stData || [];
         const studentCount = allStudents.length;
 

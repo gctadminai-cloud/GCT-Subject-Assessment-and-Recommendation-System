@@ -183,8 +183,8 @@ async function getAllStudents(req, res) {
         email: realEmail,
         program: r.program,
         year_level: effectiveYearLevel,
-        schedule: r.schedule || r.section || 'Block A',
-        section: r.schedule || r.section || 'Block A',
+        schedule: r.schedule || null,
+        section: (r.section && !String(r.section).toLowerCase().includes('schedule')) ? r.section : null,
         verified: Boolean(r.verified),
         status: hasAccount ? approvalStatus : 'unregistered',
         has_account: hasAccount,
@@ -254,7 +254,7 @@ async function getPendingVerifications(req, res) {
         program: r.program,
         year_level: r.year_level,
         email: r.email || `${r.student_id.toLowerCase()}@student.gct.edu.ph`,
-        schedule: r.schedule || 'Schedule 1',
+        schedule: r.schedule || null,
         verified: Boolean(r.verified),
         account_status: acct?.status || 'pending',
         created_at: r.created_at
@@ -362,7 +362,7 @@ async function getStudentById(req, res) {
       full_name: row.full_name,
       program: row.program,
       year_level: effectiveYear,
-      schedule: row.schedule || row.section || 'Block A',
+      schedule: row.schedule || null,
       verified: Boolean(row.verified),
       id_front_url: idFrontUrl,
       id_back_url: idBackUrl,
@@ -571,7 +571,6 @@ async function createStudent(req, res) {
         full_name: studentName,
         program: program || 'BSIT',
         year_level: Number(year_level || year) || 1,
-        schedule: schedule || 'Block A',
         verified: true,
         created_at: now
       }], { onConflict: 'student_id' })
@@ -646,9 +645,6 @@ async function updateStudent(req, res) {
     if (year_level !== undefined || year !== undefined) {
       updatePayload.year_level = Number(year_level !== undefined ? year_level : year);
     }
-    if (schedule) {
-      updatePayload.schedule = schedule;
-    }
     if (email) {
       updatePayload.email = email.trim();
     }
@@ -689,7 +685,6 @@ async function updateStudent(req, res) {
         full_name: studentName || 'Student',
         program: program || 'BSIT',
         year_level: Number(year_level !== undefined ? year_level : (year || 1)),
-        schedule: schedule || 'Schedule 1',
         verified: true,
         created_at: new Date().toISOString()
       };

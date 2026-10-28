@@ -1128,7 +1128,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                                 >
                                   <span style={{ fontWeight: 700, color: '#475569' }}>{st.student_id}</span>
                                   <span style={{ opacity: 0.5 }}>·</span>
-                                  <span>{st.program} Y{st.year}-{st.section}</span>
+                                  <span>{st.program} Y{st.year}</span>
                                 </div>
                               </div>
                               <div style={{ flexShrink: 0 }}>

@@ -783,29 +783,56 @@ async function deleteStudent(req, res) {
       console.warn('Recommendations clean notice on student delete:', rErr.message);
     }
 
-    // 4. Delete grade records and academic records to prevent orphan ghost records
-    try {
-      await supabase
-        .from('academic_records')
-        .delete()
-        .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+    // 🛡️ CRITICAL INSTITUTIONAL INTEGRITY RULE:
+    // Deleting a user account in User Management must NEVER delete permanent academic records (grade_records, academic_records)!
+    // Grades belong to the registrar and must remain 100% preserved.
 
+    // Check if the student has permanent academic/grade records in the database
+    const { count: gradeCount } = await supabase
+      .from('grade_records')
+      .select('*', { count: 'exact', head: true })
+      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+
+    const { count: academicCount } = await supabase
+      .from('academic_records')
+      .select('*', { count: 'exact', head: true })
+      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+
+    const hasAcademicHistory = (gradeCount || 0) > 0 || (academicCount || 0) > 0;
+    const accountOnly = req.query.account_only === 'true' || req.query.mode === 'account';
+
+    if (accountOnly || hasAcademicHistory) {
+      // User account was deleted: revoke credentials, verification, and reset account status
+      // The student record and ALL grades remain completely preserved!
       await supabase
-        .from('grade_records')
-        .delete()
-        .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
-    } catch (gErr) {
-      console.warn('Grade records clean notice on student delete:', gErr.message);
+        .from('students')
+        .update({
+          verified: false,
+          status: 'unregistered',
+          id_front_image: null,
+          id_back_image: null,
+          selfie_image: null,
+          id_front_path: null,
+          id_back_path: null,
+          selfie_path: null
+        })
+        .or(orFilter);
+
+      return res.json({
+        message: `User account for '${studentId}' deleted successfully. Academic records and student profile remain preserved.`,
+        studentId,
+        accountOnly: true
+      });
     }
 
-    // 5. Completely remove student record from Supabase students table
+    // Only if the student has ZERO academic history and is a pure pending applicant:
     await supabase
       .from('students')
       .delete()
       .or(orFilter);
 
     res.json({
-      message: `Student account and all associated records for '${studentId}' deleted successfully from Supabase.`,
+      message: `Student account for '${studentId}' deleted successfully from Supabase.`,
       studentId
     });
   } catch (error) {

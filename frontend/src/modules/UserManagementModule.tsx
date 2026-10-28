@@ -31,7 +31,6 @@ export const UserManagementModule: React.FC = () => {
     staffAccounts,
     refreshStudents,
     refreshStaffAccounts,
-    refreshAcademicGrades,
     showToast
   } = useRegistrarData();
 
@@ -220,20 +219,16 @@ export const UserManagementModule: React.FC = () => {
     if (!deletingStudent) return;
     setIsDeletingUser(true);
     try {
-      if (setMockStudents) {
-        setMockStudents(prev => prev.filter(s => s.id !== deletingStudent.id && s.student_id !== deletingStudent.student_id));
-      }
-      await fetchApi(`/students/${deletingStudent.student_id || deletingStudent.id}`, {
+      await fetchApi(`/students/${encodeURIComponent(deletingStudent.student_id || deletingStudent.id)}?account_only=true`, {
         method: 'DELETE'
       });
-      showToast(`Student user account for ${deletingStudent.student_id || deletingStudent.name} deleted from Supabase.`, 'success');
+      showToast(`User account for ${deletingStudent.student_id || deletingStudent.name} deleted. Academic records and grades remain preserved.`, 'success');
       if (refreshStudents) await refreshStudents();
-      if (refreshAcademicGrades) await refreshAcademicGrades('all');
       setShowDeleteStudentModal(false);
       setDeletingStudent(null);
     } catch (err: any) {
       console.error('Delete Student error:', err);
-      showToast(err.message || 'Failed to delete student record from Supabase', 'error');
+      showToast(err.message || 'Failed to delete student account from Supabase', 'error');
     } finally {
       setIsDeletingUser(false);
     }

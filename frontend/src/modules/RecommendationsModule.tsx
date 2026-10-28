@@ -620,19 +620,33 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
     });
   }, [eligibleStudentsInAy, studentSearchInput, studentFilterType]);
 
+  // When switching between Regular / Deficient / All filter categories,
+  // automatically clear the previously selected student so their data disappears.
+  const prevFilterTypeRef = useRef(studentFilterType);
+  useEffect(() => {
+    if (prevFilterTypeRef.current !== studentFilterType) {
+      prevFilterTypeRef.current = studentFilterType;
+      setSelectedRecStudentId('');
+      setStudentSearchInput('');
+      setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
+    }
+  }, [studentFilterType]);
+
   // Keep selected student synchronized when Academic Year changes or current selection becomes ineligible
   useEffect(() => {
-    if (eligibleStudentsInAy.length > 0) {
-      const isCurrentlySelectedValid = eligibleStudentsInAy.some(
+    if (filteredStudentList.length > 0) {
+      const isCurrentlySelectedValid = filteredStudentList.some(
         s => matchStudentId(s.student_id, selectedRecStudentId) || matchStudentId(s.id, selectedRecStudentId)
       );
       if (!isCurrentlySelectedValid && selectedRecStudentId) {
-        setSelectedRecStudentId(eligibleStudentsInAy[0].student_id);
+        setSelectedRecStudentId('');
+        setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
       }
-    } else if (studentListOptions.length > 0 && eligibleStudentsInAy.length === 0 && selectedRecStudentId) {
+    } else if (selectedRecStudentId) {
       setSelectedRecStudentId('');
+      setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
     }
-  }, [selectedAcademicYear, eligibleStudentsInAy]);
+  }, [selectedAcademicYear, filteredStudentList]);
 
   const isUserActivelySearching = studentSearchInput.trim().length > 0;
   const displayedList = filteredStudentList;
@@ -856,7 +870,14 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
               <button
                 type="button"
-                onClick={() => setStudentFilterType('all')}
+                onClick={() => {
+                  if (studentFilterType !== 'all') {
+                    setStudentFilterType('all');
+                    setSelectedRecStudentId('');
+                    setStudentSearchInput('');
+                    setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
+                  }
+                }}
                 style={{
                   padding: '0.3rem 0.65rem',
                   borderRadius: '7px',
@@ -872,7 +893,14 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setStudentFilterType('deficiencies')}
+                onClick={() => {
+                  if (studentFilterType !== 'deficiencies') {
+                    setStudentFilterType('deficiencies');
+                    setSelectedRecStudentId('');
+                    setStudentSearchInput('');
+                    setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
+                  }
+                }}
                 style={{
                   padding: '0.3rem 0.65rem',
                   borderRadius: '7px',
@@ -888,7 +916,14 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setStudentFilterType('regular')}
+                onClick={() => {
+                  if (studentFilterType !== 'regular') {
+                    setStudentFilterType('regular');
+                    setSelectedRecStudentId('');
+                    setStudentSearchInput('');
+                    setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
+                  }
+                }}
                 style={{
                   padding: '0.3rem 0.65rem',
                   borderRadius: '7px',

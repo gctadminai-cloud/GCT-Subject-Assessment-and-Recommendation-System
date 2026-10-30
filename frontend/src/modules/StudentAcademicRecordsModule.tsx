@@ -12,7 +12,6 @@ import {
   Trash2,
   Pencil,
   X,
-  FileCheck,
   Award,
   Calendar,
   History,
@@ -26,7 +25,7 @@ import { buildCompleteStudentGrades, sortTermsChronologically, normalizeSubjCode
 import {
   parseExcelOrCsvFile,
   exportStudentsToExcel,
-  exportOfficialAdvisingSlip
+  downloadCsvFile
 } from '../utils/exportUtils';
 
 export interface StudentAcademicRecordsModuleProps {
@@ -101,10 +100,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   const [historyViewMode, setHistoryViewMode] = useState<'curriculum' | 'chronological'>('curriculum');
   const [loadingHistoryGrades, setLoadingHistoryGrades] = useState(false);
   const [fetchedStudentGrades, setFetchedStudentGrades] = useState<Record<string, AcademicGrade[]>>({});
-
-  // Official Advising Slip Modal
-  const [showAdvisingModal, setShowAdvisingModal] = useState(false);
-  const [advisingStudent, setAdvisingStudent] = useState<Student | null>(null);
 
   // Auto-open student record modal when navigating from AI Chatbot
   useEffect(() => {
@@ -785,9 +780,95 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     }
   };
 
-  const handleOpenAdvisingSlip = (st: Student) => {
-    setAdvisingStudent(st);
-    setShowAdvisingModal(true);
+  const handleDownloadStudentAcademicRecord = async (st: Student) => {
+    try {
+      // Fetch fresh live records directly from backend API for this student
+      let records: any[] = rawStudentGrades;
+      try {
+        const liveData = await fetchApi(`/academic-records?student_id=${encodeURIComponent(st.student_id)}`);
+        if (Array.isArray(liveData) && liveData.length > 0) {
+          records = liveData;
+        }
+      } catch (e) {
+        // Fallback to loaded rawStudentGrades
+      }
+
+      if (!records || records.length === 0) {
+        showToast(`No academic records found for ${st.name} (${st.student_id}).`, 'info');
+        return;
+      }
+
+      const headers = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'];
+      const rows = [headers.join(',')];
+
+      const studentId = st.student_id || 'N/A';
+      const studentName = (st.name || 'Student').replace(/"/g, '""');
+      const program = (st.program || 'BSIT').replace(/"/g, '""');
+
+      for (const item of records) {
+        const r: any = item;
+        const isDropped = Boolean(r.is_dropped || r.isDropped || r.status === 'dropped' || String(r.raw_grade || r.rawGrade) === '9' || String(r.raw_grade || r.rawGrade).toUpperCase() === 'DRP');
+        const rawStr = String(r.raw_grade || r.rawGrade || '').trim();
+        const rawNum = parseFloat(rawStr);
+        const parsedGrade = (r.grade != null && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+        const isFailedOrDef = !isDropped && (r.status === 'failed' || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (parsedGrade !== null && (parsedGrade === 5.0 || parsedGrade > 3.0)) || (!isNaN(rawNum) && rawNum < 1.0));
+        const isPassed = !isDropped && !isFailedOrDef && (r.status === 'passed' || (parsedGrade !== null && parsedGrade >= 1.0 && parsedGrade <= 3.0));
+
+        const code = (r.subject?.code || r.code || r.subject_code || r.subject_id || '').replace(/"/g, '""');
+        const title = (r.subject?.title || r.title || r.subject_title || '').replace(/"/g, '""');
+        const units = Number(r.subject?.units || r.units || 3);
+
+        let finalGrade: string | number = 'N/A';
+        let finalStatus = 'failed';
+
+        if (isDropped) {
+          finalGrade = 'N/A';
+          finalStatus = 'dropped';
+        } else if (isPassed) {
+          finalGrade = parsedGrade !== null ? parsedGrade : (rawNum >= 1.0 && rawNum <= 3.0 ? rawNum : 2.0);
+          finalStatus = 'passed';
+        } else {
+          finalGrade = parsedGrade !== null && parsedGrade > 3.0 ? parsedGrade : 5;
+          finalStatus = 'failed';
+        }
+
+        const term = (r.term || 'Academic Record').replace(/"/g, '""');
+        const recYear = r.year_level || r.yearLevel || r.enrolled_year_level || r.curriculum_year_level || st.year || 1;
+
+        rows.push([
+          `"${studentId}"`,
+          `"${studentName}"`,
+          `"${program}"`,
+          `"${recYear}"`,
+          `"${code}"`,
+          `"${title}"`,
+          units,
+          finalGrade,
+          `"${finalStatus}"`,
+          `"${term}"`
+        ].join(','));
+      }
+
+      // Summary row at bottom for Excel viewers matching chatbot export
+      if (studentGwaCalculation) {
+        rows.push('');
+        rows.push([
+          `"Summary: Overall GWA ${studentGwaCalculation.gwa || 'N/A'}"`,
+          `"Total Passed Units: ${studentGwaCalculation.passedUnits || 0}"`,
+          `"Failed Subjects: ${studentGwaCalculation.failedCount || 0}"`,
+          `"Academic Standing: ${studentGwaCalculation.failedCount > 0 ? 'Irregular (With Deficiencies)' : 'Regular (Good Standing)'}"`,
+          '""', '""', '""', '""', '""', '""'
+        ].join(','));
+      }
+
+      const csvContent = rows.join('\r\n');
+      const filename = `${st.student_id}_Academic_Record.csv`;
+      downloadCsvFile(csvContent, filename);
+      showToast(`Exported ${filename} successfully!`, 'success');
+    } catch (err: any) {
+      console.error('Failed to export student academic record:', err);
+      showToast(err.message || 'Failed to download academic record', 'error');
+    }
   };
 
   // Base raw grades directly from database or mock
@@ -1737,9 +1818,9 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
           justifyContent: 'center',
           padding: '1rem'
         }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '840px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', background: '#FFFFFF', borderRadius: '16px' }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '880px', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem 2rem', background: '#FFFFFF', borderRadius: '16px' }}>
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.15rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.9rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div
                   style={{
@@ -1781,21 +1862,66 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               </button>
             </div>
 
-            {/* Overall GWA & Units Metric Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.85rem', marginBottom: '1.5rem' }}>
-              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '12px', padding: '0.85rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase' }}>General Weighted Average</div>
-                <div style={{ fontSize: '1.65rem', fontWeight: 850, color: '#1E3A8A', marginTop: '0.2rem' }}>{studentGwaCalculation.gwa}</div>
+            {/* Overall GWA & Units Metric Cards - Single Row 5-Column Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gap: '0.55rem',
+              marginBottom: '1.35rem'
+            }}>
+              <div style={{
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderRadius: '10px',
+                padding: '0.65rem 0.45rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', lineHeight: 1.25 }}>
+                  General Weighted Average
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 850, color: '#1E3A8A', marginTop: '0.15rem' }}>
+                  {studentGwaCalculation.gwa}
+                </div>
               </div>
 
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', padding: '0.85rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase' }}>Total Passed Units</div>
-                <div style={{ fontSize: '1.65rem', fontWeight: 850, color: '#166534', marginTop: '0.2rem' }}>{studentGwaCalculation.passedUnits} Units</div>
+              <div style={{
+                background: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: '10px',
+                padding: '0.65rem 0.45rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase', lineHeight: 1.25 }}>
+                  Total Passed Units
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 850, color: '#166534', marginTop: '0.15rem' }}>
+                  {studentGwaCalculation.passedUnits} Units
+                </div>
               </div>
 
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '0.85rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Curriculum Completion</div>
-                <div style={{ fontSize: '1.65rem', fontWeight: 850, color: '#0F172A', marginTop: '0.2rem' }}>
+              <div style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '10px',
+                padding: '0.65rem 0.45rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', lineHeight: 1.25 }}>
+                  Curriculum Completion
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 850, color: '#0F172A', marginTop: '0.15rem' }}>
                   {studentGwaCalculation.passedCount} / {studentAcademicHistoryGrades.length}
                 </div>
               </div>
@@ -1803,26 +1929,48 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               <div style={{
                 background: studentGwaCalculation.failedCount > 0 ? '#FEF2F2' : (studentGwaCalculation.retakeCount > 0 ? '#EFF6FF' : '#F0FDF4'),
                 border: `1px solid ${studentGwaCalculation.failedCount > 0 ? '#FECACA' : (studentGwaCalculation.retakeCount > 0 ? '#BFDBFE' : '#BBF7D0')}`,
-                borderRadius: '12px',
-                padding: '0.85rem',
-                textAlign: 'center'
+                borderRadius: '10px',
+                padding: '0.65rem 0.45rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minWidth: 0
               }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: studentGwaCalculation.failedCount > 0 ? '#DC2626' : (studentGwaCalculation.retakeCount > 0 ? '#1D4ED8' : '#15803D'), textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: studentGwaCalculation.failedCount > 0 ? '#DC2626' : (studentGwaCalculation.retakeCount > 0 ? '#1D4ED8' : '#15803D'), textTransform: 'uppercase', lineHeight: 1.25 }}>
                   Deficiencies & Retakes
                 </div>
-                <div style={{ fontSize: '1.35rem', fontWeight: 850, color: studentGwaCalculation.failedCount > 0 ? '#B91C1C' : (studentGwaCalculation.retakeCount > 0 ? '#1E40AF' : '#166534'), marginTop: '0.2rem' }}>
+                <div style={{ fontSize: '1.15rem', fontWeight: 850, color: studentGwaCalculation.failedCount > 0 ? '#B91C1C' : (studentGwaCalculation.retakeCount > 0 ? '#1E40AF' : '#166534'), marginTop: '0.2rem' }}>
                   {studentGwaCalculation.failedCount > 0
                     ? `${studentGwaCalculation.failedCount} Failed`
                     : (studentGwaCalculation.retakeCount > 0 ? `${studentGwaCalculation.retakeCount} Retake(s) Cleared` : 'All Passed')}
                 </div>
               </div>
 
-              <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '12px', padding: '0.85rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#B45309', textTransform: 'uppercase' }}>Academic Standing</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: studentGwaCalculation.failedCount > 0 ? '#DC2626' : (studentGwaCalculation.retakeCount > 0 ? '#1D4ED8' : '#B45309'), marginTop: '0.4rem' }}>
+              <div style={{
+                background: '#FEF3C7',
+                border: '1px solid #FDE68A',
+                borderRadius: '10px',
+                padding: '0.65rem 0.45rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#B45309', textTransform: 'uppercase', lineHeight: 1.25 }}>
+                  Academic Standing
+                </div>
+                <div style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  color: studentGwaCalculation.failedCount > 0 ? '#DC2626' : (studentGwaCalculation.retakeCount > 0 ? '#1D4ED8' : '#B45309'),
+                  marginTop: '0.2rem',
+                  lineHeight: 1.2
+                }}>
                   {studentGwaCalculation.failedCount > 0
-                    ? 'Irregular • With Deficiencies'
-                    : (studentGwaCalculation.retakeCount > 0 ? 'Regular • Deficiencies Cleared' : 'Regular • Good Standing')}
+                    ? 'Irregular • Deficiencies'
+                    : (studentGwaCalculation.retakeCount > 0 ? 'Regular • Cleared' : 'Regular • Good Standing')}
                 </div>
               </div>
             </div>
@@ -2155,197 +2303,39 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
             )}
 
             {/* Modal Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => handleOpenAddGradeForStudent(selectedHistoryStudent)}
-                  className="btn btn-secondary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
-                >
-                  <Plus size={15} color="var(--primary)" /> Encode New Grade Record
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (window.confirm(`Are you sure you want to delete ALL academic records for ${selectedHistoryStudent.name} (${selectedHistoryStudent.student_id}) from the database?`)) {
-                      try {
-                        await fetchApi(`/academic-records/all?student_id=${encodeURIComponent(selectedHistoryStudent.student_id)}`, { method: 'DELETE' });
-                        showToast(`All academic records for ${selectedHistoryStudent.name} deleted successfully from database.`, 'info');
-                        setFetchedStudentGrades(prev => ({ ...prev, [selectedHistoryStudent.student_id]: [] }));
-                        if (refreshAcademicGrades) await refreshAcademicGrades('all');
-                        if (refreshStudents) await refreshStudents();
-                        setShowHistoryModal(false);
-                      } catch (err: any) {
-                        showToast(err.message || 'Failed to delete records', 'error');
-                      }
-                    }
-                  }}
-                  className="btn btn-secondary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: '#DC2626', borderColor: '#FECACA', background: '#FEF2F2' }}
-                  title="Delete all academic records for this student"
-                >
-                  <Trash2 size={13} color="#DC2626" /> Clear All Records
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowHistoryModal(false);
-                    handleOpenAdvisingSlip(selectedHistoryStudent);
-                  }}
-                  className="btn btn-secondary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
-                >
-                  <FileCheck size={14} color="#16A34A" /> Generate Advising Slip
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowHistoryModal(false)}
-                  className="btn btn-primary"
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  Close Transcript
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* MODAL 4: OFFICIAL ADVISING SLIP PREVIEW MODAL             */}
-      {/* ========================================================= */}
-      {showAdvisingModal && advisingStudent && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(5px)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '640px', padding: '2rem', background: '#FFFFFF', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <img src="/logo.png" alt="GCT Logo" style={{ width: '45px', height: '45px', objectFit: 'contain' }} />
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Garcia College of Technology</h4>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Official Academic Advising Slip • Registrar Office</div>
-                </div>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
               <button
                 type="button"
-                onClick={() => setShowAdvisingModal(false)}
-                style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.82rem' }}>
-                <div><strong>Student Name:</strong> {advisingStudent.name}</div>
-                <div><strong>Student ID:</strong> {advisingStudent.student_id}</div>
-                <div><strong>Program:</strong> {advisingStudent.program}</div>
-                <div><strong>Year Level:</strong> Year {advisingStudent.year}</div>
-              </div>
-            </div>
-
-            <div style={{ border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', marginBottom: '1.25rem', maxHeight: '320px', overflowY: 'auto' }}>
-              <table className="custom-table" style={{ fontSize: '0.8rem', margin: 0 }}>
-                <thead>
-                  <tr>
-                    <th>Cat No.</th>
-                    <th>Subject Description</th>
-                    <th style={{ textAlign: 'center' }}>Units</th>
-                    <th style={{ textAlign: 'center' }}>Grade</th>
-                    <th>Status / Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentAcademicHistoryGrades.map(g => {
-                    const isDropped = g.status === 'dropped' || g.isDropped;
-                    const isNotTaken = g.status === 'not_taken';
-                    const isZero = !isDropped && !isNotTaken && (g.grade === 0 || Number(g.grade) === 0 || g.rawGrade === '0' || g.rawGrade === '0.0' || String(g.rawGrade || '').trim() === '0');
-                    const num = Number(g.grade);
-                    const isFailed = !isDropped && !isNotTaken && (isZero || g.status === 'failed' || (g.grade !== null && num > 3.0) || g.grade === 5 || g.rawGrade === '5');
-                    const isPassed = !isDropped && !isNotTaken && !isFailed && (g.status === 'passed' && g.grade !== null && !isNaN(num) && num >= 1.0 && num <= 3.0);
-                    return (
-                      <tr key={g.id} style={{ background: isFailed ? 'rgba(254, 242, 242, 0.4)' : undefined }}>
-                        <td style={{ fontWeight: 800, color: isFailed ? '#DC2626' : (isNotTaken ? '#94A3B8' : '#2563EB') }}>{g.code}</td>
-                        <td style={{ fontWeight: 600, color: isNotTaken ? '#64748B' : undefined }}>{g.title}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 700 }}>{g.units}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 850, color: isFailed ? '#DC2626' : (isPassed ? '#16A34A' : '#94A3B8') }}>
-                          {isDropped ? 'DRP' : isNotTaken ? '—' : (g.grade !== null && g.grade !== undefined ? Number(g.grade).toFixed(2) : '—')}
-                        </td>
-                        <td>
-                          {isNotTaken ? (
-                            <span className="badge" style={{ fontSize: '0.72rem', background: '#F1F5F9', color: '#64748B', border: '1px solid #CBD5E1' }}>
-                              Pending Enrollment
-                            </span>
-                          ) : isDropped ? (
-                            <span className="badge" style={{ fontSize: '0.72rem', background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
-                              Dropped (DRP) • Retake Required
-                            </span>
-                          ) : isFailed ? (
-                            <span className="badge badge-failed" style={{ fontSize: '0.72rem' }}>
-                              Deficiency • Retake Required
-                            </span>
-                          ) : (
-                            <span className="badge badge-passed" style={{ fontSize: '0.72rem' }}>
-                              {g.isRetake ? 'Satisfied (Retake Cleared)' : 'Satisfied Prerequisite'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => exportOfficialAdvisingSlip({
-                  name: advisingStudent.name,
-                  studentId: advisingStudent.student_id,
-                  program: advisingStudent.program,
-                  yearLevel: `Year ${advisingStudent.year}`,
-                  term: '2025-2026 1st Sem',
-                  recommendations: studentAcademicHistoryGrades
-                    .map(g => ({
-                      code: g.code,
-                      title: g.title,
-                      units: g.units,
-                      reason: g.status === 'failed' ? 'retake' : 'recommended',
-                      notes: g.status === 'passed' ? 'Completed' : 'Prerequisite Requirement'
-                    }))
-                })}
+                onClick={() => handleDownloadStudentAcademicRecord(selectedHistoryStudent)}
                 className="btn btn-secondary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: '#15803D',
+                  borderColor: '#BBF7D0',
+                  background: '#F0FDF4'
+                }}
+                title="Download Student Academic Record Excel / CSV Spreadsheet"
               >
-                <Download size={14} /> Download Excel Advising Slip
+                <Download size={15} color="#16A34A" /> Download Excel
               </button>
+
               <button
                 type="button"
-                onClick={() => setShowAdvisingModal(false)}
+                onClick={() => setShowHistoryModal(false)}
                 className="btn btn-primary"
                 style={{ fontSize: '0.85rem' }}
               >
-                Done
+                Close Transcript
               </button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* ========================================================= */}
       {/* MODAL 5: FAST EXCEL / CSV UPLOAD MODAL                    */}

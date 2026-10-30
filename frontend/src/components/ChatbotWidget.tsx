@@ -711,12 +711,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         'What subjects am I eligible for next semester?',
         'Download my official academic record'
       ]
-    : [
-        'What is your evaluation and opinion on student records?',
-        'How many student registrations are pending approval?',
-        'What are the institutional passing thresholds and prerequisite rules?',
-        'Download all registered students directory in Excel'
-      ];
+    : [];
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -1723,75 +1718,77 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         </div>
 
         {/* Quick Suggestion Prompts */}
-        <div
-          style={{
-            padding: '0.65rem 1.5rem',
-            borderTop: '1px solid #E2E8F0',
-            display: 'flex',
-            gap: '0.5rem',
-            overflowX: 'auto',
-            flexShrink: 0,
-            background: '#FFFFFF'
-          }}
-        >
-          {(isGuest || isStudent) && (
-            <button
-              type="button"
-              onClick={() => setShowFaqModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
-                border: '1px solid #1E3A8A',
-                borderRadius: '9999px',
-                padding: '0.4rem 0.95rem',
-                color: '#FFFFFF',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-              }}
-            >
-              <BookOpen size={13} />
-              Browse FAQs
-            </button>
-          )}
-          {quickPrompts.map((qp, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSend(qp)}
-              style={{
-                background: '#F1F5F9',
-                border: '1px solid #CBD5E1',
-                borderRadius: '9999px',
-                padding: '0.4rem 0.9rem',
-                color: '#334155',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                flexShrink: 0
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = '#2563EB';
-                e.currentTarget.style.borderColor = '#93C5FD';
-                e.currentTarget.style.background = '#EFF6FF';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = '#334155';
-                e.currentTarget.style.borderColor = '#CBD5E1';
-                e.currentTarget.style.background = '#F1F5F9';
-              }}
-            >
-              {qp}
-            </button>
-          ))}
-        </div>
+        {((isGuest || isStudent) || quickPrompts.length > 0) && (
+          <div
+            style={{
+              padding: '0.65rem 1.5rem',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              gap: '0.5rem',
+              overflowX: 'auto',
+              flexShrink: 0,
+              background: '#FFFFFF'
+            }}
+          >
+            {(isGuest || isStudent) && (
+              <button
+                type="button"
+                onClick={() => setShowFaqModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+                  border: '1px solid #1E3A8A',
+                  borderRadius: '9999px',
+                  padding: '0.4rem 0.95rem',
+                  color: '#FFFFFF',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                }}
+              >
+                <BookOpen size={13} />
+                Browse FAQs
+              </button>
+            )}
+            {quickPrompts.map((qp, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSend(qp)}
+                style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '9999px',
+                  padding: '0.4rem 0.9rem',
+                  color: '#334155',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#2563EB';
+                  e.currentTarget.style.borderColor = '#93C5FD';
+                  e.currentTarget.style.background = '#EFF6FF';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = '#334155';
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                  e.currentTarget.style.background = '#F1F5F9';
+                }}
+              >
+                {qp}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Staged Attachments Preview Bar */}
         {attachments.length > 0 && (
@@ -2383,73 +2380,75 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           </div>
 
           {/* Quick Prompts */}
-          <div style={{
-            padding: '0.5rem 0.75rem',
-            borderTop: '1px solid #E2E8F0',
-            display: 'flex',
-            gap: '0.35rem',
-            overflowX: 'auto',
-            flexShrink: 0,
-            background: '#FFFFFF'
-          }}>
-            {(isGuest || isStudent) && (
-            <button
-              type="button"
-              onClick={() => setShowFaqModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
-                border: '1px solid #1E3A8A',
-                borderRadius: '9999px',
-                padding: '0.4rem 0.95rem',
-                color: '#FFFFFF',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-              }}
-            >
-              <BookOpen size={13} />
-              Browse FAQs
-            </button>
-          )}
-          {quickPrompts.map((qp, idx) => (
+          {((isGuest || isStudent) || quickPrompts.length > 0) && (
+            <div style={{
+              padding: '0.5rem 0.75rem',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              gap: '0.35rem',
+              overflowX: 'auto',
+              flexShrink: 0,
+              background: '#FFFFFF'
+            }}>
+              {(isGuest || isStudent) && (
               <button
-                key={idx}
                 type="button"
-                onClick={() => handleSend(qp)}
+                onClick={() => setShowFaqModal(true)}
                 style={{
-                  background: '#F1F5F9',
-                  border: '1px solid #CBD5E1',
+                  background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+                  border: '1px solid #1E3A8A',
                   borderRadius: '9999px',
-                  padding: '0.3rem 0.65rem',
-                  color: '#334155',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
+                  padding: '0.4rem 0.95rem',
+                  color: '#FFFFFF',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  flexShrink: 0
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.color = '#2563EB';
-                  e.currentTarget.style.borderColor = '#93C5FD';
-                  e.currentTarget.style.background = '#EFF6FF';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = '#334155';
-                  e.currentTarget.style.borderColor = '#CBD5E1';
-                  e.currentTarget.style.background = '#F1F5F9';
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
                 }}
               >
-                {qp}
+                <BookOpen size={13} />
+                Browse FAQs
               </button>
-            ))}
-          </div>
+            )}
+            {quickPrompts.map((qp, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSend(qp)}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '9999px',
+                    padding: '0.3rem 0.65rem',
+                    color: '#334155',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.color = '#2563EB';
+                    e.currentTarget.style.borderColor = '#93C5FD';
+                    e.currentTarget.style.background = '#EFF6FF';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.color = '#334155';
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                    e.currentTarget.style.background = '#F1F5F9';
+                  }}
+                >
+                  {qp}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Staged Attachments for Floating Widget */}
           {attachments.length > 0 && (

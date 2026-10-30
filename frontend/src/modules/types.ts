@@ -28,6 +28,10 @@ export interface Student {
   hasDeficiencies?: boolean;
   deficiency_count?: number;
   deficiencyCount?: number;
+  active_semester?: '1' | '2' | 'summer';
+  activeSemester?: '1' | '2' | 'summer';
+  semesters_by_ay?: Record<string, string>;
+  academic_years?: string[];
   course?: string;
 }
 

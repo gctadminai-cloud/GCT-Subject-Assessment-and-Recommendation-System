@@ -103,6 +103,7 @@ interface RegistrarDataContextType {
   setSelectedAcademicYear: React.Dispatch<React.SetStateAction<string | 'all'>>;
   refreshAcademicYears: () => Promise<void>;
   addAcademicYear: (ay: string, setAsActive?: boolean) => Promise<boolean>;
+  deleteAcademicYear: (ay: string, force?: boolean) => Promise<boolean>;
   setSelectedAcademicYearExternal: (ay: string | 'all') => Promise<void>;
 
   // Helpers
@@ -155,7 +156,11 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
           has_deficiencies: Boolean(st.has_deficiencies ?? st.hasDeficiencies),
           hasDeficiencies: Boolean(st.has_deficiencies ?? st.hasDeficiencies),
           deficiency_count: Number(st.deficiency_count ?? st.deficiencyCount ?? 0),
-          deficiencyCount: Number(st.deficiency_count ?? st.deficiencyCount ?? 0)
+          deficiencyCount: Number(st.deficiency_count ?? st.deficiencyCount ?? 0),
+          active_semester: (st.active_semester || st.activeSemester || '1') as '1' | '2' | 'summer',
+          activeSemester: (st.active_semester || st.activeSemester || '1') as '1' | '2' | 'summer',
+          semesters_by_ay: st.semesters_by_ay || {},
+          academic_years: Array.isArray(st.academic_years) ? st.academic_years : []
         }));
 
         setMockStudents(liveStudents);
@@ -234,8 +239,10 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
             status,
             isDropped,
             term: r.term || '2024-2025 1st Sem',
+            academicYear: r.academic_year || (r.term ? r.term.split(' ')[0] : undefined),
+            semester: r.semester || (r.term && /summer/i.test(r.term) ? 3 : (r.term && /second|2nd/i.test(r.term) ? 2 : 1)),
             units: Number(r.subject?.units || r.units || 3),
-            yearLevel: Number(r.subject?.year_level || r.year_level || 1)
+            yearLevel: Number(r.year_level || r.enrolled_year_level || r.subject?.year_level || 1)
           };
         });
 
@@ -290,8 +297,8 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
             isDropped,
             term: r.term || '2023-2024 1st Sem',
             academicYear: r.academic_year || (r.term ? r.term.split(' ')[0] : undefined),
-            semester: r.semester || (r.term && r.term.includes('2nd') ? 2 : 1),
-            yearLevel: Number(r.subject?.year_level || r.year_level || 1)
+            semester: r.semester || (r.term && /summer/i.test(r.term) ? 3 : (r.term && /second|2nd/i.test(r.term) ? 2 : 1)),
+            yearLevel: Number(r.year_level || r.enrolled_year_level || r.subject?.year_level || 1)
           };
         });
 
@@ -605,6 +612,30 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (e) { }
   };
 
+  const deleteAcademicYear = async (ay: string, force: boolean = true): Promise<boolean> => {
+    try {
+      const result = await fetchApi(`/settings/academic-years/${encodeURIComponent(ay)}${force ? '?force=true' : ''}`, {
+        method: 'DELETE'
+      });
+      if (result) {
+        setAcademicYears(prev => prev.filter(y => y !== ay));
+        if (selectedAcademicYear === ay) {
+          setSelectedAcademicYear('all');
+        }
+        await refreshAcademicYears();
+        await refreshAcademicGrades('all');
+        await refreshRecommendations();
+        showToast(`Academic Year ${ay} deleted successfully from database.`, 'success');
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.error('Failed to delete academic year:', err);
+      showToast(err?.message || 'Failed to delete academic year.', 'error');
+      return false;
+    }
+  };
+
   // Schedule Management
   const [courseSchedules, setCourseSchedules] = useState<Record<string, string[]>>({});
 
@@ -742,6 +773,7 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
     refreshSettings,
     refreshAcademicYears,
     addAcademicYear,
+    deleteAcademicYear,
     setSelectedAcademicYearExternal
   };
 

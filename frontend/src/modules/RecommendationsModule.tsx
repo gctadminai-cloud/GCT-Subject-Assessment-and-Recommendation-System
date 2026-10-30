@@ -66,9 +66,15 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
     return ca === cb;
   }
 
-  // Exclusive Subject Recommendation Term Selectors: Semester (1, 2, summer) & AY
-  const [hasManualSemesterSelection, setHasManualSemesterSelection] = useState(false);
-  const [selectedSemester, setSelectedSemester] = useState<SemesterValue>(institutionalCurrentSemester);
+  // Whether user explicitly selected/locked a specific semester from the dropdown
+  const [hasManualSemesterSelection, setHasManualSemesterSelection] = useState<boolean>(() => {
+    return Boolean(initialSemester && initialSemester !== 'all');
+  });
+  // Exclusive Subject Recommendation Term Selectors: Semester (all, 1, 2, summer) & AY
+  const [selectedSemester, setSelectedSemester] = useState<SemesterValue>(() => {
+    if (initialSemester) return initialSemester;
+    return 'all';
+  });
   const institutionalAy = selectedAcademicYear !== 'all' ? selectedAcademicYear : (activeAcademicYear || '2027-2028');
 
   // Active student selection state:
@@ -117,7 +123,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
   useEffect(() => {
     if (initialSemester) {
       setSelectedSemester(initialSemester);
-      setHasManualSemesterSelection(true);
+      setHasManualSemesterSelection(initialSemester !== 'all');
     }
   }, [initialSemester]);
 
@@ -241,7 +247,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
   // Auto-detect the active semester for the student (adjusts automatically to 2nd semester if student is in 2nd semester)
   const autoDetectedSemester: SemesterValue = useMemo(() => {
     if (!selectedRecStudentId || mockStudents.length === 0 || isGradesLoading) {
-      return selectedSemester || institutionalCurrentSemester;
+      return selectedSemester !== 'all' ? selectedSemester : institutionalCurrentSemester;
     }
     const naturalAnalysis = generateCurriculumRecommendations(
       studentInfo as any,
@@ -256,17 +262,24 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
     return institutionalCurrentSemester;
   }, [selectedRecStudentId, mockStudents.length, studentInfo, studentGrades, curriculumSubjects, institutionalAy, institutionalCurrentSemester, isGradesLoading, selectedSemester]);
 
-  // Automatically adjust selectedSemester to what semester it currently is in
+  // When user has NOT manually chosen a semester, automatically adjust selectedSemester to what semester the student is in
   useEffect(() => {
-    if (!hasManualSemesterSelection && !isGradesLoading) {
+    if (!hasManualSemesterSelection && !isGradesLoading && autoDetectedSemester && selectedRecStudentId) {
       setSelectedSemester(autoDetectedSemester);
     }
-  }, [autoDetectedSemester, hasManualSemesterSelection, isGradesLoading]);
+  }, [autoDetectedSemester, hasManualSemesterSelection, isGradesLoading, selectedRecStudentId]);
 
-  // When switching selected student, reset manual selection flag so the next student auto-adjusts
-  useEffect(() => {
-    setHasManualSemesterSelection(false);
-  }, [selectedRecStudentId]);
+  // Effective evaluated semester for current student:
+  // If user selected a specific semester ('1', '2', 'summer'), use it.
+  // If user selected 'all' or has not manually selected, evaluate using student's auto-detected semester.
+  const effectiveSemester: '1' | '2' | 'summer' = useMemo(() => {
+    if (hasManualSemesterSelection && (selectedSemester === '1' || selectedSemester === '2' || selectedSemester === 'summer')) {
+      return selectedSemester;
+    }
+    return (autoDetectedSemester === 'summer' || autoDetectedSemester === '2' || autoDetectedSemester === '1')
+      ? autoDetectedSemester
+      : '1';
+  }, [hasManualSemesterSelection, selectedSemester, autoDetectedSemester]);
 
   // Run curriculum analysis grounded strictly in database records & GCT curriculum
   const analysis: CurriculumRecommendationAnalysis = useMemo(() => {
@@ -288,7 +301,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
   const currentRecSubjects = useMemo(() => {
     const existingRec = studentRecommendations.find(
       r => (matchStudentId(r.studentId, selectedRecStudentId) || matchStudentId(r.studentId, studentInfo.student_id)) &&
-        (r as any).semester === String(selectedSemester) &&
+        (r as any).semester === String(effectiveSemester) &&
         (r as any).academicYear === effectiveAy &&
         (r as any).isCustomized === true
     );
@@ -296,7 +309,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
       return existingRec.subjects;
     }
     return analysis.recommendedSubjects;
-  }, [studentRecommendations, selectedRecStudentId, studentInfo.student_id, selectedSemester, effectiveAy, analysis.recommendedSubjects]);
+  }, [studentRecommendations, selectedRecStudentId, studentInfo.student_id, effectiveSemester, effectiveAy, analysis.recommendedSubjects]);
 
   // Keep state synced so approvals and removals persist
   useEffect(() => {
@@ -309,7 +322,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
       setStudentRecommendations(prev => {
         const found = prev.find(
           r => (matchStudentId(r.studentId, selectedRecStudentId) || matchStudentId(r.studentId, studentInfo.student_id)) &&
-            (r as any).semester === String(selectedSemester) &&
+            (r as any).semester === String(effectiveSemester) &&
             (r as any).academicYear === effectiveAy
         );
         if (!found) {
@@ -322,7 +335,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
             schedule: studentInfo.schedule || 'Schedule 1',
             subjects: currentRecSubjects,
             academicYear: effectiveAy,
-            semester: selectedSemester,
+            semester: effectiveSemester,
             isCustomized: false
           } as any;
           return [newRec, ...prev];
@@ -330,7 +343,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         return prev;
       });
     }
-  }, [selectedRecStudentId, currentRecSubjects, studentInfo, selectedSemester, effectiveAy, selectedStudentLoadedGrades]);
+  }, [selectedRecStudentId, currentRecSubjects, studentInfo, effectiveSemester, effectiveAy, selectedStudentLoadedGrades]);
 
   // Unit calculations
   const totalRecommendedUnits = currentRecSubjects.reduce((sum, s) => sum + (s.totalUnits || 0), 0);
@@ -448,23 +461,16 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
       }
 
       let effectiveYear = Number(st.year || 1);
+      let hasSummerYear3 = false;
 
-      // If this is the currently active/selected student, sync directly with the official curriculum analysis targetYear
-      if (
-        (matchStudentId(st.student_id, selectedRecStudentId) || matchStudentId(st.id, selectedRecStudentId)) &&
-        analysis &&
-        analysis.targetYear
-      ) {
-        effectiveYear = Math.max(effectiveYear, analysis.targetYear);
-      } else if (effectiveGrades.length > 0) {
+      if (effectiveGrades.length > 0) {
         let maxTakenYear = 1;
         let sem2CountY1 = 0;
         let sem2CountY2 = 0;
-        let hasSummerYear3 = false;
 
         effectiveGrades.forEach(g => {
           if (g.status === 'not_taken') return;
-          const y = Number(g.yearLevel || (g as any).year_level);
+          const y = Number(g.yearLevel || (g as any).year_level || (g as any).enrolled_year_level);
           if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxTakenYear) {
             maxTakenYear = y;
           }
@@ -480,27 +486,107 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         if (sem2CountY1 >= 3) effectiveYear = Math.max(effectiveYear, 2);
         // Year 2 -> 3: completing 2nd sem of Year 2
         if (sem2CountY2 >= 3) effectiveYear = Math.max(effectiveYear, 3);
-        // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects
+        // Year 3 -> 4: completing 3rd Year Summer OR taking Year 4 subjects (maxTakenYear >= 4).
         // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
         if (hasSummerYear3 || maxTakenYear >= 4) effectiveYear = Math.max(effectiveYear, 4);
         effectiveYear = Math.min(4, Math.max(1, effectiveYear));
       }
 
-      // Track all academic years with grade records for this student
-      const studentAys = new Set<string>();
-      let latestStudentAy = '';
+      // Track all academic years & semesters with grade records for this student
+      const studentAys = new Set<string>((st as any).academic_years || []);
+      const studentSemestersByAy = new Map<string, Set<'1' | '2' | 'summer'>>();
+      if ((st as any).semesters_by_ay) {
+        Object.entries((st as any).semesters_by_ay).forEach(([ay, s]) => {
+          if (!studentSemestersByAy.has(ay)) studentSemestersByAy.set(ay, new Set());
+          const sStr = String(s).toLowerCase();
+          const clean = (sStr.includes('summer') || sStr === '3') ? 'summer' : (sStr.includes('2') ? '2' : '1');
+          studentSemestersByAy.get(ay)!.add(clean as any);
+        });
+      }
+      const allStudentSemesters = new Set<'1' | '2' | 'summer'>();
+      let latestStudentAy = (st as any).latestAcademicYear || '';
       let latestStudentAyYear = 0;
+      let latestSemRank = 0;
+      let latestSemester: '1' | '2' | 'summer' = ((st as any).active_semester || (st as any).activeSemester || '1') as '1' | '2' | 'summer';
+
+      // Track highest semester specifically in selectedAcademicYear
+      let maxSemRankInSelectedAy = 0;
+
       effectiveGrades.forEach(g => {
         const ay = (g.academicYear || (g as any).academic_year || g.term?.match(/\d{4}-\d{4}/)?.[0] || '').trim();
+        const rawSem = String(g.semester ?? (g as any).sem ?? '').toLowerCase().trim();
+        const termStr = String(g.term || '').toLowerCase();
+
+        let sem: '1' | '2' | 'summer' = '1';
+        let semRank = 1;
+        if (rawSem.includes('summer') || rawSem === '3' || termStr.includes('summer')) {
+          sem = 'summer';
+          semRank = 3;
+        } else if (rawSem.includes('second') || rawSem === '2' || rawSem.includes('2nd') || termStr.includes('2nd') || termStr.includes('second')) {
+          sem = '2';
+          semRank = 2;
+        }
+
+        allStudentSemesters.add(sem);
+
         if (ay) {
           studentAys.add(ay);
+          if (!studentSemestersByAy.has(ay)) studentSemestersByAy.set(ay, new Set());
+          studentSemestersByAy.get(ay)!.add(sem);
+
           const startYr = parseInt(ay.split('-')[0] || '0', 10);
-          if (startYr > latestStudentAyYear) {
+          if (startYr > latestStudentAyYear || (startYr === latestStudentAyYear && semRank > latestSemRank)) {
             latestStudentAyYear = startYr;
+            latestSemRank = semRank;
             latestStudentAy = ay;
+            latestSemester = sem;
+          }
+
+          if (selectedAcademicYear !== 'all' && ay.toLowerCase() === selectedAcademicYear.toLowerCase()) {
+            if (semRank > maxSemRankInSelectedAy) {
+              maxSemRankInSelectedAy = semRank;
+            }
+          }
+        } else {
+          if (semRank > latestSemRank) {
+            latestSemRank = semRank;
+            latestSemester = sem;
           }
         }
       });
+
+      // Target upcoming semester calculation for recommendations:
+      // Evaluates what term the student is enrolling in next.
+      let targetSemester: '1' | '2' | 'summer' = '1';
+      if (effectiveGrades.length > 0) {
+        if (latestSemRank === 1) {
+          // Finished 1st sem -> upcoming term is 2nd sem of the current year level
+          targetSemester = '2';
+        } else if (latestSemRank === 2) {
+          if (effectiveYear === 3 && !hasSummerYear3) {
+            // Finished 3rd year 2nd sem and hasn't passed summer -> upcoming term is 3rd Year Summer!
+            targetSemester = 'summer';
+          } else if (effectiveYear < 4) {
+            // Finished 1st or 2nd year 2nd sem -> upcoming term is 1st sem of next year
+            targetSemester = '1';
+          } else {
+            // Finished 4th year 1st sem -> 4th year 2nd sem
+            targetSemester = '2';
+          }
+        } else if (latestSemRank === 3) {
+          // Completed 3rd Year Summer -> upcoming term is 4th Year 1st Sem!
+          targetSemester = '1';
+        }
+      } else {
+        targetSemester = '1';
+      }
+
+      // In the Subject Recommendation module, the active term is the TARGET term for recommendations
+      const activeSemester: '1' | '2' | 'summer' = targetSemester;
+      const targetSemLabel = targetSemester === 'summer'
+        ? 'Summer'
+        : (targetSemester === '2' ? '2nd Sem' : '1st Sem');
+      const activeSemLabel = targetSemLabel;
 
       // 🎓 FINISHED 4TH YEAR DETECTION:
       // A student has finished 4th year if:
@@ -569,38 +655,61 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         deficiencyCount,
         isFinished4thYear,
         academicYears: Array.from(studentAys),
-        latestAcademicYear: latestStudentAy
+        latestAcademicYear: latestStudentAy,
+        semestersByAy: studentSemestersByAy,
+        allSemesters: allStudentSemesters,
+        latestSemester,
+        targetSemester,
+        targetSemLabel,
+        activeSemester,
+        activeSemLabel
       };
     });
   }, [mockStudents, mockAcademicGrades, selectedStudentLoadedGrades, isGradesLoading, selectedRecStudentId, analysis, displayedHasDeficiencies, displayedBreakdown]);
 
-  // 🎯 Academic Year & Graduation Filter for Subject Recommendations:
+  // 🎯 Academic Year, Semester, and Graduation Filter for Subject Recommendations:
   // 1. Exclude students who finished their 4th year / graduated (they have completed their studies and do not need recommendations).
   // 2. When an Academic Year is adjusted / selected (selectedAcademicYear !== 'all'):
   //    Only show students who have records in that academic year, or who are eligible/targeted for that active term.
-  const eligibleStudentsInAy = useMemo(() => {
+  // 3. When a Semester is adjusted / selected (selectedSemester !== 'all'):
+  //    Show students who are in that semester (supporting 1st Sem, 2nd Sem, and Summer even within the same academic year)!
+  const eligibleStudentsInTerm = useMemo(() => {
     return studentListOptions.filter(st => {
       // Hard rule: NEVER show students who finished 4th year / graduated in subject recommendations
       if (st.isFinished4thYear) {
         return false;
       }
 
-      // If Academic Year filter is active ('all' shows all eligible non-graduated students)
+      // 1. Academic Year filter
+      let matchesAy = true;
       if (selectedAcademicYear !== 'all') {
         const hasRecordsInAy = st.academicYears.includes(selectedAcademicYear);
         const isEligibleForActiveAy =
           selectedAcademicYear === activeAcademicYear &&
           (st.academicYears.length === 0 || st.latestAcademicYear === selectedAcademicYear);
 
-        return hasRecordsInAy || isEligibleForActiveAy;
+        matchesAy = hasRecordsInAy || isEligibleForActiveAy;
+      }
+      if (!matchesAy) return false;
+
+      // 2. Semester filter (when user selected a specific semester or locked to one):
+      // Shows students targeted or eligible for that semester!
+      if (selectedSemester !== 'all') {
+        return st.targetSemester === selectedSemester || st.activeSemester === selectedSemester;
       }
 
       return true;
     });
-  }, [studentListOptions, selectedAcademicYear, activeAcademicYear]);
+  }, [studentListOptions, selectedAcademicYear, activeAcademicYear, selectedSemester]);
 
   const filteredStudentList = useMemo(() => {
-    return eligibleStudentsInAy.filter(st => {
+    // When the user is typing in the search bar, search across ALL active students
+    // so they are never blocked by term or AY filters!
+    const baseList = (studentSearchInput.trim().length > 0)
+      ? studentListOptions.filter(st => !st.isFinished4thYear)
+      : eligibleStudentsInTerm;
+
+    return baseList.filter(st => {
       const search = studentSearchInput.toLowerCase().trim();
       const stId = String(st.student_id || '').toLowerCase();
       const stName = String(st.name || '').toLowerCase();
@@ -618,35 +727,16 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
 
       return matchesSearch && matchesFilter;
     });
-  }, [eligibleStudentsInAy, studentSearchInput, studentFilterType]);
+  }, [studentListOptions, eligibleStudentsInTerm, studentSearchInput, studentFilterType]);
 
-  // When switching between Regular / Deficient / All filter categories,
-  // automatically clear the previously selected student so their data disappears.
+  // Preserve selected student across category tabs; only reset search input on tab change
   const prevFilterTypeRef = useRef(studentFilterType);
   useEffect(() => {
     if (prevFilterTypeRef.current !== studentFilterType) {
       prevFilterTypeRef.current = studentFilterType;
-      setSelectedRecStudentId('');
       setStudentSearchInput('');
-      setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
     }
   }, [studentFilterType]);
-
-  // Keep selected student synchronized when Academic Year changes or current selection becomes ineligible
-  useEffect(() => {
-    if (filteredStudentList.length > 0) {
-      const isCurrentlySelectedValid = filteredStudentList.some(
-        s => matchStudentId(s.student_id, selectedRecStudentId) || matchStudentId(s.id, selectedRecStudentId)
-      );
-      if (!isCurrentlySelectedValid && selectedRecStudentId) {
-        setSelectedRecStudentId('');
-        setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
-      }
-    } else if (selectedRecStudentId) {
-      setSelectedRecStudentId('');
-      setSelectedStudentLoadedGrades({ studentId: '', grades: [], isLoading: false });
-    }
-  }, [selectedAcademicYear, filteredStudentList]);
 
   const isUserActivelySearching = studentSearchInput.trim().length > 0;
   const displayedList = filteredStudentList;
@@ -662,8 +752,13 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
   }, []);
 
   const handleSelectFromDropdown = (studentId: string) => {
+    const st = studentListOptions.find(s => matchStudentId(s.student_id, studentId) || matchStudentId(s.id, studentId));
     setSelectedRecStudentId(studentId);
     setShowSearchResultsDropdown(false);
+    setStudentSearchInput('');
+    if (st && st.targetSemester && selectedSemester !== 'all') {
+      setSelectedSemester(st.targetSemester);
+    }
   };
 
   const currentStudentIndex = filteredStudentList.findIndex(
@@ -723,7 +818,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
           return prev;
         }
         return prev.map(r =>
-          (matchStudentId(r.studentId, selectedRecStudentId) && (r as any).semester === String(selectedSemester) && (r as any).academicYear === effectiveAy)
+          (matchStudentId(r.studentId, selectedRecStudentId) && (r as any).semester === String(effectiveSemester) && (r as any).academicYear === effectiveAy)
             ? {
               ...r,
               isCustomized: true,
@@ -741,7 +836,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
           schedule: studentInfo.schedule || 'Schedule 1',
           subjects: [newSubjectItem],
           academicYear: effectiveAy,
-          semester: selectedSemester,
+          semester: effectiveSemester,
           isCustomized: true
         } as any;
         return [newRec, ...prev];
@@ -754,9 +849,9 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
 
   // Export Advising Slip Excel
   const handleExportAdvisingSlip = () => {
-    const semLabel = selectedSemester === '1'
+    const semLabel = effectiveSemester === '1'
       ? '1st Semester'
-      : selectedSemester === '2'
+      : effectiveSemester === '2'
         ? '2nd Semester'
         : 'Summer Term';
     const termLabel = `${effectiveAy} ${semLabel}`;
@@ -825,15 +920,21 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
           {/* 📅 Academic Year Dropdown */}
           <AcademicYearSelector variant="light" />
 
-          {/* 🎓 Semester Dropdown (1st Sem, 2nd Sem, Summer) */}
+          {/* 🎓 Semester Dropdown (All Sem, 1st Sem, 2nd Sem, Summer) */}
           <SemesterSelector
             selectedSemester={selectedSemester}
             currentSemester={autoDetectedSemester}
             onSelectSemester={(sem) => {
-              setHasManualSemesterSelection(true);
-              setSelectedSemester(sem);
-              const semText = sem === '1' ? '1st Semester' : sem === '2' ? '2nd Semester' : 'Summer';
-              showToast(`Viewing recommendations for ${semText}`, 'info');
+              if (sem === 'all') {
+                setHasManualSemesterSelection(false);
+                setSelectedSemester('all');
+                showToast('Viewing students across all semesters', 'info');
+              } else {
+                setHasManualSemesterSelection(true);
+                setSelectedSemester(sem);
+                const semText = sem === '1' ? '1st Semester' : sem === '2' ? '2nd Semester' : 'Summer';
+                showToast(`Filtered to ${semText} students`, 'info');
+              }
             }}
             variant="light"
           />
@@ -889,7 +990,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                All ({eligibleStudentsInAy.length})
+                All ({eligibleStudentsInTerm.length})
               </button>
               <button
                 type="button"
@@ -912,7 +1013,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                ⚠️ Deficient ({eligibleStudentsInAy.filter(s => s.hasDeficiencies).length})
+                ⚠️ Deficient ({eligibleStudentsInTerm.filter(s => s.hasDeficiencies).length})
               </button>
               <button
                 type="button"
@@ -935,7 +1036,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                ✓ Regular ({eligibleStudentsInAy.filter(s => !s.hasDeficiencies).length})
+                ✓ Regular ({eligibleStudentsInTerm.filter(s => !s.hasDeficiencies).length})
               </button>
             </div>
           </div>
@@ -1129,6 +1230,22 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                                   <span style={{ fontWeight: 700, color: '#475569' }}>{st.student_id}</span>
                                   <span style={{ opacity: 0.5 }}>·</span>
                                   <span>{st.program} Y{st.year}</span>
+                                  {(st as any).activeSemLabel && (
+                                    <>
+                                      <span style={{ opacity: 0.5 }}>·</span>
+                                      <span style={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        background: (st as any).activeSemLabel === 'Summer' ? '#FFFBEB' : ((st as any).activeSemLabel.includes('2nd') ? '#F5F3FF' : '#EFF6FF'),
+                                        color: (st as any).activeSemLabel === 'Summer' ? '#B45309' : ((st as any).activeSemLabel.includes('2nd') ? '#6D28D9' : '#1D4ED8'),
+                                        border: `1px solid ${(st as any).activeSemLabel === 'Summer' ? '#FDE68A' : ((st as any).activeSemLabel.includes('2nd') ? '#DDD6FE' : '#BFDBFE')}`
+                                      }}>
+                                        {(st as any).activeSemLabel}
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                               <div style={{ flexShrink: 0 }}>
@@ -1199,37 +1316,60 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
 
             {/* Student Dropdown Selector */}
             <div style={{ flex: '2 1 320px', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <select
-                value={selectedRecStudentId}
-                onChange={e => setSelectedRecStudentId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.48rem 0.75rem',
-                  borderRadius: '8px',
-                  background: '#FFFFFF',
-                  border: selectedRecStudentId ? '1px solid #2563EB' : '1px solid #E2E8F0',
-                  color: selectedRecStudentId ? '#0F172A' : '#94A3B8',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="">— Select a student first —</option>
-                {filteredStudentList.length > 0 ? (
-                  filteredStudentList.map(st => (
-                    <option key={st.student_id} value={st.student_id}>
-                      {st.student_id} — {st.name} ({st.program} Y{st.year}) {st.hasDeficiencies ? '⚠️' : '✓'}
-                    </option>
-                  ))
-                ) : (
-                  <option value="" disabled>
-                    {selectedAcademicYear !== 'all'
-                      ? `📭 No eligible students found for AY ${selectedAcademicYear}`
-                      : '📭 No matching students found — try a different search'}
-                  </option>
-                )}
-              </select>
+              {(() => {
+                const isSelectedInList = filteredStudentList.some(
+                  s => matchStudentId(s.student_id, selectedRecStudentId) || matchStudentId(s.id, selectedRecStudentId)
+                );
+                const activeSelectedStudent = (!isSelectedInList && selectedRecStudentId)
+                  ? studentListOptions.find(s => matchStudentId(s.student_id, selectedRecStudentId) || matchStudentId(s.id, selectedRecStudentId))
+                  : null;
+
+                return (
+                  <select
+                    value={selectedRecStudentId}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSelectedRecStudentId(val);
+                      const st = studentListOptions.find(s => matchStudentId(s.student_id, val) || matchStudentId(s.id, val));
+                      if (st && st.targetSemester && selectedSemester !== 'all') {
+                        setSelectedSemester(st.targetSemester);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.48rem 0.75rem',
+                      borderRadius: '8px',
+                      background: '#FFFFFF',
+                      border: selectedRecStudentId ? '1px solid #2563EB' : '1px solid #E2E8F0',
+                      color: selectedRecStudentId ? '#0F172A' : '#94A3B8',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">— Select a student first —</option>
+                    {activeSelectedStudent && (
+                      <option key={activeSelectedStudent.student_id} value={activeSelectedStudent.student_id}>
+                        {activeSelectedStudent.student_id} — {activeSelectedStudent.name} ({activeSelectedStudent.program} Y{activeSelectedStudent.year}) {activeSelectedStudent.hasDeficiencies ? '⚠️' : '✓'} [{activeSelectedStudent.targetSemLabel || '1st Sem'}] (Active)
+                      </option>
+                    )}
+                    {filteredStudentList.length > 0 ? (
+                      filteredStudentList.map(st => (
+                        <option key={st.student_id} value={st.student_id}>
+                          {st.student_id} — {st.name} ({st.program} Y{st.year}) {st.hasDeficiencies ? '⚠️' : '✓'} [{st.targetSemLabel || (st as any).activeSemLabel || '1st Sem'}]
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        {selectedAcademicYear !== 'all'
+                          ? `📭 No eligible students found for AY ${selectedAcademicYear}`
+                          : '📭 No matching students found — try a different search'}
+                      </option>
+                    )}
+                  </select>
+                );
+              })()}
               {(studentSearchInput || studentFilterType !== 'all') && (
                 <span
                   style={{
@@ -1458,7 +1598,7 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
                       </div>
 
                       <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span>{studentInfo.program} • {['1st', '2nd', '3rd', '4th'][analysis.targetYear - 1] || analysis.targetYear} Year • {analysis.targetSemester === 3 ? 'Summer' : (analysis.targetSemester === 2 ? '2nd Sem' : '1st Sem')}</span>
+                        <span>Degree Program: <strong>{studentInfo.program}</strong> • Standing: <strong>{['1st', '2nd', '3rd', '4th'][Number(studentInfo.year || 1) - 1] || studentInfo.year} Year</strong> • Recommending for: <strong>{['1st', '2nd', '3rd', '4th'][analysis.targetYear - 1] || analysis.targetYear} Year {analysis.targetSemester === 3 ? 'Summer' : (analysis.targetSemester === 2 ? '2nd Sem' : '1st Sem')}</strong></span>
                       </div>
                     </div>
                   </div>

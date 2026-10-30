@@ -116,8 +116,10 @@ async function getAcademicRecords(req, res) {
       const subNorm = normalizeSubjCode(subjClean);
       const matchedSub = codeMap.get(subjClean.toLowerCase()) || codeMap.get(subNorm) || null;
 
-      const semFormatted = (g.semester === 'Second' || g.semester === '2' || String(g.semester).toLowerCase().includes('2nd')) ? '2nd Sem' : '1st Sem';
-      const semNumeric = (g.semester === 'Second' || g.semester === '2' || String(g.semester).toLowerCase().includes('2nd')) ? 2 : 1;
+      const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3';
+      const isSem2 = !isSummer && (g.semester === 'Second' || g.semester === '2' || String(g.semester).toLowerCase().includes('2nd'));
+      const semFormatted = isSummer ? 'Summer' : (isSem2 ? '2nd Sem' : '1st Sem');
+      const semNumeric = isSummer ? 3 : (isSem2 ? 2 : 1);
       const termFormatted = `${g.academic_year || '2023-2024'} ${semFormatted}`;
 
       const rawGradeStr = String(g.raw_grade || '').trim();
@@ -154,6 +156,9 @@ async function getAcademicRecords(req, res) {
         term: termFormatted,
         academic_year: g.academic_year,
         semester: semNumeric,
+        year_level: Number(g.year_level) || Number(matchedSub?.year_level) || 1,
+        enrolled_year_level: Number(g.year_level) || 1,
+        curriculum_year_level: Number(matchedSub?.year_level) || Number(g.year_level) || 1,
         status,
         created_at: g.created_at || new Date().toISOString(),
         subject: {
@@ -231,6 +236,9 @@ async function getAcademicRecords(req, res) {
         grade: r.grade !== null ? Number(r.grade) : null,
         term: termFormatted,
         status: r.status,
+        year_level: Number(r.year_level || sub?.year_level || 1),
+        enrolled_year_level: Number(r.year_level || sub?.year_level || 1),
+        curriculum_year_level: Number(sub?.year_level || 1),
         created_at: r.created_at,
         subject: sub ? {
           id: sub.id,
@@ -737,8 +745,8 @@ async function deleteRecord(req, res) {
 
     // Handle bulk delete of all records for a student
     if (targetStudentId && deleteAllForStudent) {
-      const cleanSid = targetStudentId.replace(/^GCT-/i, '').trim();
-      const sIds = [targetStudentId, cleanSid, `GCT-${cleanSid}`];
+      const cleanSid = targetStudentId.replace(/^student-/i, '').replace(/^s-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').trim();
+      const sIds = Array.from(new Set([targetStudentId, cleanSid, `GCT-${cleanSid}`, `student-${cleanSid}`])).filter(Boolean);
       
       const { data: acDels } = await supabase
         .from('academic_records')
@@ -810,8 +818,8 @@ async function deleteRecord(req, res) {
 
     // 2. Cross-delete from both tables using resolved student_id and subject aliases
     if (targetStudentId && targetSubject) {
-      const cleanSid = targetStudentId.replace(/^GCT-/i, '').trim();
-      const sIds = [targetStudentId, cleanSid, `GCT-${cleanSid}`];
+      const cleanSid = targetStudentId.replace(/^student-/i, '').replace(/^s-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').trim();
+      const sIds = Array.from(new Set([targetStudentId, cleanSid, `GCT-${cleanSid}`, `student-${cleanSid}`])).filter(Boolean);
 
       const cleanSub = targetSubject.replace(/\s+/g, ' ').trim();
       const normSub = normalizeSubjCode(cleanSub);
@@ -844,7 +852,12 @@ async function deleteRecord(req, res) {
         .in('subject_id', aliasArray);
 
       if (targetTerm) {
-        acQuery = acQuery.eq('term', targetTerm);
+        const ayMatch = targetTerm.match(/\d{4}-\d{4}/);
+        if (ayMatch) {
+          acQuery = acQuery.ilike('term', `%${ayMatch[0]}%`);
+        } else {
+          acQuery = acQuery.eq('term', targetTerm);
+        }
       }
       const { data: acDel, error: acErr } = await acQuery.select();
       if (!acErr && acDel) deletedFromAcademicRecords += acDel.length;
@@ -861,8 +874,10 @@ async function deleteRecord(req, res) {
         if (ayMatch) {
           grQuery = grQuery.eq('academic_year', ayMatch[0]);
         }
-        const isSem2 = /2nd|second/i.test(targetTerm);
-        grQuery = grQuery.eq('semester', isSem2 ? 'Second' : 'First');
+        const isSummer = /summer/i.test(targetTerm);
+        const isSem2 = !isSummer && /2nd|second/i.test(targetTerm);
+        const semVariants = isSummer ? ['Summer', '3', 3] : (isSem2 ? ['Second', '2', 2] : ['First', '1', 1]);
+        grQuery = grQuery.in('semester', semVariants);
       }
       const { data: grDel, error: grErr } = await grQuery.select();
       if (!grErr && grDel) deletedFromGradeRecords += grDel.length;

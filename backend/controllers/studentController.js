@@ -88,63 +88,131 @@ async function getAllStudents(req, res) {
       console.warn('Failed to pre-compute student deficiencies:', defErr);
     }
 
-    // Dynamic standing year level calculation based on actual grade data (auto-advance & auto-revert)
-    const studentStandingYears = new Map();
-    try {
-      const { data: grRows } = await supabase
-        .from('grade_records')
-        .select('student_id, year_level, semester')
-        .limit(50000);
+    // Dynamic standing year level and semester calculation based on actual grade data
+    let studentStandingYears = new Map();
+    let studentActiveSemesters = new Map();
+    let studentSemestersByAy = new Map();
+    let studentAcademicYears = new Map();
 
-      const studentGradesMap = new Map();
-      (grRows || []).forEach(g => {
-        const sid = String(g.student_id).trim();
-        const clean = sid.replace(/^GCT-/i, '');
-        if (!studentGradesMap.has(sid)) studentGradesMap.set(sid, []);
-        studentGradesMap.get(sid).push(g);
-        if (clean !== sid) {
-          if (!studentGradesMap.has(clean)) studentGradesMap.set(clean, []);
-          studentGradesMap.get(clean).push(g);
+    const now = Date.now();
+    if (global._cachedStudentSummaries && (now - global._cachedStudentSummariesTime < 180000)) {
+      studentStandingYears = global._cachedStudentSummaries.standingYears;
+      studentActiveSemesters = global._cachedStudentSummaries.activeSemesters;
+      studentSemestersByAy = global._cachedStudentSummaries.semestersByAy;
+      studentAcademicYears = global._cachedStudentSummaries.academicYears;
+    } else {
+      try {
+        let grRows = [];
+        let from = 0;
+        const pageSize = 1000;
+        while (true) {
+          const { data, error } = await supabase
+            .from('grade_records')
+            .select('student_id, year_level, semester, academic_year')
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          grRows.push(...data);
+          if (data.length < pageSize) break;
+          from += pageSize;
         }
-      });
 
-      studentGradesMap.forEach((grades, sid) => {
-        let maxYear = 1;
-        const sem2Counts = new Map();
-        let hasSummerYear3 = false;
-
-        grades.forEach(g => {
-          const y = Number(g.year_level || 1);
-          if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) maxYear = y;
-          const isSem2 = String(g.semester).toLowerCase().includes('second') || String(g.semester) === '2';
-          const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3';
-          if (isSem2 && Number.isFinite(y)) {
-            sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
-          }
-          if (isSummer && y === 3) {
-            hasSummerYear3 = true;
+        const studentGradesMap = new Map();
+        grRows.forEach(g => {
+          const sid = String(g.student_id).trim();
+          const clean = sid.replace(/^GCT-/i, '');
+          if (!studentGradesMap.has(sid)) studentGradesMap.set(sid, []);
+          studentGradesMap.get(sid).push(g);
+          if (clean !== sid) {
+            if (!studentGradesMap.has(clean)) studentGradesMap.set(clean, []);
+            studentGradesMap.get(clean).push(g);
           }
         });
 
-        let calculatedYear = maxYear;
-        // Year 1 -> 2: completing 2nd sem of Year 1
-        if ((sem2Counts.get(1) || 0) >= 3) {
-          calculatedYear = Math.max(calculatedYear, 2);
-        }
-        // Year 2 -> 3: completing 2nd sem of Year 2
-        if ((sem2Counts.get(2) || 0) >= 3) {
-          calculatedYear = Math.max(calculatedYear, 3);
-        }
-        // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
-        // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
-        if (hasSummerYear3 || maxYear >= 4) {
-          calculatedYear = Math.max(calculatedYear, 4);
-        }
-        calculatedYear = Math.min(4, Math.max(1, calculatedYear));
-        studentStandingYears.set(sid, calculatedYear);
-      });
-    } catch (yrErr) {
-      console.warn('Failed to pre-compute student standing years:', yrErr);
+        studentGradesMap.forEach((grades, sid) => {
+          let maxYear = 1;
+          const sem2Counts = new Map();
+          let hasSummerYear3 = false;
+
+          let maxAyYr = 0;
+          let latestSemRank = 0;
+          let latestSem = '1';
+          const semsByAy = {};
+          const aySet = new Set();
+          let hasSummer = false;
+
+          grades.forEach(g => {
+            const y = Number(g.year_level || 1);
+            if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) maxYear = y;
+            const ay = (g.academic_year || '').trim();
+            const raw = String(g.semester).toLowerCase().trim();
+            const isSem2 = raw.includes('second') || raw === '2' || raw.includes('2nd');
+            const isSummer = raw.includes('summer') || raw === '3';
+
+            if (isSem2 && Number.isFinite(y)) {
+              sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
+            }
+            if (isSummer) {
+              hasSummer = true;
+              if (y === 3) hasSummerYear3 = true;
+            }
+
+            let semRank = 1;
+            let semKey = '1';
+            if (isSummer) { semRank = 3; semKey = 'summer'; }
+            else if (isSem2) { semRank = 2; semKey = '2'; }
+
+            if (ay) {
+              aySet.add(ay);
+              const yr = parseInt(ay.split('-')[0] || '0', 10);
+              if (yr > maxAyYr || (yr === maxAyYr && semRank > latestSemRank)) {
+                maxAyYr = yr;
+                latestSemRank = semRank;
+                latestSem = semKey;
+              }
+
+              const prevAySem = semsByAy[ay];
+              const prevRank = prevAySem === 'summer' ? 3 : (prevAySem === '2' ? 2 : (prevAySem === '1' ? 1 : 0));
+              if (semRank > prevRank) {
+                semsByAy[ay] = semKey;
+              }
+            } else {
+              if (semRank > latestSemRank) {
+                latestSemRank = semRank;
+                latestSem = semKey;
+              }
+            }
+          });
+
+          let calculatedYear = maxYear;
+          if ((sem2Counts.get(1) || 0) >= 3) calculatedYear = Math.max(calculatedYear, 2);
+          if ((sem2Counts.get(2) || 0) >= 3) calculatedYear = Math.max(calculatedYear, 3);
+          // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
+          // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
+          if (hasSummerYear3 || maxYear >= 4) calculatedYear = Math.max(calculatedYear, 4);
+          calculatedYear = Math.min(4, Math.max(1, calculatedYear));
+          studentStandingYears.set(sid, calculatedYear);
+
+          let activeSem = latestSem;
+          if (hasSummer && (latestSem === 'summer' || aySet.size <= 3)) {
+            activeSem = 'summer';
+          }
+
+          studentActiveSemesters.set(sid, activeSem);
+          studentSemestersByAy.set(sid, semsByAy);
+          studentAcademicYears.set(sid, Array.from(aySet));
+        });
+
+        global._cachedStudentSummaries = {
+          standingYears: studentStandingYears,
+          activeSemesters: studentActiveSemesters,
+          semestersByAy: studentSemestersByAy,
+          academicYears: studentAcademicYears
+        };
+        global._cachedStudentSummariesTime = now;
+      } catch (yrErr) {
+        console.warn('Failed to pre-compute student standing years and semesters:', yrErr);
+      }
     }
 
     const students = (studentsData || []).map(r => {
@@ -162,12 +230,15 @@ async function getAllStudents(req, res) {
       const defCount = activeDeficiencyCounts.get(r.student_id) || 0;
       const cleanSId = String(r.student_id).replace(/^GCT-/i, '');
       const hasGrades = studentStandingYears.has(r.student_id) || studentStandingYears.has(cleanSId);
-      const effectiveYearLevel = hasGrades
-        ? (studentStandingYears.get(r.student_id) || studentStandingYears.get(cleanSId))
-        : Number(r.year_level || 1);
+      const dbY = Number(r.year_level || 1);
+      const computedStanding = hasGrades
+        ? (studentStandingYears.get(r.student_id) || studentStandingYears.get(cleanSId) || dbY)
+        : dbY;
+      // When grade records exist, student's actual academic standing is computed from attended terms
+      const effectiveYearLevel = hasGrades ? computedStanding : dbY;
 
-      // Keep database students.year_level synchronized if actual data dictates a reverted/advanced year
-      if (hasGrades && Number(r.year_level) !== effectiveYearLevel) {
+      // Keep database students.year_level synchronized with accurate standing
+      if (hasGrades && effectiveYearLevel !== dbY) {
         supabase
           .from('students')
           .update({ year_level: effectiveYearLevel })
@@ -192,6 +263,10 @@ async function getAllStudents(req, res) {
         hasDeficiencies: defCount > 0,
         deficiency_count: defCount,
         deficiencyCount: defCount,
+        active_semester: studentActiveSemesters.get(r.student_id) || studentActiveSemesters.get(cleanSId) || '1',
+        activeSemester: studentActiveSemesters.get(r.student_id) || studentActiveSemesters.get(cleanSId) || '1',
+        semesters_by_ay: studentSemestersByAy.get(r.student_id) || studentSemestersByAy.get(cleanSId) || {},
+        academic_years: studentAcademicYears.get(r.student_id) || studentAcademicYears.get(cleanSId) || [],
         id_front_url: idFrontUrl,
         id_back_url: idBackUrl,
         selfie_url: selfieUrl,
@@ -755,7 +830,7 @@ async function deleteStudent(req, res) {
       .trim();
     const bareId = strippedId.replace(/^GCT-/i, '').trim();
     const withGct = `GCT-${bareId}`;
-    const idVariants = Array.from(new Set([cleanId, strippedId, bareId, withGct])).filter(Boolean);
+    const idVariants = Array.from(new Set([cleanId, strippedId, bareId, withGct, `student-${bareId}`, `student-${strippedId}`])).filter(Boolean);
     const orFilter = idVariants.map(v => `student_id.eq.${v},id.eq.${v}`).join(',');
 
     let studentId = bareId || cleanId;
@@ -790,27 +865,11 @@ async function deleteStudent(req, res) {
       console.warn('Recommendations clean notice on student delete:', rErr.message);
     }
 
-    // 🛡️ CRITICAL INSTITUTIONAL INTEGRITY RULE:
-    // Deleting a user account in User Management must NEVER delete permanent academic records (grade_records, academic_records)!
-    // Grades belong to the registrar and must remain 100% preserved.
-
-    // Check if the student has permanent academic/grade records in the database
-    const { count: gradeCount } = await supabase
-      .from('grade_records')
-      .select('*', { count: 'exact', head: true })
-      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
-
-    const { count: academicCount } = await supabase
-      .from('academic_records')
-      .select('*', { count: 'exact', head: true })
-      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
-
-    const hasAcademicHistory = (gradeCount || 0) > 0 || (academicCount || 0) > 0;
+    // If account_only=true (invoked from User Management to revoke login credentials),
+    // preserve the student profile and academic grades:
     const accountOnly = req.query.account_only === 'true' || req.query.mode === 'account';
 
-    if (accountOnly || hasAcademicHistory) {
-      // User account was deleted: revoke credentials, verification, and reset account status
-      // The student record and ALL grades remain completely preserved!
+    if (accountOnly) {
       await supabase
         .from('students')
         .update({
@@ -826,15 +885,38 @@ async function deleteStudent(req, res) {
       });
     }
 
-    // Only if the student has ZERO academic history and is a pure pending applicant:
+    // Full student deletion (invoked from Student Academic Records or Student Records):
+    // Permanently purge all matching academic records and grade records
     await supabase
+      .from('academic_records')
+      .delete()
+      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+
+    await supabase
+      .from('grade_records')
+      .delete()
+      .or(idVariants.map(v => `student_id.eq.${v}`).join(','));
+
+    // Permanently delete the student row from students table
+    const { error: delErr } = await supabase
       .from('students')
       .delete()
       .or(orFilter);
 
+    if (delErr) {
+      console.error('Delete Student DB Error:', delErr);
+      throw delErr;
+    }
+
+    // Invalidate cached summaries
+    global._cachedStudentSummaries = null;
+    global._cachedStudentSummariesTime = 0;
+
     res.json({
-      message: `Student account for '${studentId}' deleted successfully from Supabase.`,
-      studentId
+      success: true,
+      message: `Student '${studentId}' and all associated academic records deleted successfully from database.`,
+      studentId,
+      fullDelete: true
     });
   } catch (error) {
     console.error('Delete Student Error:', error);

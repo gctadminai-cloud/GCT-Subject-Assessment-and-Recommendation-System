@@ -33,3 +33,5 @@ backend/data/*.sqlite*
 backend/uploads/
 !backend/uploads/.gitkeep
 
+# Scratch files
+scratch/

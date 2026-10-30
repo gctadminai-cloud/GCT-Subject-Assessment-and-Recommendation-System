@@ -52,6 +52,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     showToast,
     refreshStudents,
     refreshAcademicGrades,
+    refreshRecommendations,
     activeAcademicYear
   } = useRegistrarData();
 
@@ -130,15 +131,13 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     }
   }, [initialTargetTerm]);
 
-  // Unified Upload Modal States
+  // Upload Modal States (Academic Grade Sheets)
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadTargetType, setUploadTargetType] = useState<'students' | 'grades'>('students');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [isCsvUploaded, setIsCsvUploaded] = useState(false);
   const [isCommittingUpload, setIsCommittingUpload] = useState(false);
 
   // Parsed Upload Rows
-  const [parsedUploadStudents, setParsedUploadStudents] = useState<Array<{ student_id: string; name: string; program: string; year: number }>>([]);
   const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([]);
 
   // Sort States (Default Alphabetical order A-Z)
@@ -182,7 +181,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     let hasSummerYear3 = false;
 
     for (const g of validGrades) {
-      const y = Number(g.yearLevel || (g as any).year_level);
+      const y = Number(g.yearLevel || (g as any).year_level || (g as any).enrolled_year_level);
       if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) {
         maxYear = y;
       }
@@ -198,7 +197,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     if (sem2CountY1 >= 3) standing = Math.max(standing, 2);
     // Year 2 -> 3: completing 2nd sem of Year 2
     if (sem2CountY2 >= 3) standing = Math.max(standing, 3);
-    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects
+    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
     // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
     if (hasSummerYear3 || maxYear >= 4) standing = Math.max(standing, 4);
 
@@ -398,12 +397,22 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   const handleConfirmDeleteStudent = async () => {
     if (!deletingStudent) return;
     try {
-      await fetchApi(`/students/${deletingStudent.student_id || deletingStudent.id}`, {
+      await fetchApi(`/students/${encodeURIComponent(deletingStudent.student_id || deletingStudent.id)}?cascade=true`, {
         method: 'DELETE'
       });
-      setMockStudents(prev => prev.filter(s => s.id !== deletingStudent.id && s.student_id !== deletingStudent.student_id));
-      showToast(`Student ${deletingStudent.name} removed from roster and Supabase.`, 'info');
+      const delSid = String(deletingStudent.student_id || deletingStudent.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+      setMockStudents(prev => prev.filter(s => {
+        const sSid = String(s.student_id || s.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+        return sSid !== delSid;
+      }));
+      setMockAcademicGrades(prev => prev.filter(g => {
+        const gSid = String(g.studentId).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+        return gSid !== delSid;
+      }));
+      showToast(`Student ${deletingStudent.name} and all associated records removed from database.`, 'info');
       if (refreshStudents) await refreshStudents();
+      if (refreshAcademicGrades) await refreshAcademicGrades('all');
+      if (refreshRecommendations) await refreshRecommendations();
     } catch (err: any) {
       console.error('Delete student error:', err);
       showToast(err.message || 'Failed to delete student', 'error');
@@ -756,7 +765,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
             term: r.term || '2023-2024 1st Sem',
             academicYear: r.academic_year || (r.term ? r.term.split(' ')[0] : undefined),
             semester: r.semester || (r.term && r.term.includes('2nd') ? 2 : 1),
-            yearLevel: Number(r.subject?.year_level || r.year_level || st.year || 1)
+            yearLevel: Number(r.year_level || r.enrolled_year_level || r.subject?.year_level || st.year || 1)
           };
         });
 
@@ -852,14 +861,14 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       return Number(selectedHistoryStudent.year || 1);
     }
 
-    // 1. Highest curriculum year taken among valid records
+    // 1. Highest curriculum / enrolled year taken among valid records
     let maxTakenYear = 1;
     let sem2CountY1 = 0;
     let sem2CountY2 = 0;
     let hasSummerYear3 = false;
 
     validGrades.forEach(g => {
-      const y = Number(g.yearLevel || (g as any).year_level);
+      const y = Number(g.yearLevel || (g as any).year_level || (g as any).enrolled_year_level);
       if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxTakenYear) {
         maxTakenYear = y;
       }
@@ -875,7 +884,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     if (sem2CountY1 >= 3) calculatedYear = Math.max(calculatedYear, 2);
     // Year 2 -> 3: completing 2nd sem of Year 2
     if (sem2CountY2 >= 3) calculatedYear = Math.max(calculatedYear, 3);
-    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects
+    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxTakenYear >= 4).
     // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
     if (hasSummerYear3 || maxTakenYear >= 4) calculatedYear = Math.max(calculatedYear, 4);
 
@@ -892,7 +901,8 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     '3rd Year • 2nd Sem',
     '3rd Year • Summer',
     '4th Year • 1st Sem',
-    '4th Year • 2nd Sem'
+    '4th Year • 2nd Sem',
+    'Elective / Additional'
   ], []);
 
   // Grouped History by Official Curriculum Term
@@ -951,42 +961,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         return;
       }
 
-      // Auto-detect if file is an Academic Grade Sheet vs Student Directory Roster
-      const firstRowKeys = Object.keys(rawRows[0] || {}).map(k => k.trim().toLowerCase());
-      const looksLikeGradeSheet = firstRowKeys.some(k =>
-        k === 'subject' || k === 'code' || k === 'grade' || k === 'raw_grade' || k === 'cat no.' || k === 'cat no' || k === 'subject code'
-      );
-      const effectiveTargetType = looksLikeGradeSheet ? 'grades' : uploadTargetType;
-      if (effectiveTargetType !== uploadTargetType) {
-        setUploadTargetType(effectiveTargetType);
-      }
-
-      if (effectiveTargetType === 'students') {
-        const parsed: Array<{ student_id: string; name: string; program: string; year: number }> = rawRows.map((row, idx) => {
-          const keys = Object.keys(row);
-          const findVal = (...possibleKeys: string[]) => {
-            for (const pk of possibleKeys) {
-              const matchKey = keys.find(k => k.trim().toLowerCase() === pk.toLowerCase());
-              if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null && row[matchKey] !== '') {
-                return row[matchKey];
-              }
-            }
-            return '';
-          };
-
-          const student_id = String(findVal('Student ID', 'student_id', 'ID', 'StudentID', 'StudentNo', 'id') || `GCT-2024-000${idx + 1}`).trim();
-          const name = String(findVal('Full Name', 'full_name', 'Name', 'Student Name', 'FullName', 'Student') || 'Student Name').trim();
-          const program = String(findVal('Program / Course', 'Program', 'Course', 'course', 'program', 'Degree') || 'BSIT').trim();
-          const year = Number(findVal('Year Level', 'year_level', 'Year', 'Yr', 'year')) || 1;
-
-          return { student_id, name, program, year };
-        });
-
-        setParsedUploadStudents(parsed);
-        setIsCsvUploaded(true);
-        showToast(`Parsed ${parsed.length} student records from "${file.name}"!`, 'info');
-      } else {
-        const parsedPreview: CsvPreviewRow[] = rawRows.map((row, idx) => {
+      const parsedPreview: CsvPreviewRow[] = rawRows.map((row, idx) => {
           const keys = Object.keys(row);
           const findVal = (...possibleKeys: string[]) => {
             for (const pk of possibleKeys) {
@@ -1050,7 +1025,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         setCsvPreviewRows(parsedPreview);
         setIsCsvUploaded(true);
         showToast(`Parsed ${parsedPreview.length} grade records from "${file.name}"!`, 'info');
-      }
     } catch (err: any) {
       console.error('Error parsing file:', err);
       showToast(`Error parsing file: ${err?.message || 'Invalid format'}`, 'error');
@@ -1058,38 +1032,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   };
 
   const handleCommitUpload = async () => {
-    if (uploadTargetType === 'students') {
-      if (parsedUploadStudents.length === 0) return;
-      setIsCommittingUpload(true);
-      try {
-        let successCount = 0;
-        for (const item of parsedUploadStudents) {
-          try {
-            await fetchApi('/students', {
-              method: 'POST',
-              body: JSON.stringify({
-                student_id: item.student_id,
-                name: item.name,
-                program: item.program,
-                year: item.year
-              })
-            });
-            successCount++;
-          } catch (e) {
-            console.warn(`Failed to import student ${item.student_id}:`, e);
-          }
-        }
-        if (refreshStudents) await refreshStudents();
-        showToast(`Successfully stored ${successCount} student records into database!`, 'success');
-        setShowUploadModal(false);
-        setIsCsvUploaded(false);
-        setParsedUploadStudents([]);
-      } catch (err: any) {
-        showToast(`Error storing students in database: ${err?.message || 'Database error'}`, 'error');
-      } finally {
-        setIsCommittingUpload(false);
-      }
-    } else {
       if (csvPreviewRows.length === 0) return;
       setIsCommittingUpload(true);
       try {
@@ -1124,8 +1066,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       } finally {
         setIsCommittingUpload(false);
       }
-    }
-  };
+    };
 
   return (
     <div style={{ paddingBottom: '3rem' }}>
@@ -1172,15 +1113,12 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         {/* Global Quick Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <button
-            onClick={() => {
-              setUploadTargetType('students');
-              setShowUploadModal(true);
-            }}
+            onClick={() => setShowUploadModal(true)}
             className="btn btn-secondary"
             style={{ fontSize: '0.82rem', padding: '0.55rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            title="Import Excel or CSV student records"
+            title="Import Excel or CSV Academic Grade Sheets"
           >
-            <Upload size={15} /> Import Students
+            <Upload size={15} /> Import Grade Sheets
           </button>
 
           <button
@@ -2216,14 +2154,38 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
 
             {/* Modal Footer */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
-              <button
-                type="button"
-                onClick={() => handleOpenAddGradeForStudent(selectedHistoryStudent)}
-                className="btn btn-secondary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
-              >
-                <Plus size={15} color="var(--primary)" /> Encode New Grade Record
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddGradeForStudent(selectedHistoryStudent)}
+                  className="btn btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+                >
+                  <Plus size={15} color="var(--primary)" /> Encode New Grade Record
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm(`Are you sure you want to delete ALL academic records for ${selectedHistoryStudent.name} (${selectedHistoryStudent.student_id}) from the database?`)) {
+                      try {
+                        await fetchApi(`/academic-records/all?student_id=${encodeURIComponent(selectedHistoryStudent.student_id)}`, { method: 'DELETE' });
+                        showToast(`All academic records for ${selectedHistoryStudent.name} deleted successfully from database.`, 'info');
+                        setFetchedStudentGrades(prev => ({ ...prev, [selectedHistoryStudent.student_id]: [] }));
+                        if (refreshAcademicGrades) await refreshAcademicGrades('all');
+                        if (refreshStudents) await refreshStudents();
+                        setShowHistoryModal(false);
+                      } catch (err: any) {
+                        showToast(err.message || 'Failed to delete records', 'error');
+                      }
+                    }
+                  }}
+                  className="btn btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: '#DC2626', borderColor: '#FECACA', background: '#FEF2F2' }}
+                  title="Delete all academic records for this student"
+                >
+                  <Trash2 size={13} color="#DC2626" /> Clear All Records
+                </button>
+              </div>
 
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
@@ -2403,7 +2365,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <FileSpreadsheet size={22} color="var(--primary)" />
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
-                  Import {uploadTargetType === 'students' ? 'Student Roster' : 'Academic Grade Sheets'}
+                  Import Academic Grade Sheets
                 </h3>
               </div>
               <button
@@ -2412,48 +2374,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                 style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}
               >
                 <X size={18} />
-              </button>
-            </div>
-
-            {/* Target Type Switcher */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadTargetType('students');
-                  setIsCsvUploaded(false);
-                }}
-                className="btn"
-                style={{
-                  flex: 1,
-                  fontSize: '0.8rem',
-                  padding: '0.5rem',
-                  background: uploadTargetType === 'students' ? '#EFF6FF' : '#F8FAFC',
-                  color: uploadTargetType === 'students' ? 'var(--primary)' : 'var(--text-muted)',
-                  border: uploadTargetType === 'students' ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                  fontWeight: 700
-                }}
-              >
-                Student Records
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadTargetType('grades');
-                  setIsCsvUploaded(false);
-                }}
-                className="btn"
-                style={{
-                  flex: 1,
-                  fontSize: '0.8rem',
-                  padding: '0.5rem',
-                  background: uploadTargetType === 'grades' ? '#EFF6FF' : '#F8FAFC',
-                  color: uploadTargetType === 'grades' ? 'var(--primary)' : 'var(--text-muted)',
-                  border: uploadTargetType === 'grades' ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                  fontWeight: 700
-                }}
-              >
-                Academic Grade Sheets
               </button>
             </div>
 
@@ -2479,10 +2399,10 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               />
               <FileSpreadsheet size={36} color="var(--primary)" style={{ margin: '0 auto 0.5rem' }} />
               <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0F172A' }}>
-                {uploadedFileName || 'Drop Excel (.xlsx, .xls) or CSV file here'}
+                {uploadedFileName || 'Drop Excel (.xlsx, .xls) or CSV grade sheet here'}
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Supports large datasets (10,000+ rows optimized with fast slicing preview)
+                Supports large datasets (10,000+ rows of course codes, student IDs, and grades)
               </div>
             </div>
 
@@ -2491,7 +2411,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                   <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                    Parsed Records: {uploadTargetType === 'students' ? parsedUploadStudents.length : csvPreviewRows.length} detected
+                    Parsed Records: {csvPreviewRows.length} detected
                   </div>
                   <span style={{ fontSize: '0.72rem', background: '#EFF6FF', color: 'var(--primary)', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 700 }}>
                     Showing first 50 rows (Fast Preview Mode)
@@ -2502,43 +2422,23 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                   <table className="custom-table" style={{ fontSize: '0.78rem', margin: 0 }}>
                     <thead>
                       <tr>
-                        {uploadTargetType === 'students' ? (
-                          <>
-                            <th>Student ID</th>
-                            <th>Full Name</th>
-                            <th>Program</th>
-                            <th>Year</th>
-                          </>
-                        ) : (
-                          <>
-                            <th>Student ID</th>
-                            <th>Name</th>
-                            <th>Subject</th>
-                            <th>Units</th>
-                            <th>Grade</th>
-                          </>
-                        )}
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Subject</th>
+                        <th>Units</th>
+                        <th>Grade</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {uploadTargetType === 'students'
-                        ? parsedUploadStudents.slice(0, 50).map((st, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 700 }}>{st.student_id}</td>
-                            <td>{st.name}</td>
-                            <td>{st.program}</td>
-                            <td>{st.year}</td>
-                          </tr>
-                        ))
-                        : csvPreviewRows.slice(0, 50).map((r, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 700 }}>{r.studentId}</td>
-                            <td>{r.name}</td>
-                            <td>{r.code}</td>
-                            <td>{r.units}</td>
-                            <td style={{ fontWeight: 800 }}>{r.grade || '—'}</td>
-                          </tr>
-                        ))}
+                      {csvPreviewRows.slice(0, 50).map((r, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 700 }}>{r.studentId}</td>
+                          <td>{r.name}</td>
+                          <td>{r.code}</td>
+                          <td>{r.units}</td>
+                          <td style={{ fontWeight: 800 }}>{r.grade || '—'}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

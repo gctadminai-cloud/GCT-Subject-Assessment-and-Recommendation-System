@@ -103,7 +103,7 @@ async function getAcademicYears(req, res) {
         try {
           const arr = JSON.parse(s.value);
           if (Array.isArray(arr)) arr.forEach(ay => ay && aySet.add(String(ay).trim()));
-        } catch (e) {}
+        } catch (e) { }
       }
       if (s.key === 'activeAcademicYear' && s.value) {
         activeAYFromSettings = String(s.value).trim();
@@ -178,7 +178,7 @@ async function addAcademicYear(req, res) {
         try {
           const arr = JSON.parse(s.value);
           if (Array.isArray(arr)) arr.forEach(ay => ay && existingSet.add(String(ay).trim()));
-        } catch (e) {}
+        } catch (e) { }
       }
     });
 
@@ -192,7 +192,7 @@ async function addAcademicYear(req, res) {
       try {
         const parsed = JSON.parse(existingAvailable.value);
         if (Array.isArray(parsed)) availableAYs = parsed;
-      } catch (e) {}
+      } catch (e) { }
     }
     availableAYs.push(trimmedAY);
     const dedupedAYs = Array.from(new Set(availableAYs));
@@ -260,7 +260,7 @@ async function deleteAcademicYear(req, res) {
         try {
           const arr = JSON.parse(s.value);
           if (Array.isArray(arr)) availableAYs = arr;
-        } catch (e) {}
+        } catch (e) { }
       }
       if (s.key === 'activeAcademicYear' && s.value) {
         activeAY = String(s.value).trim();

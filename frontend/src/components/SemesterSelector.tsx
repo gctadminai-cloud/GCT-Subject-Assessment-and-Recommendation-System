@@ -8,7 +8,7 @@ import {
   X
 } from 'lucide-react';
 
-export type SemesterValue = '1' | '2' | 'summer';
+export type SemesterValue = 'all' | '1' | '2' | 'summer';
 
 export interface SemesterSelectorProps {
   selectedSemester: SemesterValue;
@@ -28,6 +28,15 @@ interface SemesterOption {
 }
 
 const SEMESTER_OPTIONS: SemesterOption[] = [
+  {
+    value: 'all',
+    label: 'All Semesters',
+    badge: 'All Sem',
+    badgeColor: '#0F766E',
+    badgeBg: '#F0FDFA',
+    badgeBorder: '#99F6E4',
+    description: 'Show students across 1st Sem, 2nd Sem & Summer'
+  },
   {
     value: '1',
     label: '1st Semester',

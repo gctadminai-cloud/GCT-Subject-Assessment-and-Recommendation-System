@@ -591,8 +591,13 @@ export interface CurriculumRecommendationAnalysis {
 function getTermLabel(yearLevel: number, semester: number): string {
   const yearMap: Record<number, string> = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
   const semMap: Record<number, string> = { 1: '1st Sem', 2: '2nd Sem', 3: 'Summer' };
+  // Guard: In GCT BSIT and BSCS curricula, Summer only exists in 3rd Year!
+  if (semester === 3) {
+    return '3rd Year • Summer';
+  }
   return `${yearMap[yearLevel] || `Year ${yearLevel}`} • ${semMap[semester] || (semester === 3 ? 'Summer' : `Sem ${semester}`)}`;
 }
+
 
 /**
  * Evaluates student academic records against official GCT Curriculum & Prerequisite Rules
@@ -1127,7 +1132,25 @@ export function generateCurriculumRecommendations(
       }
     }
 
-    targetYear = determinedYear;
+    // 🔒 Summer term (semester 3) in GCT BSIT and BSCS curricula ONLY exists in 3rd Year!
+    // 4th Year NEVER has a summer term.
+    if (targetSemester === 3) {
+      if (determinedYear >= 4) {
+        if (!summerPassed) {
+          targetYear = 3;
+          targetSemester = 3;
+        } else {
+          targetYear = 4;
+          const y4Sem1Subjs = curriculumDefs.filter(c => c.yearLevel === 4 && c.semester === 1);
+          const y4Sem1Passed = y4Sem1Subjs.length > 0 && y4Sem1Subjs.every(c => passedCodes.has(normalizeSubjCode(c.code)));
+          targetSemester = y4Sem1Passed ? 2 : 1;
+        }
+      } else {
+        targetYear = 3;
+      }
+    } else {
+      targetYear = determinedYear;
+    }
   } else {
     // Auto-detect natural term progression:
     // If the initial targetYear/targetSemester was already 100% completed,
@@ -1150,6 +1173,21 @@ export function generateCurriculumRecommendations(
       }
     }
     targetYear = Math.max(targetYear, standingYear);
+
+    // 🔒 Enforce: Summer term NEVER exists in 4th Year
+    if (targetYear >= 4 && targetSemester === 3) {
+      const summerSubjs = curriculumDefs.filter(c => c.yearLevel === 3 && c.semester === 3);
+      const summerPassed = summerSubjs.length > 0 && summerSubjs.every(c => passedCodes.has(normalizeSubjCode(c.code)));
+      if (!summerPassed) {
+        targetYear = 3;
+        targetSemester = 3;
+      } else {
+        targetYear = 4;
+        const y4Sem1Subjs = curriculumDefs.filter(c => c.yearLevel === 4 && c.semester === 1);
+        const y4Sem1Passed = y4Sem1Subjs.length > 0 && y4Sem1Subjs.every(c => passedCodes.has(normalizeSubjCode(c.code)));
+        targetSemester = y4Sem1Passed ? 2 : 1;
+      }
+    }
   }
 
   // Candidate subjects: all curriculum subjects offered in targetSemester up to student's target year

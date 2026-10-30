@@ -125,7 +125,7 @@ export const AcademicYearSelector: React.FC<AcademicYearSelectorProps> = ({ vari
 
   // Display label on trigger button
   const displayLabel = selectedAcademicYear === 'all'
-    ? `AY ${activeAcademicYear}`
+    ? 'All Academic Years'
     : `AY ${selectedAcademicYear}`;
 
   const isLight = variant === 'light';
@@ -166,6 +166,21 @@ export const AcademicYearSelector: React.FC<AcademicYearSelectorProps> = ({ vari
           <Calendar size={14} color={isLight ? (selectedAcademicYear !== 'all' ? '#2563EB' : '#475569') : undefined} />
         )}
         <span>{displayLabel}</span>
+        {selectedAcademicYear !== 'all' && selectedAcademicYear === activeAcademicYear && (
+          <span
+            style={{
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: '4px',
+              background: '#ECFDF5',
+              color: '#047857',
+              border: '1px solid #A7F3D0'
+            }}
+          >
+            Current
+          </span>
+        )}
         <ChevronDown size={13} style={{ opacity: 0.75 }} />
       </button>
 
@@ -260,27 +275,37 @@ export const AcademicYearSelector: React.FC<AcademicYearSelectorProps> = ({ vari
               const isSelected = selectedAcademicYear === ay;
               const isActive = ay === activeAcademicYear;
               return (
-                <button
-                  type="button"
+                <div
                   key={ay}
-                  onClick={() => handleSelectOption(ay)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     width: '100%',
-                    textAlign: 'left',
-                    padding: '0.55rem 0.9rem',
-                    border: 'none',
+                    padding: '0.45rem 0.9rem',
                     background: isSelected ? '#EFF6FF' : 'transparent',
-                    cursor: 'pointer',
                     borderBottom: '1px solid #F1F5F9',
-                    transition: 'background 0.1s ease'
+                    transition: 'background 0.1s ease',
+                    boxSizing: 'border-box'
                   }}
                   onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
                   onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOption(ay)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      flex: 1,
+                      textAlign: 'left',
+                      padding: 0
+                    }}
+                  >
                     <span style={{ fontSize: '0.8rem', fontWeight: isSelected ? 700 : 600, color: '#1E293B' }}>
                       AY {ay}
                     </span>
@@ -299,12 +324,14 @@ export const AcademicYearSelector: React.FC<AcademicYearSelectorProps> = ({ vari
                         Current
                       </span>
                     )}
-                  </div>
+                  </button>
+
                   {isSelected && <Check size={14} color="#1D4ED8" />}
-                </button>
+                </div>
               );
             })}
           </div>
+
 
           {/* Add New AY Section */}
           <div

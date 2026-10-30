@@ -34,8 +34,8 @@ interface StudentRecordsModuleProps {
   onOpenUploadModal?: () => void;
 }
 
-export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOpenUploadModal }) => {
-  const { mockStudents, setMockStudents, refreshStudents, refreshAcademicGrades, PROGRAM_CATALOG, getSchedules, addSchedule, deleteSchedule } = useRegistrarData();
+export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOpenUploadModal: _onOpenUploadModal }) => {
+  const { mockStudents, setMockStudents, setMockAcademicGrades, refreshStudents, refreshAcademicGrades, PROGRAM_CATALOG, getSchedules, addSchedule, deleteSchedule } = useRegistrarData();
   const { showToast } = useUI();
 
   const [studentSearch, setStudentSearch] = useState('');
@@ -185,11 +185,21 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
   const handleConfirmDeleteStudent = async () => {
     if (!deletingStudent) return;
     try {
-      await fetchApi(`/students/${deletingStudent.student_id || deletingStudent.id}`, {
+      await fetchApi(`/students/${encodeURIComponent(deletingStudent.student_id || deletingStudent.id)}?cascade=true`, {
         method: 'DELETE'
       });
-      setMockStudents(prev => prev.filter(s => s.id !== deletingStudent.id && s.student_id !== deletingStudent.student_id));
-      showToast?.(`Student ${deletingStudent.name} deleted.`, 'info');
+      const delSid = String(deletingStudent.student_id || deletingStudent.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+      setMockStudents(prev => prev.filter(s => {
+        const sSid = String(s.student_id || s.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+        return sSid !== delSid;
+      }));
+      if (setMockAcademicGrades) {
+        setMockAcademicGrades(prev => prev.filter(g => {
+          const gSid = String(g.studentId).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+          return gSid !== delSid;
+        }));
+      }
+      showToast?.(`Student ${deletingStudent.name} and all records removed from database.`, 'info');
       if (refreshStudents) await refreshStudents();
       if (refreshAcademicGrades) await refreshAcademicGrades('all');
     } catch (err: any) {
@@ -353,27 +363,6 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
 
           {/* Right: Upload Records Button | Add Student Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <button
-              onClick={() => {
-                if (onOpenUploadModal) {
-                  onOpenUploadModal();
-                } else {
-                  setShowUploadModal(true);
-                }
-              }}
-              className="btn btn-secondary"
-              style={{
-                height: '38px',
-                padding: '0 0.95rem',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem'
-              }}
-            >
-              <Upload size={16} /> Upload Records
-            </button>
 
             <button
               onClick={() => exportStudentsToExcel(mockStudents)}

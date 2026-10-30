@@ -70,12 +70,8 @@ async function setup() {
       email: '12718@student.gct.edu.ph',
       program: 'BSIT',
       year_level: 2,
-      schedule: 'Schedule 1',
       status: 'approved',
       verified: true,
-      id_front_path: '/uploads/verifications/12718/id_front-1792058264725.jpg',
-      id_back_path: '/uploads/verifications/12718/id_back-1792058265244.jpg',
-      selfie_path: '/uploads/verifications/12718/selfie-1792058265823.jpg',
       created_at: now
     }
   ], { onConflict: 'student_id' });

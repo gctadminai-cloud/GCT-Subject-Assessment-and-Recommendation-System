@@ -147,10 +147,10 @@ async function getAllStudents(req, res) {
       console.warn('Failed to pre-compute student standing years:', yrErr);
     }
 
-    const students = await Promise.all((studentsData || []).map(async r => {
-      const idFrontUrl = await getSignedPhotoUrl(r.id_front_path || r.id_front_image);
-      const idBackUrl = await getSignedPhotoUrl(r.id_back_path || r.id_back_image);
-      const selfieUrl = await getSignedPhotoUrl(r.selfie_path || r.selfie_image);
+    const students = (studentsData || []).map(r => {
+      const idFrontUrl = null;
+      const idBackUrl = null;
+      const selfieUrl = null;
 
       const acct = accountsMap.get(r.student_id);
       const prof = (acct?.id ? profilesMap.get(acct.id) : null) || profilesMap.get(r.student_id?.toLowerCase());
@@ -209,7 +209,7 @@ async function getAllStudents(req, res) {
           has_account: hasAccount
         }
       };
-    }));
+    });
 
     res.json(students);
   } catch (error) {
@@ -305,9 +305,9 @@ async function getStudentById(req, res) {
 
     const acct = accounts?.[0] || null;
 
-    const idFrontUrl = await getSignedPhotoUrl(row.id_front_path);
-    const idBackUrl = await getSignedPhotoUrl(row.id_back_path);
-    const selfieUrl = await getSignedPhotoUrl(row.selfie_path);
+    const idFrontUrl = null;
+    const idBackUrl = null;
+    const selfieUrl = null;
 
     // Calculate accurate standing year level from actual grade data
     let effectiveYear = Number(row.year_level || 1);
@@ -815,13 +815,7 @@ async function deleteStudent(req, res) {
         .from('students')
         .update({
           verified: false,
-          status: 'unregistered',
-          id_front_image: null,
-          id_back_image: null,
-          selfie_image: null,
-          id_front_path: null,
-          id_back_path: null,
-          selfie_path: null
+          status: 'unregistered'
         })
         .or(orFilter);
 

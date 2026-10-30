@@ -547,7 +547,7 @@ async function registerStudent(req, res) {
 
     // 4. Resolve year level: check by student_id or name in students & grade_records
     let resolvedYearLevel = 1;
-    let existingStudentDbId = 'student-' + Date.now();
+    let existingStudentDbId = 'student-' + cleanId;
 
     const { data: existingStudents } = await supabase
       .from('students')
@@ -603,12 +603,6 @@ async function registerStudent(req, res) {
       email: cleanEmail,
       program: cleanProgram,
       year_level: resolvedYearLevel,
-      id_front_path: null,
-      id_back_path: null,
-      selfie_path: null,
-      id_front_image: null,
-      id_back_image: null,
-      selfie_image: null,
       verified: false,
       status: 'pending',
       created_at: existingStudent?.created_at || now

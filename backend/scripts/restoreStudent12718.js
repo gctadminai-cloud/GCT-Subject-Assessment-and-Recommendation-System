@@ -17,7 +17,6 @@ async function restore() {
       email: '12718@student.gct.edu.ph',
       program: 'BSIT',
       year_level: 2,
-      schedule: 'Schedule 1',
       status: 'approved',
       verified: true,
       created_at: now

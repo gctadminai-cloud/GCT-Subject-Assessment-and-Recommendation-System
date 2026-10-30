@@ -46,7 +46,6 @@ describe('Auth, Student Registration & Weekly Reset Verification', () => {
       full_name: 'Permanent Test Student',
       program: 'BSIT',
       year_level: 2,
-      schedule: 'Block A',
       verified: true,
       created_at: new Date().toISOString()
     }], { onConflict: 'student_id' });

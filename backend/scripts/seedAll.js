@@ -60,7 +60,7 @@ async function seedStudents() {
   const students = [], accounts = [], profiles = [];
   for (const [sid, password, last, first, course, yearLevel] of users) {
     const fullName = `${last}, ${first}`;
-    students.push({ id: `student-${sid}`, student_id: sid, full_name: fullName, program: course, year_level: yearLevel, section: 'A', schedule: 'Schedule 1', status: 'approved', verified: true, created_at: now });
+    students.push({ id: `student-${sid}`, student_id: sid, full_name: fullName, program: course, year_level: yearLevel, status: 'approved', verified: true, created_at: now });
     accounts.push({ id: `acc-${sid}`, student_id: sid, username: sid, password_hash: bcrypt.hashSync(password, 10), role: 'student', status: 'approved', bulk_imported: true, created_at: now });
     profiles.push({ id: `student-${sid}`, email: `${sid}@student.gct.edu.ph`, role: 'student', full_name: fullName, approval_status: 'approved', created_at: now });
   }

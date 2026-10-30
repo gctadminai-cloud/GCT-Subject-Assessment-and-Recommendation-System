@@ -90,13 +90,6 @@ describe('Full Student Registration, Admin Approval, Weekly Reset & Record Displ
       email: testEmail,
       program: testProgram,
       year_level: 1,
-      schedule: 'Schedule 1',
-      id_front_path: null,
-      id_back_path: null,
-      selfie_path: null,
-      id_front_image: null,
-      id_back_image: null,
-      selfie_image: null,
       verified: false,
       status: 'pending',
       created_at: now

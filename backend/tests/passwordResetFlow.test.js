@@ -17,7 +17,6 @@ describe('Password Reset 3-Step Flow & Login Verification', () => {
       email: testEmail,
       program: 'BSIT',
       year_level: 2,
-      schedule: '1',
       status: 'approved',
       verified: true,
       created_at: new Date().toISOString()

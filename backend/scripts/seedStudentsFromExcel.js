@@ -1545,7 +1545,6 @@ async function seedStudentsFromExcel() {
         full_name: s.fullName,
         program: s.program,
         year_level: 1,
-        schedule: 'Schedule 1',
         status: 'approved',
         verified: true,
         created_at: now

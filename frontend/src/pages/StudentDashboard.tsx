@@ -203,18 +203,23 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
             }
 
             const isDrop = r.is_dropped || r.raw_grade === '9' || r.grade === 9 || r.status === 'dropped';
-            const numGrade = isDrop ? null : (r.grade != null ? Number(r.grade) : null);
+            const rawStr = String(r.raw_grade || '').trim();
+            const rawNum = parseFloat(rawStr);
+            const isZero = !isDrop && (r.grade === 0 || Number(r.grade) === 0 || rawStr === '0' || rawStr === '0.0' || rawStr === '0.00');
+            const parsedNum = (!isDrop && r.grade != null && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+            const isFail = !isDrop && (isZero || r.status === 'failed' || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || (!isNaN(rawNum) && rawNum < 1.0));
+            const isPass = !isDrop && !isFail && (r.status === 'passed' || (parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0));
 
             let statusStr: 'passed' | 'failed' | 'dropped' = 'failed';
             if (isDrop) {
               statusStr = 'dropped';
-            } else if (r.status === 'passed' || (numGrade != null && (numGrade <= 3.0 || numGrade >= 75))) {
+            } else if (isPass) {
               statusStr = 'passed';
-            } else if (r.status === 'failed' || numGrade === 5 || r.raw_grade === '5') {
+            } else {
               statusStr = 'failed';
-            } else if (numGrade != null) {
-              statusStr = numGrade <= 3.0 ? 'passed' : 'failed';
             }
+
+            const numGrade = isDrop ? null : (isPass ? parsedNum : (isFail ? (parsedNum !== null && parsedNum > 3.0 ? parsedNum : 5.0) : 5.0));
 
             return {
               id: String(r.id || Math.random()),

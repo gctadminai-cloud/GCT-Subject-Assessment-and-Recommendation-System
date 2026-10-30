@@ -123,9 +123,10 @@ async function getAcademicRecords(req, res) {
       const termFormatted = `${g.academic_year || '2023-2024'} ${semFormatted}`;
 
       const rawGradeStr = String(g.raw_grade || '').trim();
+      const rawNum = parseFloat(rawGradeStr);
       const isDropped = rawGradeStr === '9' || g.grade === 9 || rawGradeStr.toUpperCase() === 'DRP' || (g.needs_review && rawGradeStr === '9');
-      const isZero = g.grade === 0 || Number(g.grade) === 0 || rawGradeStr === '0' || rawGradeStr === '0.0';
-      const isFailed = isZero || rawGradeStr === '5' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped);
+      const isZero = g.grade === 0 || Number(g.grade) === 0 || rawGradeStr === '0' || rawGradeStr === '0.0' || rawGradeStr === '0.00';
+      const isFailed = isZero || rawGradeStr === '5' || rawGradeStr === '5.0' || rawGradeStr === '5.00' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped) || (g.needs_review && (rawGradeStr === '0.75' || rawNum < 1.0));
 
       let status = 'failed';
       let cleanGrade = null;
@@ -139,9 +140,28 @@ async function getAcademicRecords(req, res) {
       } else if (g.grade !== null && g.grade !== undefined && g.grade !== '') {
         const num = Number(g.grade);
         if (!isNaN(num)) {
-          cleanGrade = num;
-          status = (num >= 1.0 && num <= 3.0) ? 'passed' : 'failed';
+          if (num >= 1.0 && num <= 3.0) {
+            cleanGrade = num;
+            status = 'passed';
+          } else {
+            cleanGrade = num > 3.0 ? num : 5.0;
+            status = 'failed';
+          }
+        } else {
+          cleanGrade = 5.0;
+          status = 'failed';
         }
+      } else if (rawGradeStr && !isNaN(rawNum)) {
+        if (rawNum >= 1.0 && rawNum <= 3.0) {
+          cleanGrade = rawNum;
+          status = 'passed';
+        } else {
+          cleanGrade = 5.0;
+          status = 'failed';
+        }
+      } else {
+        status = 'failed';
+        cleanGrade = 5.0;
       }
 
       const recordKey = `${g.student_id}-${subNorm}-${termFormatted}`;

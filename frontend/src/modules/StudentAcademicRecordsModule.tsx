@@ -739,16 +739,18 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       if (Array.isArray(data)) {
         const liveList: AcademicGrade[] = data.map((r: any) => {
           const isDropped = r.is_dropped || r.raw_grade === '9' || r.grade === 9 || r.status === 'dropped';
-          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0');
+          const rawStr = String(r.raw_grade || '').trim();
+          const rawNum = parseFloat(rawStr);
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || rawStr === '0' || rawStr === '0.0' || rawStr === '0.00');
           const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          const isFailed = !isDropped && (isZero || r.status === 'failed' || r.grade === 5 || r.raw_grade === '5' || (parsedNum !== null && (parsedNum > 3.0 || parsedNum === 5.0)));
+          const isFailed = !isDropped && (isZero || r.status === 'failed' || r.grade === 5 || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (parsedNum !== null && (parsedNum > 3.0 || parsedNum === 5.0)) || (!isNaN(rawNum) && rawNum < 1.0));
           const isPassingGrade = !isDropped && !isFailed && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
           let status: 'passed' | 'failed' | 'dropped' = 'failed';
           if (isDropped) status = 'dropped';
           else if (isPassingGrade) status = 'passed';
           else status = 'failed';
 
-          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isFailed ? 5.0 : null)));
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isFailed ? 5.0 : 5.0)));
           const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {

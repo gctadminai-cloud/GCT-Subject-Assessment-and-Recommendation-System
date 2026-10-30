@@ -497,8 +497,17 @@ function generateStudentCsv(student, records, gwa) {
       const code = (r.code || '').replace(/"/g, '""');
       const title = (r.title || '').replace(/"/g, '""');
       const units = Number(r.units) || 3;
-      const grade = r.grade != null ? r.grade : 'N/A';
-      const status = (r.status || 'passed').replace(/"/g, '""');
+      const isFailedOrDef = r.status === 'failed' || (!r.is_dropped && r.grade != null && Number(r.grade) > 3.0);
+      const isDropped = r.is_dropped || r.status === 'dropped';
+      let grade = 'N/A';
+      if (isDropped) {
+        grade = 'N/A';
+      } else if (r.grade != null && !isNaN(Number(r.grade))) {
+        grade = Number(r.grade);
+      } else if (isFailedOrDef) {
+        grade = 5.0;
+      }
+      const status = (isDropped ? 'dropped' : (isFailedOrDef ? 'failed' : (r.status || 'passed'))).replace(/"/g, '""');
       const term = (r.term || 'Academic Record').replace(/"/g, '""');
       const recYear = r.year_level || r.year || r.enrolled_year_level || r.curriculum_year_level || student.year_level || student.year || 1;
 
@@ -1027,24 +1036,45 @@ async function getStudentRecordsAndRecs(student, supabase) {
     const termFormatted = `${g.academic_year || '2023-2024'} ${semFormatted}`;
 
     const rawGradeStr = String(g.raw_grade || '').trim();
+    const rawNum = parseFloat(rawGradeStr);
     const isDropped = rawGradeStr === '9' || g.grade === 9 || rawGradeStr.toUpperCase() === 'DRP' || (g.needs_review && rawGradeStr === '9');
-    const isFailed = rawGradeStr === '5' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped);
+    const isZero = g.grade === 0 || Number(g.grade) === 0 || rawGradeStr === '0' || rawGradeStr === '0.0' || rawGradeStr === '0.00';
+    const isExplicitFailed = isZero || rawGradeStr === '5' || rawGradeStr === '5.0' || rawGradeStr === '5.00' || g.grade === 5 || (g.grade !== null && Number(g.grade) > 3.0 && !isDropped) || (g.needs_review && (rawGradeStr === '0.75' || rawNum < 1.0));
 
-    let status = 'passed';
+    let status = 'failed';
     let cleanGrade = null;
 
     if (isDropped) {
       status = 'dropped';
       cleanGrade = null;
-    } else if (isFailed) {
+    } else if (isExplicitFailed) {
       status = 'failed';
       cleanGrade = 5.0;
     } else if (g.grade !== null && g.grade !== undefined && g.grade !== '') {
       const num = Number(g.grade);
       if (!isNaN(num)) {
-        cleanGrade = num;
-        status = num <= 3.0 ? 'passed' : 'failed';
+        if (num >= 1.0 && num <= 3.0) {
+          cleanGrade = num;
+          status = 'passed';
+        } else {
+          cleanGrade = num > 3.0 ? num : 5.0;
+          status = 'failed';
+        }
+      } else {
+        cleanGrade = 5.0;
+        status = 'failed';
       }
+    } else if (rawGradeStr && !isNaN(rawNum)) {
+      if (rawNum >= 1.0 && rawNum <= 3.0) {
+        cleanGrade = rawNum;
+        status = 'passed';
+      } else {
+        cleanGrade = 5.0;
+        status = 'failed';
+      }
+    } else {
+      status = 'failed';
+      cleanGrade = 5.0;
     }
 
     const recYearLevel = Number(g.year_level) || Number(matchedSub?.year_level) || 1;
@@ -1083,15 +1113,18 @@ async function getStudentRecordsAndRecs(student, supabase) {
     const recordKey = `${subNorm}-${termFormatted}`;
 
     const recYearLevel = Number(r.year_level || s?.year_level || 1);
+    const aGradeNum = (r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
+    const aStatus = r.status || (aGradeNum !== null && aGradeNum >= 1.0 && aGradeNum <= 3.0 ? 'passed' : 'failed');
+    const aFinalGrade = aStatus === 'passed' ? aGradeNum : (aGradeNum !== null && aGradeNum > 3.0 ? aGradeNum : 5.0);
 
     mergedMap.set(recordKey, {
       code: s?.code || r.subject_id || 'SUBJ',
       title: s?.title || r.subject_title || 'Curriculum Subject',
       units: Number(s?.units || r.units || 3),
-      grade: r.grade !== null ? Number(r.grade) : null,
-      status: r.status || (Number(r.grade) <= 3.0 ? 'passed' : 'failed'),
+      grade: aFinalGrade,
+      status: aStatus,
       term: termFormatted,
-      is_dropped: false,
+      is_dropped: aStatus === 'dropped',
       year_level: recYearLevel,
       curriculum_year_level: Number(s?.year_level) || recYearLevel,
       enrolled_year_level: Number(r.year_level) || recYearLevel

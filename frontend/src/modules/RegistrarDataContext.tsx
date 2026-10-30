@@ -215,9 +215,11 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
       if (Array.isArray(data)) {
         const liveGrades: AcademicGrade[] = data.map((r: any) => {
           const isDropped = Boolean(r.is_dropped || r.status === 'dropped' || String(r.raw_grade) === '9' || String(r.raw_grade).toUpperCase() === 'DRP');
-          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0' || String(r.raw_grade).trim() === '0.00');
+          const rawStr = String(r.raw_grade || '').trim();
+          const rawNum = parseFloat(rawStr);
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || rawStr === '0' || rawStr === '0.0' || rawStr === '0.00');
           const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || String(r.raw_grade).trim() === '5' || String(r.raw_grade).trim() === '5.0');
+          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (!isNaN(rawNum) && rawNum < 1.0));
           const isPassingGrade = !isDropped && !isExplicitFail && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
 
           let status: 'passed' | 'failed' | 'dropped' = 'failed';
@@ -225,7 +227,7 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
           else if (isPassingGrade) status = 'passed';
           else status = 'failed';
 
-          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : null)));
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : 5.0)));
           const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {
@@ -271,9 +273,11 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
       if (Array.isArray(data)) {
         const liveList: AcademicGrade[] = data.map((r: any) => {
           const isDropped = Boolean(r.is_dropped || r.status === 'dropped' || String(r.raw_grade) === '9' || String(r.raw_grade).toUpperCase() === 'DRP');
-          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || String(r.raw_grade).trim() === '0' || String(r.raw_grade).trim() === '0.0' || String(r.raw_grade).trim() === '0.00');
+          const rawStr = String(r.raw_grade || '').trim();
+          const rawNum = parseFloat(rawStr);
+          const isZero = !isDropped && (r.grade === 0 || Number(r.grade) === 0 || rawStr === '0' || rawStr === '0.0' || rawStr === '0.00');
           const parsedNum = (!isDropped && r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || String(r.raw_grade).trim() === '5' || String(r.raw_grade).trim() === '5.0');
+          const isExplicitFail = !isDropped && (isZero || r.status === 'failed' || (parsedNum !== null && (parsedNum === 5.0 || parsedNum > 3.0)) || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (!isNaN(rawNum) && rawNum < 1.0));
           const isPassingGrade = !isDropped && !isExplicitFail && parsedNum !== null && parsedNum >= 1.0 && parsedNum <= 3.0;
 
           let status: 'passed' | 'failed' | 'dropped' = 'failed';
@@ -281,7 +285,7 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
           else if (isPassingGrade) status = 'passed';
           else status = 'failed';
 
-          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : null)));
+          const finalGrade = isDropped ? null : (isZero ? 5.0 : (parsedNum !== null ? parsedNum : (isExplicitFail ? 5.0 : 5.0)));
           const finalRawGrade = isZero ? '5.0' : r.raw_grade;
 
           return {

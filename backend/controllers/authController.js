@@ -11,6 +11,111 @@ const otpStore = new Map();
 const registrationOtpStore = new Map();
 
 /**
+ * Persist OTP across Vercel serverless cold starts using Supabase settings table as L2 backing store.
+ */
+async function saveOtpRecord(type, identifier, payload) {
+  if (!identifier) return;
+  const cleanId = String(identifier).trim().toLowerCase();
+  const rawId = String(identifier).trim();
+  const key = `otp:${type}:${cleanId}`;
+
+  // 1. In-memory L1 cache
+  if (type === 'reg') {
+    registrationOtpStore.set(cleanId, payload);
+    registrationOtpStore.set(rawId, payload);
+    if (payload.email) registrationOtpStore.set(String(payload.email).trim().toLowerCase(), payload);
+    if (payload.student_id) registrationOtpStore.set(String(payload.student_id).trim(), payload);
+  } else {
+    otpStore.set(cleanId, payload);
+  }
+
+  // 2. Supabase persistent L2 backing store
+  try {
+    await supabase.from('settings').upsert({
+      key,
+      value: JSON.stringify(payload),
+      description: `Active ${type} OTP for ${cleanId}`
+    }, { onConflict: 'key' });
+  } catch (err) {
+    console.warn(`[OTP] Supabase persist notice for ${key}:`, err.message);
+  }
+}
+
+/**
+ * Retrieve active OTP record from memory or Supabase settings table.
+ */
+async function getOtpRecord(type, identifier) {
+  if (!identifier) return null;
+  const cleanId = String(identifier).trim().toLowerCase();
+  const rawId = String(identifier).trim();
+  const key = `otp:${type}:${cleanId}`;
+
+  // 1. Check in-memory L1 cache first
+  let record = type === 'reg'
+    ? (registrationOtpStore.get(cleanId) || registrationOtpStore.get(rawId))
+    : otpStore.get(cleanId);
+
+  // 2. Fallback to Supabase persistent store (e.g. on new Vercel serverless lambda instance)
+  if (!record) {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (!error && data?.value) {
+        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        if (parsed && parsed.expiresAt) {
+          if (Date.now() > parsed.expiresAt) {
+            // Expired in database
+            await deleteOtpRecord(type, identifier);
+            return null;
+          }
+          record = parsed;
+          // Populate local L1 cache
+          if (type === 'reg') {
+            registrationOtpStore.set(cleanId, record);
+            registrationOtpStore.set(rawId, record);
+          } else {
+            otpStore.set(cleanId, record);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[OTP] Supabase retrieval notice for ${key}:`, err.message);
+    }
+  }
+
+  return record;
+}
+
+/**
+ * Delete OTP record from memory and Supabase.
+ */
+async function deleteOtpRecord(type, identifier) {
+  if (!identifier) return;
+  const cleanId = String(identifier).trim().toLowerCase();
+  const rawId = String(identifier).trim();
+  const key = `otp:${type}:${cleanId}`;
+
+  // 1. In-memory
+  if (type === 'reg') {
+    registrationOtpStore.delete(cleanId);
+    registrationOtpStore.delete(rawId);
+  } else {
+    otpStore.delete(cleanId);
+  }
+
+  // 2. Supabase
+  try {
+    await supabase.from('settings').delete().eq('key', key);
+  } catch (err) {
+    console.warn(`[OTP] Supabase delete notice for ${key}:`, err.message);
+  }
+}
+
+/**
  * Single Unified Login for ALL roles (Student, Registrar Staff, Registrar Admin).
  * Username:
  *   - Student: GCT Student ID (e.g., "GCT-2026-0123")
@@ -25,6 +130,7 @@ async function loginUser(req, res) {
     }
 
     const cleanUsername = username.trim();
+    const cleanPassword = typeof password === 'string' ? password.trim() : String(password || '');
     const lowerUser = cleanUsername.toLowerCase();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanUsername);
 
@@ -131,10 +237,13 @@ async function loginUser(req, res) {
     // 5. Verify password strictly with bcrypt or legacy excel password (no hardcoded passwords)
     let passwordMatch = false;
     if (account.password_hash) {
-      passwordMatch = await bcrypt.compare(password, account.password_hash);
+      passwordMatch = await bcrypt.compare(cleanPassword, account.password_hash);
+      if (!passwordMatch && cleanPassword !== password) {
+        passwordMatch = await bcrypt.compare(password, account.password_hash);
+      }
     }
     if (!passwordMatch && legacyPassword) {
-      passwordMatch = (password === legacyPassword);
+      passwordMatch = (cleanPassword === legacyPassword || password === legacyPassword);
     }
 
     if (!passwordMatch) {
@@ -434,8 +543,8 @@ async function sendRegistrationOtpHandler(req, res) {
       expiresAt
     };
 
-    registrationOtpStore.set(cleanEmail, otpPayload);
-    registrationOtpStore.set(cleanId, otpPayload);
+    await saveOtpRecord('reg', cleanEmail, otpPayload);
+    await saveOtpRecord('reg', cleanId, otpPayload);
 
     const result = await sendRegistrationOtp(cleanEmail, otpCode, cleanName);
 
@@ -498,7 +607,11 @@ async function registerStudent(req, res) {
     }
 
     // 2. Verify OTP
-    const record = registrationOtpStore.get(cleanEmail) || registrationOtpStore.get(cleanId);
+    let record = await getOtpRecord('reg', cleanEmail);
+    if (!record) {
+      record = await getOtpRecord('reg', cleanId);
+    }
+
     if (!record) {
       return res.status(400).json({
         error: 'No active verification code found for this email or student ID. Please request a new code.'
@@ -506,8 +619,8 @@ async function registerStudent(req, res) {
     }
 
     if (Date.now() > record.expiresAt) {
-      registrationOtpStore.delete(cleanEmail);
-      registrationOtpStore.delete(cleanId);
+      await deleteOtpRecord('reg', cleanEmail);
+      await deleteOtpRecord('reg', cleanId);
       return res.status(400).json({
         error: 'Verification code has expired. Please request a new code.'
       });
@@ -538,9 +651,9 @@ async function registerStudent(req, res) {
       });
     }
 
-    // Verified! Clear OTP from memory
-    registrationOtpStore.delete(cleanEmail);
-    registrationOtpStore.delete(cleanId);
+    // Verified! Clear OTP from memory and database
+    await deleteOtpRecord('reg', cleanEmail);
+    await deleteOtpRecord('reg', cleanId);
 
     const now = new Date().toISOString();
     const accountId = 'acc-' + Date.now();
@@ -811,8 +924,8 @@ async function forgotPassword(req, res) {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes from now
 
-    // Store in memory
-    otpStore.set(cleanEmail, {
+    // Store in memory and Supabase
+    await saveOtpRecord('reset', cleanEmail, {
       otp: otpCode,
       expiresAt,
       recipientName,
@@ -848,7 +961,7 @@ async function verifyOtp(req, res) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const record = otpStore.get(cleanEmail);
+    const record = await getOtpRecord('reset', cleanEmail);
 
     if (!record) {
       return res.status(400).json({
@@ -857,7 +970,7 @@ async function verifyOtp(req, res) {
     }
 
     if (Date.now() > record.expiresAt) {
-      otpStore.delete(cleanEmail);
+      await deleteOtpRecord('reset', cleanEmail);
       return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
     }
 
@@ -892,7 +1005,7 @@ async function resetPasswordWithOtp(req, res) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const record = otpStore.get(cleanEmail);
+    const record = await getOtpRecord('reset', cleanEmail);
 
     if (!record) {
       return res.status(400).json({
@@ -901,7 +1014,7 @@ async function resetPasswordWithOtp(req, res) {
     }
 
     if (Date.now() > record.expiresAt) {
-      otpStore.delete(cleanEmail);
+      await deleteOtpRecord('reset', cleanEmail);
       return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
     }
 
@@ -1007,7 +1120,7 @@ async function resetPasswordWithOtp(req, res) {
     } catch (sErr) {}
 
     // Clear used OTP
-    otpStore.delete(cleanEmail);
+    await deleteOtpRecord('reset', cleanEmail);
 
     console.log(`✅ [PASSWORD RESET SUCCESS] Successfully updated password for student '${targetStudentId}' (${cleanEmail})`);
 

@@ -113,5 +113,5 @@ describe('Password Reset 3-Step Flow & Login Verification', () => {
     expect(emailLoginStatus).toBe(200);
     expect(emailLoginData.token).toBeDefined();
     expect(emailLoginData.user.student_id).toBe(testStudentId);
-  });
+  }, 20000);
 });

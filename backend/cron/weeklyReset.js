@@ -14,7 +14,7 @@ const { supabase } = require('../config/supabase');
 const { sendStudentAccountResetNotice, sendWeeklyPasswordRenewalEmail, sendWeeklyPasswordResetEarlyNotice } = require('../services/emailService');
 
 function generateRandomPassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   let pass = 'GCT-';
   for (let i = 0; i < 6; i++) {
     pass += chars.charAt(Math.floor(Math.random() * chars.length));

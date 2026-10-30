@@ -244,7 +244,7 @@ export function exportAcademicProgressExcel(records: any[], fileName?: string) {
     'Student ID': r.studentId || r.student_id || 'N/A',
     'Student Name': r.studentName || r.name || 'N/A',
     'Degree Program': r.course || r.program || 'BSIT',
-    'Year Level': r.yearLevel || r.year || 1,
+    'Year Level': r.year_level || r.yearLevel || r.year || r.curriculum_year_level || r.enrolled_year_level || 1,
     'Cat No.': r.code || 'N/A',
     'Descriptive Title': r.title || 'N/A',
     'Units': r.units || 3,
@@ -333,8 +333,6 @@ export function downloadStudentsTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
       'Full Name': 'Alcantara, Gabriel M.',
       'Program / Course': 'BSIT',
       'Year Level': 1,
-      'Section': 'A',
-      'Schedule': 'Schedule 1',
       'Email': 'g.alcantara@gct.edu.ph'
     },
     {
@@ -342,8 +340,6 @@ export function downloadStudentsTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
       'Full Name': 'Bernardo, Katrina L.',
       'Program / Course': 'BSCS',
       'Year Level': 2,
-      'Section': 'B',
-      'Schedule': 'Schedule 2',
       'Email': 'k.bernardo@gct.edu.ph'
     }
   ];
@@ -366,8 +362,6 @@ export function exportStudentsToExcel(students: any[], fileName?: string) {
     'Full Name': s.name || 'N/A',
     'Program': s.program || 'BSIT',
     'Year Level': s.year || 1,
-    'Section': s.section || 'A',
-    'Schedule': s.schedule || 'Schedule 1',
     'Email Address': s.email || 'N/A',
     'Status': (s.status || 'approved').toUpperCase()
   }));

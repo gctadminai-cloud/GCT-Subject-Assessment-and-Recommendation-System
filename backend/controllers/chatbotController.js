@@ -472,22 +472,19 @@ function extractTargetTermAndSemester(query, studentYear = null) {
  * Format academic record as a downloadable CSV/Excel spreadsheet string
  */
 function generateStudentCsv(student, records, gwa) {
-  const headers = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Section / Schedule', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'];
+  const headers = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'];
   const rows = [headers.join(',')];
 
   const studentId = student.student_id || student.id || 'N/A';
   const studentName = (student.name || student.full_name || 'Student').replace(/"/g, '""');
   const program = (student.program || 'BSIT').replace(/"/g, '""');
-  const yearLevel = student.year_level || student.year || 1;
-  const schedule = (student.schedule || student.section || 'A').replace(/"/g, '""');
 
   if (!records || records.length === 0) {
     rows.push([
       `"${studentId}"`,
       `"${studentName}"`,
       `"${program}"`,
-      `"${yearLevel}"`,
-      `"${schedule}"`,
+      `"${student.year_level || student.year || 1}"`,
       'N/A',
       'No graded subjects recorded yet',
       '0',
@@ -503,13 +500,13 @@ function generateStudentCsv(student, records, gwa) {
       const grade = r.grade != null ? r.grade : 'N/A';
       const status = (r.status || 'passed').replace(/"/g, '""');
       const term = (r.term || 'Academic Record').replace(/"/g, '""');
+      const recYear = r.year_level || r.year || r.enrolled_year_level || r.curriculum_year_level || student.year_level || student.year || 1;
 
       rows.push([
         `"${studentId}"`,
         `"${studentName}"`,
         `"${program}"`,
-        `"${yearLevel}"`,
-        `"${schedule}"`,
+        `"${recYear}"`,
         `"${code}"`,
         `"${title}"`,
         units,
@@ -522,7 +519,7 @@ function generateStudentCsv(student, records, gwa) {
 
   // Summary row at bottom for Excel viewers
   rows.push('');
-  rows.push(`"","","","","","Cumulative GWA:","${gwa || 'N/A'}","","Total Graded Subjects:","${records.length}",""`);
+  rows.push(`"","","","Cumulative GWA:","${gwa || 'N/A'}","","Total Graded Subjects:","${records.length}",""`);
 
   return rows.join('\r\n');
 }
@@ -535,7 +532,6 @@ function generateStudentWord(student, records, gwa) {
   const studentName = student.name || student.full_name || 'Student';
   const program = student.program || 'BSIT';
   const yearLevel = student.year_level || student.year || 1;
-  const schedule = student.schedule || student.section || 'Regular';
 
   const rowsHtml = (!records || records.length === 0)
     ? `<tr><td colspan="5" style="text-align:center; padding:12px; color:#64748b;">No graded subjects recorded yet.</td></tr>`
@@ -580,7 +576,7 @@ function generateStudentWord(student, records, gwa) {
       </tr>
       <tr>
         <td><strong>Degree Program:</strong> ${program}</td>
-        <td><strong>Year Level & Section:</strong> Year ${yearLevel} (${schedule})</td>
+        <td><strong>Year Level:</strong> Year ${yearLevel}</td>
       </tr>
       <tr>
         <td><strong>Cumulative GWA:</strong> <span style="color:#1e3a8a; font-weight:bold;">${gwa || 'N/A'}</span></td>
@@ -624,7 +620,7 @@ function generateStudentText(student, records, gwa) {
     `Student Name: ${student.name || student.full_name || 'Student'}`,
     `Student ID:   ${student.student_id || student.id || 'N/A'}`,
     `Program:      ${student.program || 'BSIT'}`,
-    `Year Level:   Year ${student.year_level || student.year || 1} (${student.schedule || student.section || 'Regular'})`,
+    `Year Level:   Year ${student.year_level || student.year || 1}`,
     `Cumulative GWA: ${gwa || 'N/A'}`,
     `Date Generated: ${new Date().toLocaleString()}`,
     '--------------------------------------------------------------------',
@@ -653,7 +649,7 @@ function generateStudentText(student, records, gwa) {
  * Format a list of students as a downloadable CSV spreadsheet
  */
 function generateStudentsListCsv(studentsList, title = 'GCT_Students_Report') {
-  const headers = ['Student ID', 'Full Name', 'Program', 'Year Level', 'Section / Schedule', 'Status'];
+  const headers = ['Student ID', 'Full Name', 'Program', 'Year Level', 'Status'];
   const rows = [headers.join(',')];
 
   for (const s of studentsList) {
@@ -662,7 +658,6 @@ function generateStudentsListCsv(studentsList, title = 'GCT_Students_Report') {
       `"${(s.name || s.full_name || '').replace(/"/g, '""')}"`,
       `"${s.program || 'BSIT'}"`,
       `"${s.year_level || s.year || 1}"`,
-      `"${s.schedule || s.section || 'A'}"`,
       `"${s.status || s.approval_status || 'approved'}"`
     ].join(','));
   }
@@ -680,7 +675,6 @@ function generateStudentsListWord(studentsList, title = 'GCT Students Directory'
       <td style="border:1px solid #cbd5e1; padding:6px 10px; font-family:Calibri,sans-serif; font-weight:600;">${s.name || s.full_name || ''}</td>
       <td style="border:1px solid #cbd5e1; padding:6px 10px; font-family:Calibri,sans-serif;">${s.program || 'BSIT'}</td>
       <td style="border:1px solid #cbd5e1; padding:6px 10px; font-family:Calibri,sans-serif; text-align:center;">Year ${s.year_level || s.year || 1}</td>
-      <td style="border:1px solid #cbd5e1; padding:6px 10px; font-family:Calibri,sans-serif; text-align:center;">${s.schedule || s.section || 'A'}</td>
       <td style="border:1px solid #cbd5e1; padding:6px 10px; font-family:Calibri,sans-serif; text-align:center;">${s.status || s.approval_status || 'approved'}</td>
     </tr>
   `).join('');
@@ -699,7 +693,7 @@ function generateStudentsListWord(studentsList, title = 'GCT Students Directory'
   <h2>GARCIA COLLEGE OF TECHNOLOGY — ${title}</h2>
   <p>Generated on: ${new Date().toLocaleString()}</p>
   <table>
-    <thead><tr><th>Student ID</th><th>Full Name</th><th>Program</th><th>Year</th><th>Section</th><th>Status</th></tr></thead>
+    <thead><tr><th>Student ID</th><th>Full Name</th><th>Program</th><th>Year</th><th>Status</th></tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table>
 </body></html>`;
@@ -1027,7 +1021,9 @@ async function getStudentRecordsAndRecs(student, supabase) {
     const subNorm = normalizeSubjCode(subjClean);
     const matchedSub = codeMap.get(subjClean.toLowerCase()) || codeMap.get(subNorm) || null;
 
-    const semFormatted = (g.semester === 'Second' || g.semester === '2' || String(g.semester).toLowerCase().includes('2nd')) ? '2nd Sem' : '1st Sem';
+    const isSummer = String(g.semester).toLowerCase().includes('summer') || g.semester === '3' || g.semester === 3;
+    const isSem2 = !isSummer && (g.semester === 'Second' || g.semester === '2' || String(g.semester).toLowerCase().includes('2nd'));
+    const semFormatted = isSummer ? 'Summer' : (isSem2 ? '2nd Sem' : '1st Sem');
     const termFormatted = `${g.academic_year || '2023-2024'} ${semFormatted}`;
 
     const rawGradeStr = String(g.raw_grade || '').trim();
@@ -1051,6 +1047,8 @@ async function getStudentRecordsAndRecs(student, supabase) {
       }
     }
 
+    const recYearLevel = Number(g.year_level) || Number(matchedSub?.year_level) || 1;
+
     const recordKey = `${subNorm}-${termFormatted}`;
     const newEntry = {
       code: matchedSub?.code || subjClean,
@@ -1059,7 +1057,10 @@ async function getStudentRecordsAndRecs(student, supabase) {
       grade: cleanGrade,
       status,
       term: termFormatted,
-      is_dropped: isDropped
+      is_dropped: isDropped,
+      year_level: recYearLevel,
+      curriculum_year_level: Number(matchedSub?.year_level) || recYearLevel,
+      enrolled_year_level: Number(g.year_level) || recYearLevel
     };
 
     if (mergedMap.has(recordKey)) {
@@ -1081,6 +1082,8 @@ async function getStudentRecordsAndRecs(student, supabase) {
     const termFormatted = r.term || 'Academic Record';
     const recordKey = `${subNorm}-${termFormatted}`;
 
+    const recYearLevel = Number(r.year_level || s?.year_level || 1);
+
     mergedMap.set(recordKey, {
       code: s?.code || r.subject_id || 'SUBJ',
       title: s?.title || r.subject_title || 'Curriculum Subject',
@@ -1088,7 +1091,10 @@ async function getStudentRecordsAndRecs(student, supabase) {
       grade: r.grade !== null ? Number(r.grade) : null,
       status: r.status || (Number(r.grade) <= 3.0 ? 'passed' : 'failed'),
       term: termFormatted,
-      is_dropped: false
+      is_dropped: false,
+      year_level: recYearLevel,
+      curriculum_year_level: Number(s?.year_level) || recYearLevel,
+      enrolled_year_level: Number(r.year_level) || recYearLevel
     });
   });
 
@@ -1586,11 +1592,11 @@ ${registrarOpinion}
 *Use the buttons below to open this student's profile in Academic Records or Subject Recommendations, or download the complete report as a ${requestedFormat.toUpperCase()} file.*`;
         } else {
           assistantResponse = userIsTagalog
-            ? `### Academic Record ng Estudyante: **${targetStudent.name || targetStudent.full_name}**\n\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1} (${targetStudent.schedule || targetStudent.section || 'Schedule 1'})\n- **Cumulative GWA:** **${gwa}**\n- **Nakumpletong Units:** **${passedUnits}** units (${passedCount} passed subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n#### Kumpletong Grade Sheet:\n| Subject Code | Deskripsyon | Units | Marka | Katayuan | Termino |\n| :--- | :--- | :---: | :---: | :---: | :--- |\n${recordsBreakdown}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o pumunta sa profile ng estudyante sa Academic Records o Subject Recommendations.*`
+            ? `### Academic Record ng Estudyante: **${targetStudent.name || targetStudent.full_name}**\n\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Nakumpletong Units:** **${passedUnits}** units (${passedCount} passed subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n#### Kumpletong Grade Sheet:\n| Subject Code | Deskripsyon | Units | Marka | Katayuan | Termino |\n| :--- | :--- | :---: | :---: | :---: | :--- |\n${recordsBreakdown}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o pumunta sa profile ng estudyante sa Academic Records o Subject Recommendations.*`
             : `### Student Academic Record: **${targetStudent.name || targetStudent.full_name}**
 
 - **Student ID:** \`${targetStudent.student_id}\`
-- **Program & Year:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1} (${targetStudent.schedule || targetStudent.section || 'Schedule 1'})
+- **Program & Year:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}
 - **Cumulative GWA:** **${gwa}**
 - **Completed Units:** **${passedUnits}** units (${passedCount} passed subjects)
 - **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**

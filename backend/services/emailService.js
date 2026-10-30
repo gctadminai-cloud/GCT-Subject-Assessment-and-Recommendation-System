@@ -156,17 +156,24 @@ function getAppFrontendUrl(customOrigin) {
     return `https://${host}`;
   }
 
-  // 5. If customOrigin was provided (even if localhost in dev)
+  // 5. Official live production deployment URL
+  const PRODUCTION_VERCEL_URL = 'https://gct-subject-assessment-and-recommen.vercel.app';
+
+  // 6. If customOrigin was provided
   if (customOrigin && typeof customOrigin === 'string' && customOrigin.startsWith('http')) {
-    return customOrigin.replace(/\/+$/, '');
+    const trimmed = customOrigin.replace(/\/+$/, '');
+    if (!trimmed.includes('localhost') && !trimmed.includes('127.0.0.1')) {
+      return trimmed;
+    }
   }
 
-  // 6. Configured envUrl fallback
-  if (envUrl && typeof envUrl === 'string') {
+  // 7. If FRONTEND_URL is set and not localhost
+  if (envUrl && typeof envUrl === 'string' && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  return 'http://localhost:3000';
+  // 8. Default to official production Vercel system so emails always work on phones & outside localhost
+  return PRODUCTION_VERCEL_URL;
 }
 
 function buildStudentAccountResetEmail(recipientName, studentId, customOrigin) {

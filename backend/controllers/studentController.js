@@ -465,8 +465,20 @@ async function updateStudentApproval(req, res) {
         .update({ approval_status: 'approved', password_hash: passwordHash })
         .or(profileFilters.join(','));
 
+      // Derive request origin (e.g. from Vercel deployment when admin approves student)
+      let requestOrigin = req?.headers?.origin || null;
+      if (!requestOrigin && req?.headers?.referer) {
+        try {
+          requestOrigin = new URL(req.headers.referer).origin;
+        } catch (_) {}
+      }
+      if (!requestOrigin && req?.headers?.['x-forwarded-host']) {
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        requestOrigin = `${proto}://${req.headers['x-forwarded-host']}`;
+      }
+
       // Send system-generated password to student's Gmail with 1-week notice
-      await sendStudentApprovalPassword(targetEmail, targetName, studentId, generatedPassword);
+      await sendStudentApprovalPassword(targetEmail, targetName, studentId, generatedPassword, requestOrigin);
 
       console.log(`✅ [STUDENT APPROVAL] Student ${studentId} (${targetName}) approved. Password sent to ${targetEmail}.`);
 

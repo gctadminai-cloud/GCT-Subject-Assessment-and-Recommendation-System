@@ -126,8 +126,51 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function buildStudentAccountResetEmail(recipientName, studentId) {
-  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000';
+function getAppFrontendUrl(customOrigin) {
+  // 1. If an explicit origin was passed from an active request and is a remote web URL (e.g. from Vercel)
+  if (customOrigin && typeof customOrigin === 'string' && customOrigin.startsWith('http')) {
+    const trimmed = customOrigin.replace(/\/+$/, '');
+    if (!trimmed.includes('localhost') && !trimmed.includes('127.0.0.1')) {
+      return trimmed;
+    }
+  }
+
+  // 2. Check process.env.FRONTEND_URL or APP_URL (prefer non-localhost)
+  const envUrl = process.env.FRONTEND_URL || process.env.APP_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.startsWith('http')) {
+    const trimmedEnv = envUrl.replace(/\/+$/, '');
+    if (!trimmedEnv.includes('localhost') && !trimmedEnv.includes('127.0.0.1')) {
+      return trimmedEnv;
+    }
+  }
+
+  // 3. Vercel automatically exposes VERCEL_PROJECT_PRODUCTION_URL (e.g. "my-project.vercel.app")
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    const host = process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return `https://${host}`;
+  }
+
+  // 4. Vercel automatically exposes VERCEL_URL (e.g. "my-project-abc123.vercel.app")
+  if (process.env.VERCEL_URL) {
+    const host = process.env.VERCEL_URL.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return `https://${host}`;
+  }
+
+  // 5. If customOrigin was provided (even if localhost in dev)
+  if (customOrigin && typeof customOrigin === 'string' && customOrigin.startsWith('http')) {
+    return customOrigin.replace(/\/+$/, '');
+  }
+
+  // 6. Configured envUrl fallback
+  if (envUrl && typeof envUrl === 'string') {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  return 'http://localhost:3000';
+}
+
+function buildStudentAccountResetEmail(recipientName, studentId, customOrigin) {
+  const appUrl = getAppFrontendUrl(customOrigin);
   const registrationUrl = `${appUrl.replace(/\/+$/, '')}/#register`;
   const safeName = escapeHtml(recipientName || 'Student');
   const safeStudentId = escapeHtml(studentId);
@@ -146,13 +189,13 @@ function buildStudentAccountResetEmail(recipientName, studentId) {
   return { subject, text, html, registrationUrl };
 }
 
-async function sendStudentAccountResetNotice(toEmail, recipientName, studentId) {
+async function sendStudentAccountResetNotice(toEmail, recipientName, studentId, customOrigin) {
   const mailTransporter = getTransporter();
   if (!mailTransporter) {
     return { success: false, delivered: false, error: 'Email delivery is not configured.' };
   }
 
-  const { subject, text, html } = buildStudentAccountResetEmail(recipientName, studentId);
+  const { subject, text, html } = buildStudentAccountResetEmail(recipientName, studentId, customOrigin);
   const mailOptions = {
     from: getFromAddress(),
     to: toEmail,
@@ -235,11 +278,11 @@ async function sendRegistrationOtp(toEmail, otpCode, recipientName = 'Student') 
   }
 }
 
-async function sendStudentApprovalPassword(toEmail, recipientName, studentId, generatedPassword) {
+async function sendStudentApprovalPassword(toEmail, recipientName, studentId, generatedPassword, customOrigin) {
   const mailTransporter = getTransporter();
   const safeName = escapeHtml(recipientName || 'Student');
   const safeStudentId = escapeHtml(studentId || '');
-  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = getAppFrontendUrl(customOrigin);
   const loginUrl = `${appUrl.replace(/\/+$/, '')}/#login`;
 
   const mailOptions = {
@@ -321,11 +364,11 @@ async function sendStudentApprovalPassword(toEmail, recipientName, studentId, ge
   }
 }
 
-async function sendWeeklyPasswordRenewalEmail(toEmail, recipientName, studentId, newPassword) {
+async function sendWeeklyPasswordRenewalEmail(toEmail, recipientName, studentId, newPassword, customOrigin) {
   const mailTransporter = getTransporter();
   const safeName = escapeHtml(recipientName || 'Student');
   const safeStudentId = escapeHtml(studentId || '');
-  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = getAppFrontendUrl(customOrigin);
   const loginUrl = `${appUrl.replace(/\/+$/, '')}/#login`;
 
   const mailOptions = {
@@ -411,11 +454,11 @@ async function sendWeeklyPasswordRenewalEmail(toEmail, recipientName, studentId,
  * Early reminder notice sent to students in advance of the scheduled weekly reset.
  * Default schedule: Sunday at 12:00 PM (Noon), 12 hours before the Monday 12:00 AM reset.
  */
-async function sendWeeklyPasswordResetEarlyNotice(toEmail, recipientName, studentId) {
+async function sendWeeklyPasswordResetEarlyNotice(toEmail, recipientName, studentId, customOrigin) {
   const mailTransporter = getTransporter();
   const safeName = escapeHtml(recipientName || 'Student');
   const safeStudentId = escapeHtml(studentId || '');
-  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = getAppFrontendUrl(customOrigin);
   const loginUrl = `${appUrl.replace(/\/+$/, '')}/#login`;
 
   const mailOptions = {

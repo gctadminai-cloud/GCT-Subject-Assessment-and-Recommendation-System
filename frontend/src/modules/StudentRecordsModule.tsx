@@ -312,13 +312,15 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
     }));
 
     setMockStudents(prev => [...newStudents, ...prev]);
-    setUploadSuccessAlert(`Successfully imported ${newStudents.length} student records from ${uploadedFileName || 'Excel file'}!`);
+    const successMsg = `Successfully imported ${newStudents.length} student records from ${uploadedFileName || 'Excel file'}!`;
+    setUploadSuccessAlert(successMsg);
+    showToast?.(successMsg, 'success');
     setIsCsvUploaded(false);
     setParsedUploadStudents([]);
     setTimeout(() => {
       setShowUploadModal(false);
       setUploadSuccessAlert(null);
-    }, 1200);
+    }, 1000);
   };
 
   const handleCommitOcrImport = () => {
@@ -336,13 +338,15 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
     }));
 
     setMockStudents(prev => [...newStudents, ...prev]);
-    setUploadSuccessAlert(`Successfully auto-encoded ${newStudents.length} student records via OCR scan!`);
+    const successMsg = `Successfully auto-encoded ${newStudents.length} student records via OCR scan!`;
+    setUploadSuccessAlert(successMsg);
+    showToast?.(successMsg, 'success');
     setIsOcrUploaded(false);
     setOcrDetectedStudents([]);
     setTimeout(() => {
       setShowUploadModal(false);
       setUploadSuccessAlert(null);
-    }, 1200);
+    }, 1000);
   };
 
   return (

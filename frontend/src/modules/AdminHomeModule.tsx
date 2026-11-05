@@ -30,7 +30,6 @@ export const AdminHomeModule: React.FC<AdminHomeModuleProps> = ({ onTabChange })
     curriculumSubjects,
     mockAcademicGrades,
     staffAccounts,
-    studentRecommendations,
     PROGRAM_CATALOG,
     passingThreshold,
     maxFailedPrereqs,
@@ -695,13 +694,10 @@ export const AdminHomeModule: React.FC<AdminHomeModuleProps> = ({ onTabChange })
               <Sparkles size={22} color="#7C3AED" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <div style={{ marginBottom: '0.2rem' }}>
                 <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
                   Recommendation Advising Engine
                 </h4>
-                <span style={{ background: '#EDE9FE', color: '#7C3AED', padding: '1px 6px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800 }}>
-                  {studentRecommendations.length} Queued
-                </span>
               </div>
               <p style={{ fontSize: '0.76rem', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
                 Automated prerequisite validation and personalized course load advising per student.

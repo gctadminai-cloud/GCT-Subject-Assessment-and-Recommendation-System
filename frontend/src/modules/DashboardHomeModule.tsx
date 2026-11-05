@@ -7,9 +7,7 @@ import {
   BarChart3,
   FileCheck,
   CheckCircle2,
-  ChevronRight,
-  Plus,
-  Eye
+  ChevronRight
 } from 'lucide-react';
 
 interface DashboardHomeModuleProps {
@@ -19,11 +17,9 @@ interface DashboardHomeModuleProps {
 }
 
 export const DashboardHomeModule: React.FC<DashboardHomeModuleProps> = ({
-  onTabChange,
-  onOpenEncodeModal,
-  onSelectRecStudent
+  onTabChange
 }) => {
-  const { studentRecommendations, mockStudents } = useRegistrarData();
+  const { mockStudents } = useRegistrarData();
 
   return (
     <>
@@ -227,118 +223,43 @@ export const DashboardHomeModule: React.FC<DashboardHomeModuleProps> = ({
         </div>
       </div>
 
-      {/* ROW 3: RECENT RECOMMENDATIONS TABLE + STAFF OPERATIONAL HEALTH */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '1.25rem' }}>
-        <div className="glass-card" style={{ padding: '1.35rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                Recent Subject Recommendations Awaiting Review
-              </h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-                Review AI generated prerequisite evaluations for student registration
-              </p>
-            </div>
-
-            {onOpenEncodeModal && (
-              <button
-                onClick={onOpenEncodeModal}
-                className="btn btn-primary btn-sm"
-              >
-                <Plus size={15} /> Encode Student Grade
-              </button>
-            )}
-          </div>
-
-          <div className="table-container">
-            <table className="custom-table">
-              <thead>
-                <tr>
-                  <th>Student ID</th>
-                  <th>Student Name</th>
-                  <th>Program & Year</th>
-                  <th>Recommended Subjects</th>
-                  <th style={{ textAlign: 'center' }}>Total Units</th>
-                  <th style={{ textAlign: 'center' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {studentRecommendations.slice(0, 4).map(rec => (
-                  <tr key={rec.studentId}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{rec.studentId}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{rec.studentName}</td>
-                    <td>
-                      <span className="badge badge-approved" style={{ fontSize: '0.75rem' }}>
-                        {rec.program} Yr {rec.yearLevel}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: '0.82rem' }}>
-                      {rec.subjects.map(s => s.code).join(', ') || 'No subjects'}
-                    </td>
-                    <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-main)' }}>
-                      {rec.subjects.reduce((sum, s) => sum + s.totalUnits, 0)} Units
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => {
-                          if (onSelectRecStudent) onSelectRecStudent(rec.studentId);
-                          if (onTabChange) onTabChange('recommendations');
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                        title="Review Student Recommendations"
-                      >
-                        <Eye size={13} /> Review
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+      {/* ROW 3: STAFF OPERATIONAL HEALTH */}
+      <div>
         {/* Staff Operational Health Card */}
-        <div className="glass-card" style={{ padding: '1.35rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem' }}>
-              Operational Health
-            </h3>
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem' }}>
+            Operational Health & System Status
+          </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.8rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                  <CheckCircle2 size={15} color="#15803D" /> Grade Sync Engine
-                </span>
-                <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Completed</span>
-              </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                <CheckCircle2 size={15} color="#15803D" /> Grade Sync Engine
+              </span>
+              <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Completed</span>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                  <CheckCircle2 size={15} color="#15803D" /> Recommendation Queue
-                </span>
-                <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Active</span>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                <CheckCircle2 size={15} color="#15803D" /> Recommendation Engine
+              </span>
+              <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Active</span>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                  <CheckCircle2 size={15} color="#15803D" /> Report Generator
-                </span>
-                <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Ready</span>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                <CheckCircle2 size={15} color="#15803D" /> Report Generator
+              </span>
+              <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Ready</span>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                  <CheckCircle2 size={15} color="#15803D" /> Audit Log Sync
-                </span>
-                <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Enabled</span>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                <CheckCircle2 size={15} color="#15803D" /> Audit Log Sync
+              </span>
+              <span style={{ color: '#15803D', fontWeight: 700, fontSize: '0.75rem' }}>Enabled</span>
             </div>
           </div>
-
-          <a href="#operational-logs" onClick={(e) => { e.preventDefault(); onTabChange?.('recommendations'); }} style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '1rem' }}>
-            View operational logs <ChevronRight size={14} />
-          </a>
         </div>
       </div>
     </>

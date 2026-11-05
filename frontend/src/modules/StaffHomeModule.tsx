@@ -6,7 +6,6 @@ import {
   Sparkles,
   Plus,
   Upload,
-  Eye,
   CheckCircle2,
   ChevronRight,
   FileCheck,
@@ -16,7 +15,8 @@ import {
   Calendar,
   Search,
   ShieldCheck,
-  Check
+  Check,
+  BookOpen
 } from 'lucide-react';
 
 interface StaffHomeModuleProps {
@@ -27,14 +27,13 @@ interface StaffHomeModuleProps {
 }
 
 export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
-  onTabChange,
-  onSelectRecStudent
+  onTabChange
 }) => {
   const { user } = useAuth();
   const {
     mockStudents,
     mockAcademicGrades,
-    studentRecommendations,
+    curriculumSubjects,
     activeAcademicYear,
     activeSemesterSetting
   } = useRegistrarData();
@@ -66,10 +65,6 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
   const bscsStudents = mockStudents.filter(s => (s.program || '').toUpperCase() === 'BSCS');
 
   const totalGradesEncoded = mockAcademicGrades.length;
-  const unreleasedGradesCount = mockAcademicGrades.filter(g => !g.released).length;
-  const releasedGradesCount = mockAcademicGrades.filter(g => g.released).length;
-  const pendingRecommendations = studentRecommendations.length;
-
 
   const deficientStudents = mockStudents.filter(s => s.has_deficiencies || s.hasDeficiencies);
   const deficientStudentsCount = deficientStudents.length;
@@ -244,7 +239,7 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
                 gap: '0.4rem'
               }}>
                 <Sparkles size={13} color="#FBBF24" />
-                {pendingRecommendations} Recommendations In Queue
+                Recommendation Advising Engine Active
               </div>
             </div>
           </div>
@@ -282,16 +277,7 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
                 <Sparkles size={16} color="#7C3AED" />
                 <span>Review Recommendations</span>
               </div>
-              <span style={{
-                background: '#EDE9FE',
-                color: '#7C3AED',
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontSize: '0.75rem',
-                fontWeight: 800
-              }}>
-                {pendingRecommendations}
-              </span>
+              <ArrowRight size={14} color="#7C3AED" />
             </button>
 
             <button
@@ -367,9 +353,9 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
       {/* 2. 4 OPERATIONAL KPI CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
 
-        {/* Card 1: Recommendation Queue */}
+        {/* Card 1: Curriculum Offerings */}
         <div
-          onClick={() => onTabChange?.('recommendations')}
+          onClick={() => onTabChange?.('curriculum')}
           className="glass-card"
           style={{
             padding: '1.5rem',
@@ -382,22 +368,22 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
           <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'linear-gradient(to bottom, #7C3AED, #6D28D9)' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
             <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Advising Queue
+              Curriculum Offerings
             </span>
             <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(124,58,237,0.12)' }}>
-              <Sparkles size={20} color="#7C3AED" />
+              <BookOpen size={20} color="#7C3AED" />
             </div>
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', lineHeight: 1, marginBottom: '0.45rem' }}>
-            {pendingRecommendations}
+            {curriculumSubjects.length}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem', color: '#7C3AED', fontWeight: 700 }}>
-            <span>Prerequisites Evaluated</span>
+            <span>4-Year Matrices Active</span>
             <span>•</span>
-            <span style={{ color: '#64748B', fontWeight: 500 }}>Ready for advising</span>
+            <span style={{ color: '#64748B', fontWeight: 500 }}>Prerequisites mapped</span>
           </div>
           <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.76rem' }}>
-            <span style={{ color: '#7C3AED', fontWeight: 700 }}>Review Course Loads</span>
+            <span style={{ color: '#7C3AED', fontWeight: 700 }}>View Curriculum Matrices</span>
             <ChevronRight size={14} color="#7C3AED" />
           </div>
         </div>
@@ -462,10 +448,7 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
             {totalGradesEncoded}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem', color: '#059669', fontWeight: 700 }}>
-            <span>{releasedGradesCount} Released</span>
-            {unreleasedGradesCount > 0 && (
-              <span style={{ color: '#D97706' }}>• {unreleasedGradesCount} Drafts</span>
-            )}
+            <span>Official Academic Records Encoded</span>
           </div>
           <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.76rem' }}>
             <span style={{ color: '#64748B' }}>View Grade Sheets</span>
@@ -652,7 +635,7 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
             </div>
           </div>
 
-          {/* Action 4: Subject Recommendation Advising */}
+          {/* Action 4: Recommendation Advising Engine */}
           <div
             onClick={() => onTabChange?.('recommendations')}
             className="glass-card"
@@ -667,9 +650,9 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
               justifyContent: 'space-between'
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.borderColor = '#D97706';
+              e.currentTarget.style.borderColor = '#7C3AED';
               e.currentTarget.style.transform = 'translateY(-3px)';
-              e.currentTarget.style.boxShadow = '0 10px 25px -3px rgba(217,119,6,0.12)';
+              e.currentTarget.style.boxShadow = '0 10px 25px -3px rgba(124,58,237,0.12)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.borderColor = '#E2E8F0';
@@ -678,18 +661,18 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
             }}
           >
             <div>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                <Sparkles size={24} color="#D97706" />
+              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#F5F3FF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+                <Sparkles size={24} color="#7C3AED" />
               </div>
               <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
-                Recommendation Advising Hub
+                Recommendation Advising Engine
               </h4>
               <p style={{ fontSize: '0.8rem', color: '#64748B', margin: 0, lineHeight: 1.45 }}>
-                Review AI-evaluated prerequisite courses, resolve irregular backlogs, and approve official course loads.
+                Automated prerequisite validation and personalized course load advising per student.
               </p>
             </div>
-            <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#D97706', fontWeight: 700, fontSize: '0.82rem' }}>
-              <span>Evaluate Queue ({pendingRecommendations})</span>
+            <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#7C3AED', fontWeight: 700, fontSize: '0.82rem' }}>
+              <span>Open Advising Engine</span>
               <ArrowRight size={14} />
             </div>
           </div>
@@ -697,187 +680,119 @@ export const StaffHomeModule: React.FC<StaffHomeModuleProps> = ({
         </div>
       </div>
 
-      {/* 4. SPLIT ROW: LIVE RECOMMENDATION QUEUE + STAFF ACTIVITY FEED */}
+      {/* 4. SPLIT ROW: STAFF ACTIVITY FEED + OPERATIONAL CHECKLIST */}
       <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '1.5rem', alignItems: 'stretch' }}>
 
-        {/* Left: Recent Recommendations Queue Table */}
+        {/* Left: Staff Operations Activity Log */}
         <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.15rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Sparkles size={18} color="#7C3AED" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Recent Subject Recommendations Awaiting Review
-                </h3>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '0.15rem 0 0 0' }}>
-                AI-evaluated prerequisite courses ready for student term enrollment advising
-              </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Activity size={18} color="#2563EB" />
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Staff Operations Stream
+              </h3>
             </div>
-
-            <button
-              onClick={() => onTabChange?.('recommendations')}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-            >
-              <span>View Full Queue ({pendingRecommendations})</span>
-              <ArrowRight size={13} />
-            </button>
+            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+              Today's Operations
+            </span>
           </div>
 
-          {studentRecommendations.length > 0 ? (
-            <div className="table-container" style={{ flex: 1 }}>
-              <table className="custom-table" style={{ fontSize: '0.82rem' }}>
-                <thead>
-                  <tr>
-                    <th>Student ID</th>
-                    <th>Full Name</th>
-                    <th>Program & Year</th>
-                    <th>Recommended Subjects</th>
-                    <th style={{ textAlign: 'center' }}>Units</th>
-                    <th style={{ textAlign: 'center' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentRecommendations.slice(0, 5).map(rec => {
-                    const totalUnits = rec.subjects.reduce((sum, s) => sum + s.totalUnits, 0);
-                    return (
-                      <tr key={rec.studentId}>
-                        <td style={{ fontWeight: 800, color: '#2563EB' }}>{rec.studentId}</td>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>{rec.studentName}</td>
-                        <td>
-                          <span className={`badge badge-${rec.program}`} style={{ fontSize: '0.74rem' }}>
-                            {rec.program} Yr {rec.yearLevel}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 600, color: '#475569', fontSize: '0.78rem' }}>
-                          {rec.subjects.slice(0, 3).map(s => s.code).join(', ')}
-                          {rec.subjects.length > 3 ? ` +${rec.subjects.length - 3} more` : ''}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: 800, color: '#0F172A' }}>
-                          <span style={{ background: '#F1F5F9', padding: '2px 7px', borderRadius: '6px' }}>
-                            {totalUnits}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            onClick={() => {
-                              if (onSelectRecStudent) onSelectRecStudent(rec.studentId);
-                              if (onTabChange) onTabChange('recommendations');
-                            }}
-                            className="btn btn-primary btn-sm"
-                            style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                            title="Review Student Recommendations"
-                          >
-                            <Eye size={13} /> Review
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2.5rem 1rem',
-              textAlign: 'center',
-              background: '#F8FAFC',
-              borderRadius: '12px',
-              border: '1px dashed #CBD5E1'
-            }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                <CheckCircle2 size={26} color="#15803D" />
-              </div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', margin: '0 0 0.25rem 0' }}>
-                All Student Recommendations Reviewed
-              </h4>
-              <p style={{ fontSize: '0.78rem', color: '#64748B', margin: 0, maxWidth: '340px' }}>
-                There are no pending recommendations awaiting advising in the current queue.
-              </p>
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
+            {staffOperationalLogs.map(log => {
+              const IconComponent = log.icon;
+              return (
+                <div key={log.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '10px',
+                    background: log.badgeBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: '0.1rem'
+                  }}>
+                    <IconComponent size={16} color={log.badgeColor} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                      {log.action}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '0.1rem', lineHeight: 1.35 }}>
+                      {log.subject}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '0.15rem', fontWeight: 500 }}>
+                      {log.staff} • {log.time}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Right: Staff Operations Activity Log & Daily Checklist */}
+        {/* Right: Operational Checklist & Institutional Verification */}
         <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Activity size={18} color="#2563EB" />
+                <ShieldCheck size={18} color="#15803D" />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Staff Operations Stream
+                  Registrar Daily Operations Desk
                 </h3>
               </div>
-              <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
-                Today's Operations
+              <span style={{ fontSize: '0.7rem', background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>
+                Standard Operational Mode
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {staffOperationalLogs.map(log => {
-                const IconComponent = log.icon;
-                return (
-                  <div key={log.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                    <div style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '10px',
-                      background: log.badgeBg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginTop: '0.1rem'
-                    }}>
-                      <IconComponent size={16} color={log.badgeColor} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                        {log.action}
-                      </div>
-                      <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '0.1rem', lineHeight: 1.35 }}>
-                        {log.subject}
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: '0.15rem', fontWeight: 500 }}>
-                        {log.staff} • {log.time}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{
+              background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              padding: '1rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                Daily Operational Checklist
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem', color: '#475569' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Check size={14} color="#15803D" />
+                  <span>Verify student course prerequisite compliance</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Check size={14} color="#15803D" />
+                  <span>Audit encoded class grade sheets for current term</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Check size={14} color="#15803D" />
+                  <span>Generate prerequisite-evaluated recommendations per student</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Check size={14} color="#15803D" />
+                  <span>Review student deficiencies and curriculum progression</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <div style={{
-            background: '#F8FAFC',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            padding: '0.85rem 1rem',
-            marginTop: '1.25rem'
+            background: '#F0F9FF',
+            border: '1px solid #BAE6FD',
+            borderRadius: '10px',
+            padding: '0.75rem 0.95rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.76rem'
           }}>
-            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Registrar Daily Operational Checklist
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.76rem', color: '#475569' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Check size={13} color="#15803D" />
-                <span>Verify student course prerequisite compliance</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Check size={13} color="#15803D" />
-                <span>Audit encoded class grade sheets for current term</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Check size={13} color="#15803D" />
-                <span>Review subject load recommendations before enrollment</span>
-              </div>
-            </div>
+            <span style={{ color: '#0369A1', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <ShieldCheck size={14} color="#0284C7" />
+              Institutional database synchronized and verified
+            </span>
+            <Check size={14} color="#0284C7" />
           </div>
         </div>
 

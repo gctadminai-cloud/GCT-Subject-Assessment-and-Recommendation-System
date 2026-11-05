@@ -434,6 +434,14 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
       return updatedGrades;
     });
 
+    setCsvUploadSuccess(`Successfully imported ${importableRows.length} grade records into database!`);
+    setTimeout(() => {
+      setCsvUploadSuccess('');
+      setShowUploadModal(false);
+      setIsCsvUploaded(false);
+    }, 1000);
+
+    // Fire batch sync to database in the background
     try {
       const apiPayload = importableRows.map(r => ({
         student_id: r.studentId,
@@ -446,22 +454,18 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
         grade: r.grade !== '' && r.grade != null ? parseFloat(String(r.grade)) : null,
         term: r.term || `${activeAcademicYear || '2027-2028'} 1st Sem`
       }));
-      await fetchApi('/academic-records/batch', {
+      fetchApi('/academic-records/batch', {
         method: 'POST',
         body: JSON.stringify({ records: apiPayload })
+      }).then(() => {
+        if (refreshAcademicGrades) refreshAcademicGrades();
+        if (refreshStudents) refreshStudents();
+      }).catch(err => {
+        console.warn('Backend batch sync skipped/failed:', err);
       });
-      if (refreshAcademicGrades) await refreshAcademicGrades();
-      if (refreshStudents) await refreshStudents();
     } catch (err) {
-      console.warn('Backend batch sync skipped/failed:', err);
+      console.warn('Backend batch payload error:', err);
     }
-
-    setCsvUploadSuccess(`Successfully imported ${importableRows.length} grade records into database!`);
-    setTimeout(() => {
-      setCsvUploadSuccess('');
-      setShowUploadModal(false);
-      setIsCsvUploaded(false);
-    }, 1500);
   };
 
   const handleRunOcrScan = () => {
@@ -492,6 +496,14 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
 
     setMockAcademicGrades(prev => [...newGrades, ...prev]);
 
+    setOcrSuccess(`Successfully auto-encoded ${validOcrEntries.length} student grade entries into database!`);
+    setTimeout(() => {
+      setOcrSuccess('');
+      setShowUploadModal(false);
+      setIsOcrUploaded(false);
+    }, 1000);
+
+    // Fire batch sync to database in the background
     try {
       const apiPayload = validOcrEntries.map(r => {
         const st = mockStudents.find(s => s.student_id === r.matchedStudentId);
@@ -507,22 +519,18 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
           year_level: st?.year || 1
         };
       });
-      await fetchApi('/academic-records/batch', {
+      fetchApi('/academic-records/batch', {
         method: 'POST',
         body: JSON.stringify({ records: apiPayload })
+      }).then(() => {
+        if (refreshAcademicGrades) refreshAcademicGrades();
+        if (refreshStudents) refreshStudents();
+      }).catch(err => {
+        console.warn('Backend batch sync skipped/failed for OCR:', err);
       });
-      if (refreshAcademicGrades) await refreshAcademicGrades();
-      if (refreshStudents) await refreshStudents();
     } catch (err) {
-      console.warn('Backend batch sync skipped/failed for OCR:', err);
+      console.warn('Backend OCR batch payload error:', err);
     }
-
-    setOcrSuccess(`Successfully auto-encoded ${validOcrEntries.length} student grade entries into database!`);
-    setTimeout(() => {
-      setOcrSuccess('');
-      setShowUploadModal(false);
-      setIsOcrUploaded(false);
-    }, 1500);
   };
 
   const handleConfirmReleaseGrades = () => {

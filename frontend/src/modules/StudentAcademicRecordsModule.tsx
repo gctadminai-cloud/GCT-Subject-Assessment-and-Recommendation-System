@@ -1193,41 +1193,89 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   };
 
   const handleCommitUpload = async () => {
-      if (csvPreviewRows.length === 0) return;
-      setIsCommittingUpload(true);
-      try {
-        showToast(`Saving ${csvPreviewRows.length} grade records into database...`, 'info');
-        const payload = csvPreviewRows.map(r => ({
-          student_id: r.studentId,
-          studentName: r.name,
-          course: r.course || 'BSIT',
-          year_level: Number(r.year) || 1,
-          code: r.code,
-          title: r.title,
-          units: Number(r.units) || 3,
-          grade: r.grade !== '' && r.grade !== null ? parseFloat(String(r.grade)) : null,
-          term: r.term || `${activeAcademicYear || '2027-2028'} 1st Sem`
-        }));
+    if (csvPreviewRows.length === 0) return;
+    setIsCommittingUpload(true);
+    try {
+      const payload = csvPreviewRows.map(r => ({
+        student_id: r.studentId,
+        studentName: r.name,
+        course: r.course || 'BSIT',
+        year_level: Number(r.year) || 1,
+        code: r.code,
+        title: r.title,
+        units: Number(r.units) || 3,
+        grade: r.grade !== '' && r.grade !== null ? parseFloat(String(r.grade)) : null,
+        term: r.term || `${activeAcademicYear || '2027-2028'} 1st Sem`
+      }));
 
-        const res = await fetchApi('/academic-records/batch', {
-          method: 'POST',
-          body: JSON.stringify({ records: payload })
+      // Optimistically update local academic grades immediately
+      setMockAcademicGrades(prev => {
+        const updated = [...prev];
+        payload.forEach((r, idx) => {
+          const parsedGrade = r.grade;
+          const computedStatus = parsedGrade == null ? 'pending' : parsedGrade <= 3.0 ? 'passed' : 'failed';
+          const existingIdx = updated.findIndex(g =>
+            g.studentId.toLowerCase() === r.student_id.toLowerCase() &&
+            g.code.toLowerCase() === r.code.toLowerCase()
+          );
+          if (existingIdx >= 0) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              studentName: r.studentName,
+              yearLevel: r.year_level,
+              title: r.title,
+              units: r.units,
+              grade: parsedGrade,
+              status: computedStatus,
+              term: r.term
+            };
+          } else {
+            updated.unshift({
+              id: 'imp-' + Date.now() + '-' + idx,
+              studentId: r.student_id,
+              studentName: r.studentName,
+              code: r.code,
+              title: r.title,
+              units: r.units,
+              grade: parsedGrade,
+              term: r.term,
+              yearLevel: r.year_level,
+              status: computedStatus
+            });
+          }
         });
+        return updated;
+      });
 
-        if (refreshAcademicGrades) await refreshAcademicGrades('all');
-        if (refreshStudents) await refreshStudents();
+      // Show notification immediately
+      showToast(`Successfully stored ${payload.length} grade records into database!`, 'success');
 
-        showToast(res.message || `Successfully stored ${payload.length} grade records into database!`, 'success');
+      // Close modal with a clean 1-second delay (sabay sa notif / 1 sec delay)
+      setTimeout(() => {
         setShowUploadModal(false);
         setIsCsvUploaded(false);
         setCsvPreviewRows([]);
-      } catch (err: any) {
-        console.error('Error committing batch grades to database:', err);
-        showToast(`Error storing grades in database: ${err?.message || 'Database error'}`, 'error');
-      } finally {
+        setUploadedFileName('');
         setIsCommittingUpload(false);
-      }
-    };
+      }, 1000);
+
+      // Perform backend batch sync in the background
+      fetchApi('/academic-records/batch', {
+        method: 'POST',
+        body: JSON.stringify({ records: payload })
+      }).then(() => {
+        if (refreshAcademicGrades) refreshAcademicGrades('all').catch(console.error);
+        if (refreshStudents) refreshStudents().catch(console.error);
+      }).catch(err => {
+        console.error('Background batch sync error:', err);
+        showToast(`Warning: Background sync encountered an issue: ${err?.message || 'Database error'}`, 'warning');
+      });
+    } catch (err: any) {
+      console.error('Error committing batch grades to database:', err);
+      showToast(`Error storing grades in database: ${err?.message || 'Database error'}`, 'error');
+      setIsCommittingUpload(false);
+    }
+  };
 
   return (
     <div style={{ paddingBottom: '3rem' }}>

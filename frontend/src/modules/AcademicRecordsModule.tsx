@@ -563,20 +563,21 @@ export const AcademicRecordsModule: React.FC<AcademicRecordsModuleProps> = ({
   const handleConfirmDeleteGradeRecord = async () => {
     if (!deletingGradeRecord) return;
     const target = deletingGradeRecord;
+    // Close modal immediately simultaneously with notification (no delay!)
+    setShowDeleteGradeModal(false);
+    setDeletingGradeRecord(null);
     try {
       await fetchApi(`/academic-records/${encodeURIComponent(target.id)}?student_id=${encodeURIComponent(target.studentId || '')}&code=${encodeURIComponent(target.code || '')}&term=${encodeURIComponent(target.term || '')}`, {
         method: 'DELETE'
       });
       showToast?.(`Grade record for ${target.code} deleted successfully from database.`, 'info');
-      if (refreshAcademicGrades) await refreshAcademicGrades('all');
-      if (refreshStudents) await refreshStudents();
+      if (refreshAcademicGrades) refreshAcademicGrades('all').catch(console.error);
+      if (refreshStudents) refreshStudents().catch(console.error);
     } catch (err: any) {
       console.error('Failed to delete grade record:', err);
       showToast?.(`Could not delete record: ${err.message || 'Error'}`, 'error');
     }
     setMockAcademicGrades(prev => prev.filter(g => g.id !== target.id));
-    setShowDeleteGradeModal(false);
-    setDeletingGradeRecord(null);
   };
 
   return (

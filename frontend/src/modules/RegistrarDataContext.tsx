@@ -626,10 +626,10 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
         if (selectedAcademicYear === ay) {
           setSelectedAcademicYear('all');
         }
-        await refreshAcademicYears();
-        await refreshAcademicGrades('all');
-        await refreshRecommendations();
         showToast(`Academic Year ${ay} deleted successfully from database.`, 'success');
+        refreshAcademicYears().catch(console.error);
+        refreshAcademicGrades('all').catch(console.error);
+        refreshRecommendations().catch(console.error);
         return true;
       }
       return false;

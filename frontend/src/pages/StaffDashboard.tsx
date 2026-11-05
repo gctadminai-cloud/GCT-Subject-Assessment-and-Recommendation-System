@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NotificationWidget } from '../components/NotificationWidget';
@@ -24,17 +24,38 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
   const [selectedTermForTab, setSelectedTermForTab] = useState<string>('');
   const [selectedSemesterForTab, setSelectedSemesterForTab] = useState<'1' | '2' | 'summer' | undefined>(undefined);
 
+  const isChatbotDirectNavRef = useRef(false);
+  const prevTabRef = useRef(currentTab);
+
   const handleChatbotNavigate = (
     tab: string,
     studentId?: string,
     targetTerm?: string,
     semester?: '1' | '2' | 'summer'
   ) => {
+    isChatbotDirectNavRef.current = true;
     if (studentId) setSelectedStudentForTab(studentId);
     if (targetTerm) setSelectedTermForTab(targetTerm);
     if (semester) setSelectedSemesterForTab(semester);
     onTabChange?.(tab);
   };
+
+  // When user switches tabs away via sidebar or other navigation, clear the one-time chatbot trigger
+  // so returning to Academic Records or Recommendations opens normally without stuck modals!
+  useEffect(() => {
+    if (prevTabRef.current !== currentTab) {
+      if (isChatbotDirectNavRef.current) {
+        // Arrived at the chatbot's intended tab destination
+        isChatbotDirectNavRef.current = false;
+      } else {
+        // Normal tab navigation (e.g. user clicked sidebar)
+        setSelectedStudentForTab('');
+        setSelectedTermForTab('');
+        setSelectedSemesterForTab(undefined);
+      }
+      prevTabRef.current = currentTab;
+    }
+  }, [currentTab]);
 
   const userInitials = user?.full_name
     ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -246,6 +267,11 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
             initialStudentId={selectedStudentForTab}
             initialSearchQuery={selectedStudentForTab}
             initialTargetTerm={selectedTermForTab}
+            onCloseModal={() => {
+              setSelectedStudentForTab('');
+              setSelectedTermForTab('');
+              setSelectedSemesterForTab(undefined);
+            }}
           />
         )}
         {currentTab === 'curriculum' && <CurriculumModule />}

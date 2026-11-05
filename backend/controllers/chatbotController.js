@@ -424,7 +424,7 @@ function detectRequestedFileFormat(query) {
 
 /**
  * Extract target academic term and semester from a natural language query
- * e.g., "student 12310 2nd year first sem" -> { year: 2, semester: '1', target_term: '2nd Year • 1st Sem' }
+ * e.g., "student 12310 2nd year first sem" -> { year: 2, semester: '1', target_term: '2nd Year • 1st Sem', isSpecificFilter: true }
  */
 function extractTargetTermAndSemester(query, studentYear = null) {
   const q = (query || '').toLowerCase();
@@ -451,21 +451,67 @@ function extractTargetTermAndSemester(query, studentYear = null) {
     detectedSem = 'summer';
   }
 
+  const isSpecificFilter = Boolean(detectedYear !== null || detectedSem !== null);
+
   // If year was not explicitly mentioned, but student's year level is known and semester was requested:
-  const effectiveYear = detectedYear || (Number(studentYear) >= 1 && Number(studentYear) <= 4 ? Number(studentYear) : null);
+  const effectiveYear = detectedYear || (detectedSem && Number(studentYear) >= 1 && Number(studentYear) <= 4 ? Number(studentYear) : null);
 
   let targetTerm = null;
   if (effectiveYear && detectedSem && detectedSem !== 'summer') {
     const yrLabel = effectiveYear === 1 ? '1st' : effectiveYear === 2 ? '2nd' : effectiveYear === 3 ? '3rd' : '4th';
     const semLabel = detectedSem === '2' ? '2nd' : '1st';
     targetTerm = `${yrLabel} Year • ${semLabel} Sem`;
+  } else if (effectiveYear && !detectedSem) {
+    const yrLabel = effectiveYear === 1 ? '1st' : effectiveYear === 2 ? '2nd' : effectiveYear === 3 ? '3rd' : '4th';
+    targetTerm = `${yrLabel} Year`;
+  } else if (detectedSem) {
+    targetTerm = detectedSem === 'summer' ? 'Summer' : (detectedSem === '2' ? '2nd Semester' : '1st Semester');
   }
 
   return {
     year: effectiveYear,
+    explicitYear: detectedYear,
     semester: detectedSem,
-    target_term: targetTerm
+    target_term: targetTerm,
+    isSpecificFilter
   };
+}
+
+/**
+ * Checks if an academic grade record matches the requested year level and/or semester.
+ */
+function matchesRecordTerm(record, targetYear, targetSem) {
+  if (!record) return false;
+
+  // Year level check (if targetYear was requested)
+  if (targetYear !== null && targetYear !== undefined) {
+    const rYear = Number(record.year_level || record.enrolled_year_level || record.curriculum_year_level || 0);
+    const termStr = String(record.term || '').toLowerCase();
+    const yrWord = targetYear === 1 ? '1st' : targetYear === 2 ? '2nd' : targetYear === 3 ? '3rd' : '4th';
+    const hasYrWord = termStr.includes(`${yrWord} year`) || termStr.includes(`year ${targetYear}`) || termStr.includes(`yr ${targetYear}`);
+    if (rYear !== targetYear && !hasYrWord) {
+      return false;
+    }
+  }
+
+  // Semester check (if targetSem was requested)
+  if (targetSem !== null && targetSem !== undefined) {
+    const termStr = String(record.term || '').toLowerCase();
+    const rSem = String(record.semester || '').toLowerCase();
+
+    if (targetSem === 'summer') {
+      const isSummer = termStr.includes('summer') || termStr.includes('midyear') || rSem === 'summer' || rSem === '3';
+      if (!isSummer) return false;
+    } else if (targetSem === '2') {
+      const isSem2 = termStr.includes('2nd sem') || termStr.includes('second sem') || termStr.includes('2nd semester') || termStr.includes('sem 2') || termStr.includes('semester 2') || rSem === '2' || rSem === 'second';
+      if (!isSem2) return false;
+    } else if (targetSem === '1') {
+      const isSem1 = (termStr.includes('1st sem') || termStr.includes('first sem') || termStr.includes('1st semester') || termStr.includes('sem 1') || termStr.includes('semester 1') || rSem === '1' || rSem === 'first') && !termStr.includes('2nd sem') && !termStr.includes('2nd semester');
+      if (!isSem1) return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -1087,6 +1133,8 @@ async function getStudentRecordsAndRecs(student, supabase) {
       grade: cleanGrade,
       status,
       term: termFormatted,
+      semester: isSummer ? 'summer' : (isSem2 ? '2' : '1'),
+      academic_year: g.academic_year || '2023-2024',
       is_dropped: isDropped,
       year_level: recYearLevel,
       curriculum_year_level: Number(matchedSub?.year_level) || recYearLevel,
@@ -1112,6 +1160,10 @@ async function getStudentRecordsAndRecs(student, supabase) {
     const termFormatted = r.term || 'Academic Record';
     const recordKey = `${subNorm}-${termFormatted}`;
 
+    const isASummer = String(r.semester || r.term || '').toLowerCase().includes('summer');
+    const isASem2 = !isASummer && (String(r.semester || r.term || '').toLowerCase().includes('2nd') || String(r.semester || r.term || '').toLowerCase().includes('second') || String(r.semester) === '2');
+    const aSem = isASummer ? 'summer' : (isASem2 ? '2' : '1');
+
     const recYearLevel = Number(r.year_level || s?.year_level || 1);
     const aGradeNum = (r.grade !== null && r.grade !== undefined && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
     const aStatus = r.status || (aGradeNum !== null && aGradeNum >= 1.0 && aGradeNum <= 3.0 ? 'passed' : 'failed');
@@ -1124,6 +1176,8 @@ async function getStudentRecordsAndRecs(student, supabase) {
       grade: aFinalGrade,
       status: aStatus,
       term: termFormatted,
+      semester: aSem,
+      academic_year: r.academic_year || '',
       is_dropped: aStatus === 'dropped',
       year_level: recYearLevel,
       curriculum_year_level: Number(s?.year_level) || recYearLevel,
@@ -1150,10 +1204,10 @@ async function queryChatbot(req, res) {
     // Format conversation history for multi-turn context recall and continuity
     const formattedHistory = Array.isArray(history) && history.length > 0
       ? history
-          .filter(h => h && h.text && typeof h.text === 'string')
-          .slice(-8)
-          .map(h => `${(h.sender === 'user' || h.role === 'user') ? 'User' : 'Assistant'}: ${h.text.replace(/\n+/g, ' ').trim()}`)
-          .join('\n')
+        .filter(h => h && h.text && typeof h.text === 'string')
+        .slice(-8)
+        .map(h => `${(h.sender === 'user' || h.role === 'user') ? 'User' : 'Assistant'}: ${h.text.replace(/\n+/g, ' ').trim()}`)
+        .join('\n')
       : '';
     if (!query) {
       return res.status(400).json({ error: 'Query text is required' });
@@ -1210,40 +1264,40 @@ Answer accurately according to the official GCT facts provided above.
 
 USER MESSAGE: "${query}"`;
       } else {
-      const isRegistrationOrPublic = /\b(create account|create student account|how to register|register|sign up|signup|how to apply|apply|programs|program|course|courses|offer|admissions|admission|office hours|campus|location|contact|registrar office|faq|faqs)\b/i.test(query);
+        const isRegistrationOrPublic = /\b(create account|create student account|how to register|register|sign up|signup|how to apply|apply|programs|program|course|courses|offer|admissions|admission|office hours|campus|location|contact|registrar office|faq|faqs)\b/i.test(query);
 
-      const isConfidentialStudentQuery = /\b(grade|grades|gwa|record|records|transcript|passed|failed|fail|retake|prereq|prerequisite|eval|evaluation|standing|who is|status of|profile of|user list|students list|password|passwords)\b/i.test(query) || (/\b\d{4,6}\b/.test(query) && !isRegistrationOrPublic);
+        const isConfidentialStudentQuery = /\b(grade|grades|gwa|record|records|transcript|passed|failed|fail|retake|prereq|prerequisite|eval|evaluation|standing|who is|status of|profile of|user list|students list|password|passwords)\b/i.test(query) || (/\b\d{4,6}\b/.test(query) && !isRegistrationOrPublic);
 
-      if (isConfidentialStudentQuery && !isRegistrationOrPublic) {
-        assistantResponse = userIsTagalog
-          ? `**Limitadong Akses — Kailangang Mag-login**\n\nAng academic records, grades, curriculum evaluations, at subject recommendations ng mga mag-aaral ay mahigpit na kumpidensyal.\n\n**Hindi maaaring tingnan ang impormasyon ng estudyante nang hindi naka-login.**\n\nPakisuyong **mag-log in** gamit ang inyong opisyal na GCT account (Estudyante, Registrar Staff, o Administrator) upang tingnan ang academic records.\n\n*Kung wala ka pang account, i-click ang "Create Student Account" sa login screen upang magparehistro.*`
-          : `**Access Restricted — Login Required**\n\nStudent academic records, grades, curriculum evaluations, and subject recommendations are strictly confidential.\n\n**No student information can be accessed without logging in.**\n\nPlease **log in** with your official GCT account (Student, Registrar Staff, or Administrator) to view academic records.\n\n*If you do not have an account yet, click "Create Student Account" on the login screen to register.*`;
-        systemPrompt = '';
-      } else {
-        const q = query.toLowerCase();
-        if (q.includes('register') || q.includes('create') || q.includes('sign up') || q.includes('apply')) {
+        if (isConfidentialStudentQuery && !isRegistrationOrPublic) {
           assistantResponse = userIsTagalog
-            ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang enrollment form ng iyong Buong Pangalan, GCT Student ID Number, Program (BSIT o BSCS), Year Level, at Class Schedule.\n3. I-submit ang registration. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!`
-            : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the enrollment form with your Full Name, GCT Student ID Number, Program (BSIT or BSCS), Year Level, and Class Schedule.\n3. Submit your registration. Once Registrar Staff verifies your credentials, your account will be activated!`;
-        } else if (q.includes('program') || q.includes('course') || q.includes('offer') || q.includes('bsit') || q.includes('curriculum')) {
-          assistantResponse = userIsTagalog
-            ? `Ang Garcia College of Technology ay nag-aalok ng Bachelor of Science in Information Technology (BSIT) at Computer Science (BSCS) programs na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*`
-            : `Garcia College of Technology offers Bachelor of Science in Information Technology (BSIT) and Computer Science (BSCS) programs with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*`;
-        } else if (q.includes('pending') || q.includes('approval') || q.includes('wait')) {
-          assistantResponse = userIsTagalog
-            ? `Kung ang iyong account registration ay kasalukuyang pending approval, bineberipika pa ng Registrar Staff ang iyong student records. Pinoproseso ang mga accounts tuwing office hours (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM).`
-            : `If your account registration is pending approval, Registrar Staff are currently verifying your student records. Accounts are processed during office hours (Mon–Fri, 8:00 AM – 5:00 PM).`;
-        } else if (q.includes('contact') || q.includes('office') || q.includes('location') || q.includes('help')) {
-          assistantResponse = userIsTagalog
-            ? `Maaari mong bisitahin ang GCT Registrar's Office sa campus (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM) para sa direktang tulong sa enrollment at student ID verification.`
-            : `You can visit the GCT Registrar's Office on campus (Monday to Friday, 8:00 AM – 5:00 PM) for direct enrollment assistance and student ID verification.`;
+            ? `**Limitadong Akses — Kailangang Mag-login**\n\nAng academic records, grades, curriculum evaluations, at subject recommendations ng mga mag-aaral ay mahigpit na kumpidensyal.\n\n**Hindi maaaring tingnan ang impormasyon ng estudyante nang hindi naka-login.**\n\nPakisuyong **mag-log in** gamit ang inyong opisyal na GCT account (Estudyante, Registrar Staff, o Administrator) upang tingnan ang academic records.\n\n*Kung wala ka pang account, i-click ang "Create Student Account" sa login screen upang magparehistro.*`
+            : `**Access Restricted — Login Required**\n\nStudent academic records, grades, curriculum evaluations, and subject recommendations are strictly confidential.\n\n**No student information can be accessed without logging in.**\n\nPlease **log in** with your official GCT account (Student, Registrar Staff, or Administrator) to view academic records.\n\n*If you do not have an account yet, click "Create Student Account" on the login screen to register.*`;
+          systemPrompt = '';
         } else {
-          assistantResponse = userIsTagalog
-            ? `Maligayang pagdating sa Garcia College of Technology!\n\nAko ang iyong GCT AI Assistant. Bilang bisita, masasagot ko ang mga pangkalahatang katanungan ukol sa pagpaparehistro ng estudyante, degree programs, at mga hakbang sa enrollment.\n\n*Tandaan: Para sa mga rekord ng estudyante, marka, at subject recommendations, pakisuyong mag-log in muna.*`
-            : `Welcome to Garcia College of Technology!\n\nI am your GCT AI Assistant. As an unauthenticated visitor, I can answer general questions about student registration, degree programs, and enrollment steps.\n\n*Note: For student records, grades, and subject recommendations, please log in first.*`;
-        }
+          const q = query.toLowerCase();
+          if (q.includes('register') || q.includes('create') || q.includes('sign up') || q.includes('apply')) {
+            assistantResponse = userIsTagalog
+              ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang enrollment form ng iyong Buong Pangalan, GCT Student ID Number, Program (BSIT o BSCS), Year Level, at Class Schedule.\n3. I-submit ang registration. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!`
+              : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the enrollment form with your Full Name, GCT Student ID Number, Program (BSIT or BSCS), Year Level, and Class Schedule.\n3. Submit your registration. Once Registrar Staff verifies your credentials, your account will be activated!`;
+          } else if (q.includes('program') || q.includes('course') || q.includes('offer') || q.includes('bsit') || q.includes('curriculum')) {
+            assistantResponse = userIsTagalog
+              ? `Ang Garcia College of Technology ay nag-aalok ng Bachelor of Science in Information Technology (BSIT) at Computer Science (BSCS) programs na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*`
+              : `Garcia College of Technology offers Bachelor of Science in Information Technology (BSIT) and Computer Science (BSCS) programs with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*`;
+          } else if (q.includes('pending') || q.includes('approval') || q.includes('wait')) {
+            assistantResponse = userIsTagalog
+              ? `Kung ang iyong account registration ay kasalukuyang pending approval, bineberipika pa ng Registrar Staff ang iyong student records. Pinoproseso ang mga accounts tuwing office hours (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM).`
+              : `If your account registration is pending approval, Registrar Staff are currently verifying your student records. Accounts are processed during office hours (Mon–Fri, 8:00 AM – 5:00 PM).`;
+          } else if (q.includes('contact') || q.includes('office') || q.includes('location') || q.includes('help')) {
+            assistantResponse = userIsTagalog
+              ? `Maaari mong bisitahin ang GCT Registrar's Office sa campus (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM) para sa direktang tulong sa enrollment at student ID verification.`
+              : `You can visit the GCT Registrar's Office on campus (Monday to Friday, 8:00 AM – 5:00 PM) for direct enrollment assistance and student ID verification.`;
+          } else {
+            assistantResponse = userIsTagalog
+              ? `Maligayang pagdating sa Garcia College of Technology!\n\nAko ang iyong GCT AI Assistant. Bilang bisita, masasagot ko ang mga pangkalahatang katanungan ukol sa pagpaparehistro ng estudyante, degree programs, at mga hakbang sa enrollment.\n\n*Tandaan: Para sa mga rekord ng estudyante, marka, at subject recommendations, pakisuyong mag-log in muna.*`
+              : `Welcome to Garcia College of Technology!\n\nI am your GCT AI Assistant. As an unauthenticated visitor, I can answer general questions about student registration, degree programs, and enrollment steps.\n\n*Note: For student records, grades, and subject recommendations, please log in first.*`;
+          }
 
-        systemPrompt = `You are the GCT AI Admissions & Inquiries Assistant for Garcia College of Technology.
+          systemPrompt = `You are the GCT AI Admissions & Inquiries Assistant for Garcia College of Technology.
 User status: Unauthenticated Visitor / Guest.
 
 Institutional Context:
@@ -1270,7 +1324,7 @@ Instructions:
 - Directly, politely, and helpfully reply to the user's message.
 - Answer in the same language as the user (English default; Tagalog/Taglish if user spoke Tagalog).
 - Be conversational and answer whatever question they asked about GCT.`;
-      }
+        }
       }
     }
 
@@ -1300,116 +1354,132 @@ Answer accurately according to the official GCT facts provided above.
 USER MESSAGE: "${query}"`;
       } else {
 
-      // Check if student is attempting to query another student ID or other students
-      const idMatches = query.match(/\b\d{4}-\d{4,5}\b/g) || query.match(/\b\d{4,6}\b/g) || query.match(/\bGCT-\d+\b/gi);
-      const isAskingOtherStudentId = idMatches && idMatches.some(id => {
-        const clean = id.replace(/^GCT-/i, '').trim();
-        return clean.toLowerCase() !== ownStudentId.toLowerCase();
-      });
+        // Check if student is attempting to query another student ID or other students
+        const idMatches = query.match(/\b\d{4}-\d{4,5}\b/g) || query.match(/\b\d{4,6}\b/g) || query.match(/\bGCT-\d+\b/gi);
+        const isAskingOtherStudentId = idMatches && idMatches.some(id => {
+          const clean = id.replace(/^GCT-/i, '').trim();
+          return clean.toLowerCase() !== ownStudentId.toLowerCase();
+        });
 
-      const isAskingOtherStudents = isAskingOtherStudentId ||
-        /\b(other student|other students|classmate|classmates|everyone|all students|list students|grades of another|who failed)\b/i.test(query);
+        const isAskingOtherStudents = isAskingOtherStudentId ||
+          /\b(other student|other students|classmate|classmates|everyone|all students|list students|grades of another|who failed)\b/i.test(query);
 
-      if (isAskingOtherStudents) {
-        assistantResponse = `**Access Denied — Privacy Protection**
+        if (isAskingOtherStudents) {
+          assistantResponse = `**Access Denied — Privacy Protection**
 
 You are currently logged in as **${userName}** (ID: \`${ownStudentId || req.user.username}\`).
 
 Under GCT Data Privacy policies, students are **strictly authorized to access only their own academic records and subject recommendations**. You cannot view, search, or query information about other students.`;
-      } else {
-        // Fetch logged-in student's information
-        const { data: students } = await supabase
-          .from('students')
-          .select('*')
-          .or(`id.eq.${userId},student_id.eq.${ownStudentId},student_id.eq.GCT-${ownStudentId}`)
-          .limit(1);
+        } else {
+          // Fetch logged-in student's information
+          const { data: students } = await supabase
+            .from('students')
+            .select('*')
+            .or(`id.eq.${userId},student_id.eq.${ownStudentId},student_id.eq.GCT-${ownStudentId}`)
+            .limit(1);
 
-        const studentInfo = students?.[0] || {
-          id: userId || 'student',
-          student_id: ownStudentId || req.user.username || 'Student',
-          name: userName,
-          program: 'BSIT',
-          year_level: 1,
-          section: 'A',
-          schedule: 'Schedule 1'
-        };
+          const studentInfo = students?.[0] || {
+            id: userId || 'student',
+            student_id: ownStudentId || req.user.username || 'Student',
+            name: userName,
+            program: 'BSIT',
+            year_level: 1,
+            section: 'A',
+            schedule: 'Schedule 1'
+          };
 
-        const { records, recommendations } = await getStudentRecordsAndRecs(studentInfo, supabase);
-        const activeTerm = await getActiveAcademicTerm(supabase);
-        const { passedUnits, failedUnits, passedCount, failedCount, gwa } = calculateStudentStats(records);
-        const failedSubjectsList = records.filter(r => r.status === 'failed');
+          const { records, recommendations } = await getStudentRecordsAndRecs(studentInfo, supabase);
+          const activeTerm = await getActiveAcademicTerm(supabase);
+          const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
 
-        const passedSubjectsStr = records
-          .filter(r => r.status === 'passed')
-          .map(r => `• ${r.code} (${r.title}) — Grade: ${r.grade} [Passed]`)
-          .join('\n') || 'None recorded yet';
+          // Filter records if a specific term or semester was requested
+          let displayRecords = records;
+          let isFilteredByTerm = false;
+          let termLabelClean = '';
 
-        const failedSubjectsStr = records
-          .filter(r => r.status === 'failed')
-          .map(r => `• ${r.code} (${r.title}) — Grade: ${r.grade} [Failed/Retake]`)
-          .join('\n') || 'None';
+          if (termAnalysis.isSpecificFilter) {
+            const matching = records.filter(r => matchesRecordTerm(r, termAnalysis.year, termAnalysis.semester));
+            if (matching.length > 0) {
+              displayRecords = matching;
+              isFilteredByTerm = true;
+              termLabelClean = termAnalysis.target_term ? termAnalysis.target_term.replace(/[^a-zA-Z0-9]+/g, '_') : 'Term';
+            }
+          }
 
-        const approvedRecs = recommendations.filter(r => r.status === 'approved');
-        const approvedRecsStr = approvedRecs.length > 0
-          ? approvedRecs.map(r => {
+          const { passedUnits, failedUnits, passedCount, failedCount, gwa } = calculateStudentStats(displayRecords);
+          const failedSubjectsList = displayRecords.filter(r => r.status === 'failed');
+
+          const passedSubjectsStr = displayRecords
+            .filter(r => r.status === 'passed')
+            .map(r => `• ${r.code} (${r.title}) — Grade: ${r.grade} [Passed]`)
+            .join('\n') || 'None recorded yet';
+
+          const failedSubjectsStr = displayRecords
+            .filter(r => r.status === 'failed')
+            .map(r => `• ${r.code} (${r.title}) — Grade: ${r.grade} [Failed/Retake]`)
+            .join('\n') || 'None';
+
+          const approvedRecs = recommendations.filter(r => r.status === 'approved');
+          const approvedRecsStr = approvedRecs.length > 0
+            ? approvedRecs.map(r => {
               let parsed = r.generated_subjects;
-              try { if (typeof parsed === 'string') parsed = JSON.parse(parsed); } catch (e) {}
+              try { if (typeof parsed === 'string') parsed = JSON.parse(parsed); } catch (e) { }
               if (Array.isArray(parsed)) {
                 return parsed.map(s => `• ${s.code || s.subject_code} (${s.title || s.subject_title || ''}) [${s.units || 3} units]`).join('\n');
               }
               return 'Approved subjects available in Advising Slip.';
             }).join('\n')
-          : 'Pending Registrar review & approval.';
+            : 'Pending Registrar review & approval.';
 
-        // Detect requested file format (word, excel, text, pdf)
-        const requestedFormat = detectRequestedFileFormat(query);
-        let fileData = '';
-        let filename = '';
-        let fileLabel = '';
+          // Detect requested file format (word, excel, text, pdf)
+          const requestedFormat = detectRequestedFileFormat(query);
+          let fileData = '';
+          let filename = '';
+          let fileLabel = '';
+          const fileTermLabel = isFilteredByTerm ? ` (${termAnalysis.target_term})` : '';
+          const fileTermSuffix = isFilteredByTerm ? `_${termLabelClean}` : '';
 
-        if (requestedFormat === 'word') {
-          fileData = generateStudentWord(studentInfo, records, gwa);
-          filename = `${studentInfo.student_id}_My_Academic_Record.doc`;
-          fileLabel = `Download My Academic Record (Word Document)`;
-        } else if (requestedFormat === 'text') {
-          fileData = generateStudentText(studentInfo, records, gwa);
-          filename = `${studentInfo.student_id}_My_Academic_Record.txt`;
-          fileLabel = `Download My Academic Record (Text File)`;
-        } else {
-          fileData = generateStudentCsv(studentInfo, records, gwa);
-          filename = `${studentInfo.student_id}_My_Academic_Record.csv`;
-          fileLabel = `Download My Academic Record (Excel Spreadsheet)`;
-        }
+          if (requestedFormat === 'word') {
+            fileData = generateStudentWord(studentInfo, displayRecords, gwa);
+            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.doc`;
+            fileLabel = `Download My Academic Record${fileTermLabel} (Word Document)`;
+          } else if (requestedFormat === 'text') {
+            fileData = generateStudentText(studentInfo, displayRecords, gwa);
+            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.txt`;
+            fileLabel = `Download My Academic Record${fileTermLabel} (Text File)`;
+          } else {
+            fileData = generateStudentCsv(studentInfo, displayRecords, gwa);
+            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.csv`;
+            fileLabel = `Download My Academic Record${fileTermLabel} (Excel Spreadsheet)`;
+          }
 
-        fileExport = {
-          filename,
-          format: requestedFormat,
-          csv_data: fileData,
-          data: fileData,
-          label: fileLabel
-        };
+          fileExport = {
+            filename,
+            format: requestedFormat,
+            csv_data: fileData,
+            data: fileData,
+            label: fileLabel
+          };
 
-        const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
+          studentAction = {
+            student_id: studentInfo.student_id,
+            student_name: userName,
+            program: studentInfo.program,
+            target_term: termAnalysis.target_term || undefined,
+            semester: termAnalysis.semester || undefined,
+            year_level: termAnalysis.year || undefined
+          };
 
-        studentAction = {
-          student_id: studentInfo.student_id,
-          student_name: userName,
-          program: studentInfo.program,
-          target_term: termAnalysis.target_term || undefined,
-          semester: termAnalysis.semester || undefined,
-          year_level: termAnalysis.year || undefined
-        };
+          const isAskingOpinion = isAskingOpinionQuery(query);
+          const opinionSection = generateStudentOpinion(
+            studentInfo,
+            { totalUnits: passedUnits + failedUnits, passedUnits, failedUnits, passedCount, failedCount, gwa },
+            records,
+            failedSubjectsList,
+            userIsTagalog
+          );
 
-        const isAskingOpinion = isAskingOpinionQuery(query);
-        const opinionSection = generateStudentOpinion(
-          studentInfo,
-          { totalUnits: passedUnits + failedUnits, passedUnits, failedUnits, passedCount, failedCount, gwa },
-          records,
-          failedSubjectsList,
-          userIsTagalog
-        );
-
-        systemPrompt = `You are the official GCT AI Academic Advising Assistant for Garcia College of Technology.
+          systemPrompt = `You are the official GCT AI Academic Advising Assistant for Garcia College of Technology.
 Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
 Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
 Cumulative GWA: ${gwa}
@@ -1440,10 +1510,10 @@ Instructions:
 - Do not infer year promotion or enrollment eligibility from cumulative passed-subject counts alone. Confirm active-term grades and required curriculum/prerequisite completion first.
 - Language Rule: Reply in English by default; reply in Tagalog if the student wrote in Tagalog.`;
 
-        if (isAskingOpinion) {
-          assistantResponse = userIsTagalog
-            ? `Hello po, **${userName}**! Narito ang aking opisyal na academic advising opinion at pagsusuri sa iyong academic standing:\n\n${opinionSection}\n\n**Kasalukuyang Buod ng Academic Standing:**\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n\n*Gamitin ang mga pindutan sa ibaba upang i-download ang iyong academic record o konsultahin ang iyong advising slip.*`
-            : `Hello **${userName}**! Here is my academic advising opinion regarding your standing:
+          if (isAskingOpinion) {
+            assistantResponse = userIsTagalog
+              ? `Hello po, **${userName}**! Narito ang aking opisyal na academic advising opinion at pagsusuri sa iyong academic standing:\n\n${opinionSection}\n\n**Kasalukuyang Buod ng Academic Standing:**\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n\n*Gamitin ang mga pindutan sa ibaba upang i-download ang iyong academic record o konsultahin ang iyong advising slip.*`
+              : `Hello **${userName}**! Here is my academic advising opinion regarding your standing:
 
 ${opinionSection}
 
@@ -1454,9 +1524,9 @@ ${opinionSection}
 - **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**
 
 *Use the buttons below to download your complete academic record or consult your full advising matrix.*`;
-        } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening)\b/i.test(query)) {
-          assistantResponse = userIsTagalog
-            ? `Hello po, **${userName}**! Kumusta ka?
+          } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening)\b/i.test(query)) {
+            assistantResponse = userIsTagalog
+              ? `Hello po, **${userName}**! Kumusta ka?
 
 Ako ang iyong opisyal na **GCT Academic Advising Assistant**. Narito ang mabilisang buod ng iyong academic standing:
 • **Student ID:** \`${studentInfo.student_id}\`
@@ -1465,7 +1535,7 @@ Ako ang iyong opisyal na **GCT Academic Advising Assistant**. Narito ang mabilis
 • **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)
 ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
 Maaari mo akong tanungin tungkol sa iyong mga marka, susunod na subjects na dapat kunin, opinyon sa iyong schedule at standing, o mag-download ng iyong record sa **Excel (.csv)**, **Word (.doc)**, o **Text (.txt)** gamit ang buttons sa ibaba!`
-            : `Hello, **${userName}**! How can I assist your academic advising today?
+              : `Hello, **${userName}**! How can I assist your academic advising today?
 
 I am your official **GCT Academic Advising Assistant**. Here is a quick summary of your academic standing:
 • **Student ID:** \`${studentInfo.student_id}\`
@@ -1474,10 +1544,10 @@ I am your official **GCT Academic Advising Assistant**. Here is a quick summary 
 • **Passed Units:** **${passedUnits}** units (${passedCount} subjects)
 ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
 You can ask me about your grades, upcoming subject recommendations, evaluation opinions, or download your complete academic record in **Excel (.csv)**, **Word (.doc)**, or **Text (.txt)** using the buttons below!`;
-        } else {
-          assistantResponse = userIsTagalog
-            ? `Hello po, **${userName}**! Narito ang iyong verified academic standing:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** ${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}\n\n**Buod ng Naipasang Subjects:**\n${passedSubjectsStr}\n\n${failedCount > 0 ? `**Mga Subject na Kailangang I-retake:**\n${failedSubjectsStr}\n\n` : ''}**Naaprubahang Rekomendasyon sa Susunod na Termino:**\n${approvedRecsStr}\n\n*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*`
-            : `Hello **${userName}**! Here is your verified academic standing:
+          } else {
+            assistantResponse = userIsTagalog
+              ? `Hello po, **${userName}**! Narito ang iyong verified academic standing:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** ${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}\n\n**Buod ng Naipasang Subjects:**\n${passedSubjectsStr}\n\n${failedCount > 0 ? `**Mga Subject na Kailangang I-retake:**\n${failedSubjectsStr}\n\n` : ''}**Naaprubahang Rekomendasyon sa Susunod na Termino:**\n${approvedRecsStr}\n\n*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*`
+              : `Hello **${userName}**! Here is your verified academic standing:
 
 - **Student ID:** \`${studentInfo.student_id}\`
 - **Program & Year:** ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
@@ -1492,20 +1562,20 @@ ${failedCount > 0 ? `**Subjects Needing Retake:**\n${failedSubjectsStr}\n\n` : '
 ${approvedRecsStr}
 
 *You can download your complete academic record as a ${requestedFormat.toUpperCase()} file below.*`;
-        }
+          }
 
-        const enrollmentEligibilityResponse = buildEnrollmentEligibilityResponse(
-          query,
-          studentInfo,
-          records,
-          activeTerm,
-          userIsTagalog
-        );
-        if (enrollmentEligibilityResponse) {
-          assistantResponse = enrollmentEligibilityResponse;
-          systemPrompt = '';
+          const enrollmentEligibilityResponse = buildEnrollmentEligibilityResponse(
+            query,
+            studentInfo,
+            records,
+            activeTerm,
+            userIsTagalog
+          );
+          if (enrollmentEligibilityResponse) {
+            assistantResponse = enrollmentEligibilityResponse;
+            systemPrompt = '';
+          }
         }
-      }
       }
     }
 
@@ -1521,27 +1591,70 @@ ${approvedRecsStr}
       if (targetStudent) {
         // Specific student found! Fetch their full records and generate requested file format
         const { records, recommendations } = await getStudentRecordsAndRecs(targetStudent, supabase);
-        const { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa } = calculateStudentStats(records);
         const cleanId = String(targetStudent.student_id || targetStudent.id || 'Student').replace(/^GCT-/i, '').trim();
+        const termAnalysis = extractTargetTermAndSemester(query, targetStudent.year_level || targetStudent.year);
+
+        // Check if user requested a specific year level and/or semester (e.g. "2nd year 1st sem")
+        let displayRecords = records;
+        let isFilteredByTerm = false;
+        let termLabelClean = '';
+
+        if (termAnalysis.isSpecificFilter) {
+          const matching = records.filter(r => matchesRecordTerm(r, termAnalysis.year, termAnalysis.semester));
+          if (matching.length > 0) {
+            displayRecords = matching;
+            isFilteredByTerm = true;
+            termLabelClean = termAnalysis.target_term ? termAnalysis.target_term.replace(/[^a-zA-Z0-9]+/g, '_') : 'Term';
+          } else {
+            // Student has records in DB, but none matching the requested specific term!
+            const availableTerms = Array.from(new Set(records.map(r => r.term).filter(Boolean))).join(', ');
+            const noTermMsg = userIsTagalog
+              ? `Walang natagpuang rekord o marka para kay **${targetStudent.name || targetStudent.full_name}** (${cleanId}) para sa **${termAnalysis.target_term || 'hiniling na termino'}** sa opisyal na database.\n\n` +
+              (availableTerms ? `Mga nakatalang termino sa database para sa estudyanteng ito: **${availableTerms}**.\n\n*Gamitin ang action button sa ibaba upang buksan ang buong Academic Records ng estudyante.*` : '')
+              : `No recorded grades found for **${targetStudent.name || targetStudent.full_name}** (${cleanId}) for **${termAnalysis.target_term || 'the requested term'}** in the official database.\n\n` +
+              (availableTerms ? `Recorded terms available on file: **${availableTerms}**.\n\n*Use the action button below to open the student's full Academic Records.*` : '');
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: noTermMsg,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: {
+                student_id: targetStudent.student_id,
+                student_name: targetStudent.name || targetStudent.full_name,
+                program: targetStudent.program,
+                target_term: termAnalysis.target_term || undefined,
+                semester: termAnalysis.semester || undefined,
+                year_level: termAnalysis.year || undefined
+              }
+            });
+          }
+        }
+
+        const { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa } = calculateStudentStats(displayRecords);
 
         // Detect requested file format (word, excel, text, pdf)
         const requestedFormat = detectRequestedFileFormat(query);
         let fileData = '';
         let filename = '';
         let fileLabel = '';
+        const fileTermLabel = isFilteredByTerm ? ` (${termAnalysis.target_term})` : '';
+        const fileTermSuffix = isFilteredByTerm ? `_${termLabelClean}` : '';
 
         if (requestedFormat === 'word') {
-          fileData = generateStudentWord(targetStudent, records, gwa);
-          filename = `${cleanId}_Academic_Record.doc`;
-          fileLabel = `Download ${cleanId} Record (Word Document)`;
+          fileData = generateStudentWord(targetStudent, displayRecords, gwa);
+          filename = `${cleanId}${fileTermSuffix}_Academic_Record.doc`;
+          fileLabel = `Download ${cleanId} Record${fileTermLabel} (Word Document)`;
         } else if (requestedFormat === 'text') {
-          fileData = generateStudentText(targetStudent, records, gwa);
-          filename = `${cleanId}_Academic_Record.txt`;
-          fileLabel = `Download ${cleanId} Record (Text File)`;
+          fileData = generateStudentText(targetStudent, displayRecords, gwa);
+          filename = `${cleanId}${fileTermSuffix}_Academic_Record.txt`;
+          fileLabel = `Download ${cleanId} Record${fileTermLabel} (Text File)`;
         } else {
-          fileData = generateStudentCsv(targetStudent, records, gwa);
-          filename = `${cleanId}_Academic_Record.csv`;
-          fileLabel = `Download ${cleanId} Record (Excel Spreadsheet)`;
+          fileData = generateStudentCsv(targetStudent, displayRecords, gwa);
+          filename = `${cleanId}${fileTermSuffix}_Academic_Record.csv`;
+          fileLabel = `Download ${cleanId} Record${fileTermLabel} (Excel Spreadsheet)`;
         }
 
         fileExport = {
@@ -1552,8 +1665,6 @@ ${approvedRecsStr}
           label: fileLabel
         };
 
-        const termAnalysis = extractTargetTermAndSemester(query, targetStudent.year_level || targetStudent.year);
-
         studentAction = {
           student_id: targetStudent.student_id,
           student_name: targetStudent.name || targetStudent.full_name,
@@ -1563,8 +1674,8 @@ ${approvedRecsStr}
           year_level: termAnalysis.year || undefined
         };
 
-        const recordsBreakdown = records.length > 0
-          ? records.map(r => `| \`${r.code}\` | ${r.title} | ${r.units} | **${r.grade != null ? r.grade : 'N/A'}** | ${r.status === 'passed' ? 'Passed' : 'Failed'} | ${r.term} |`).join('\n')
+        const recordsBreakdown = displayRecords.length > 0
+          ? displayRecords.map(r => `| \`${r.code}\` | ${r.title} | ${r.units} | **${r.grade != null ? r.grade : 'N/A'}** | ${r.status === 'passed' ? 'Passed' : 'Failed'} | ${r.term} |`).join('\n')
           : '| N/A | No records encoded in database yet | 0 | N/A | N/A | N/A |';
 
         let recStatus = 'Direct automated assessment active (no manual review required).';
@@ -1573,7 +1684,7 @@ ${approvedRecsStr}
         const registrarOpinion = generateRegistrarOpinion(
           targetStudent,
           { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa },
-          records,
+          displayRecords,
           failedCount,
           userIsTagalog
         );
@@ -1584,12 +1695,13 @@ Provide a complete, professional, comprehensive academic assessment of student:
 Name: ${targetStudent.name || targetStudent.full_name}
 Student ID: ${targetStudent.student_id}
 Program: ${targetStudent.program} - Year ${targetStudent.year_level || targetStudent.year || 1}
-GWA: ${gwa}
-Passed: ${passedUnits} units (${passedCount} subjects)
-Failed: ${failedUnits} units (${failedCount} subjects)
+${isFilteredByTerm ? `TERM FILTER NOTICE: The user explicitly requested records for "${termAnalysis.target_term}". Provide grades, GWA, and discussion STRICTLY for this requested academic term (${termAnalysis.target_term}). Do NOT list subjects from other terms.` : ''}
+Term GWA: ${gwa}
+Passed in Term: ${passedUnits} units (${passedCount} subjects)
+Failed in Term: ${failedUnits} units (${failedCount} subjects)
 Recommendations: ${recStatus}
 
-Detailed Grades Breakdown:
+Detailed Grades Breakdown (${isFilteredByTerm ? termAnalysis.target_term : 'All Terms'}):
 ${recordsBreakdown}
 
 PRIMARY LANGUAGE DIRECTIVE:
@@ -1609,41 +1721,41 @@ Instructions:
 
         if (isAskingOpinion) {
           assistantResponse = userIsTagalog
-            ? `### Pagsusuri at Opinyon: **${targetStudent.name || targetStudent.full_name}**\n\n${registrarOpinion}\n\n#### Buod ng Academic Record:\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n*Gamitin ang buttons sa ibaba upang buksan ang profile ng estudyanteng ito sa Academic Records o Subject Recommendations, o i-download ang kumpletong ulat bilang ${requestedFormat.toUpperCase()} file.*`
-            : `### Evaluation & Opinion: **${targetStudent.name || targetStudent.full_name}**
+            ? `### Pagsusuri at Opinyon${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${targetStudent.name || targetStudent.full_name}**\n\n${registrarOpinion}\n\n#### Buod ng Academic Record${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}:\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n*Gamitin ang buttons sa ibaba upang buksan ang profile ng estudyanteng ito sa Academic Records o Subject Recommendations, o i-download ang ulat bilang ${requestedFormat.toUpperCase()} file.*`
+            : `### Evaluation & Opinion${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${targetStudent.name || targetStudent.full_name}**
 
 ${registrarOpinion}
 
-#### Academic Record Summary:
+#### Academic Record Summary${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}:
 - **Student ID:** \`${targetStudent.student_id}\`
 - **Program & Year:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}
-- **Cumulative GWA:** **${gwa}**
+- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**
 - **Passed Units:** **${passedUnits}** units (${passedCount} subjects)
 - **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**
 - **Recommendation Status:** ${recStatus}
 
-*Use the buttons below to open this student's profile in Academic Records or Subject Recommendations, or download the complete report as a ${requestedFormat.toUpperCase()} file.*`;
+*Use the buttons below to open this student's profile in Academic Records or Subject Recommendations, or download the report as a ${requestedFormat.toUpperCase()} file.*`;
         } else {
           assistantResponse = userIsTagalog
-            ? `### Academic Record ng Estudyante: **${targetStudent.name || targetStudent.full_name}**\n\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Nakumpletong Units:** **${passedUnits}** units (${passedCount} passed subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n#### Kumpletong Grade Sheet:\n| Subject Code | Deskripsyon | Units | Marka | Katayuan | Termino |\n| :--- | :--- | :---: | :---: | :---: | :--- |\n${recordsBreakdown}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o pumunta sa profile ng estudyante sa Academic Records o Subject Recommendations.*`
-            : `### Student Academic Record: **${targetStudent.name || targetStudent.full_name}**
+            ? `### Academic Record ng Estudyante${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${targetStudent.name || targetStudent.full_name}**\n\n- **Student ID:** \`${targetStudent.student_id}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Nakumpletong Units:** **${passedUnits}** units (${passedCount} passed subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n- **Status ng Rekomendasyon:** ${recStatus}\n\n#### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n| Subject Code | Deskripsyon | Units | Marka | Katayuan | Termino |\n| :--- | :--- | :---: | :---: | :---: | :--- |\n${recordsBreakdown}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o pumunta sa profile ng estudyante sa Academic Records o Subject Recommendations.*`
+            : `### Student Academic Record${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${targetStudent.name || targetStudent.full_name}**
 
 - **Student ID:** \`${targetStudent.student_id}\`
 - **Program & Year:** ${targetStudent.program} — Year ${targetStudent.year_level || targetStudent.year || 1}
-- **Cumulative GWA:** **${gwa}**
+- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**
 - **Completed Units:** **${passedUnits}** units (${passedCount} passed subjects)
 - **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**
 - **Recommendation Status:** ${recStatus}
 
-#### Complete Grade Sheet:
+#### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'Complete'}):
 | Subject Code | Description | Units | Grade | Status | Term |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 ${recordsBreakdown}
 
 ---
-*Use the action buttons below to download this complete record as a ${requestedFormat.toUpperCase()} file, or jump directly to this student's profile in Academic Records or Subject Recommendations.*`;
+*Use the action buttons below to download this record as a ${requestedFormat.toUpperCase()} file, or jump directly to this student's profile in Academic Records or Subject Recommendations.*`;
         }
-      } 
+      }
       // General institutional inquiry
       else {
         const { data: stData } = await supabase.from('students').select('id, student_id, full_name, program, year_level, status');
@@ -1666,7 +1778,7 @@ ${recordsBreakdown}
           if (setThresh?.[0]?.value) passingThreshold = Number(setThresh[0].value);
           const { data: setPrereq } = await supabase.from('settings').select('value').eq('key', 'max_failed_prerequisites').limit(1);
           if (setPrereq?.[0]?.value) maxFailedPrereqs = Number(setPrereq[0].value);
-        } catch (e) {}
+        } catch (e) { }
 
         const q = query.toLowerCase();
         const requestedFormat = detectRequestedFileFormat(query);
@@ -1695,7 +1807,7 @@ ${recordsBreakdown}
             label: fileLabel
           };
 
-          const previewList = allStudents.slice(0, 10).map(s => 
+          const previewList = allStudents.slice(0, 10).map(s =>
             `• \`${s.student_id || s.id}\` — **${s.name || s.full_name || 'Student'}** (${s.program} Year ${s.year_level || 1})`
           ).join('\n');
 
@@ -1918,5 +2030,7 @@ module.exports = {
   isTagalogQuery,
   hasRecordForAcademicTerm,
   isEnrollmentEligibilityQuery,
-  buildEnrollmentEligibilityResponse
+  buildEnrollmentEligibilityResponse,
+  extractTargetTermAndSemester,
+  matchesRecordTerm
 };

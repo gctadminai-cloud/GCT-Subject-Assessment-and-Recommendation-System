@@ -116,6 +116,8 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
   useEffect(() => {
     if (initialStudentId) {
       setSelectedRecStudentId(initialStudentId);
+    } else {
+      setSelectedRecStudentId('');
     }
   }, [initialStudentId]);
 
@@ -124,6 +126,9 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
     if (initialSemester) {
       setSelectedSemester(initialSemester);
       setHasManualSemesterSelection(initialSemester !== 'all');
+    } else {
+      setSelectedSemester('all');
+      setHasManualSemesterSelection(false);
     }
   }, [initialSemester]);
 

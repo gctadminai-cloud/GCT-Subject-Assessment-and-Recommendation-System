@@ -193,7 +193,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToRegister }) => {
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Are you a GCT student? </span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Don't have an account? </span>
           <button
             onClick={onGoToRegister}
             style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}

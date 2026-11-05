@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Users,
   BookOpen,
@@ -34,13 +34,15 @@ export interface StudentAcademicRecordsModuleProps {
   initialStudentId?: string;
   initialSearchQuery?: string;
   initialTargetTerm?: string;
+  onCloseModal?: () => void;
 }
 
 export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModuleProps> = ({
   initialSubView: _initialSubView = 'directory',
   initialStudentId = '',
   initialSearchQuery = '',
-  initialTargetTerm = ''
+  initialTargetTerm = '',
+  onCloseModal
 }) => {
   const {
     mockStudents,
@@ -75,6 +77,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   // Delete Student Modal
   const [showDeleteStudentModal, setShowDeleteStudentModal] = useState(false);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false);
 
   // Grade CRUD Modal
   const [showGradeModal, setShowGradeModal] = useState(false);
@@ -92,6 +95,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   // Delete Grade Modal
   const [showDeleteGradeModal, setShowDeleteGradeModal] = useState(false);
   const [deletingGradeRecord, setDeletingGradeRecord] = useState<AcademicGrade | null>(null);
+  const [isDeletingGrade, setIsDeletingGrade] = useState(false);
 
   // Student Academic History Modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -100,6 +104,25 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   const [historyViewMode, setHistoryViewMode] = useState<'curriculum' | 'chronological'>('curriculum');
   const [loadingHistoryGrades, setLoadingHistoryGrades] = useState(false);
   const [fetchedStudentGrades, setFetchedStudentGrades] = useState<Record<string, AcademicGrade[]>>({});
+
+  const handleCloseHistoryModal = useCallback(() => {
+    setShowHistoryModal(false);
+    setSelectedHistoryStudent(null);
+    onCloseModal?.();
+  }, [onCloseModal]);
+
+  // Track previous initialStudentId to clean up if parent resets navigation
+  const prevInitialStudentIdRef = useRef(initialStudentId);
+  useEffect(() => {
+    if (prevInitialStudentIdRef.current !== initialStudentId) {
+      if (!initialStudentId) {
+        setShowHistoryModal(false);
+        setSelectedHistoryStudent(null);
+        setStudentSearchQuery('');
+      }
+      prevInitialStudentIdRef.current = initialStudentId;
+    }
+  }, [initialStudentId]);
 
   // Auto-open student record modal when navigating from AI Chatbot
   useEffect(() => {
@@ -390,12 +413,14 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   };
 
   const handleConfirmDeleteStudent = async () => {
-    if (!deletingStudent) return;
+    if (!deletingStudent || isDeletingStudent) return;
+    const target = deletingStudent;
+    setIsDeletingStudent(true);
     try {
-      await fetchApi(`/students/${encodeURIComponent(deletingStudent.student_id || deletingStudent.id)}?cascade=true`, {
+      await fetchApi(`/students/${encodeURIComponent(target.student_id || target.id)}?cascade=true`, {
         method: 'DELETE'
       });
-      const delSid = String(deletingStudent.student_id || deletingStudent.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+      const delSid = String(target.student_id || target.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
       setMockStudents(prev => prev.filter(s => {
         const sSid = String(s.student_id || s.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
         return sSid !== delSid;
@@ -404,16 +429,24 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         const gSid = String(g.studentId).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
         return gSid !== delSid;
       }));
-      showToast(`Student ${deletingStudent.name} and all associated records removed from database.`, 'info');
-      if (refreshStudents) await refreshStudents();
-      if (refreshAcademicGrades) await refreshAcademicGrades('all');
-      if (refreshRecommendations) await refreshRecommendations();
+
+      // Immediately close modal simultaneously with notification (no 10-second delay!)
+      setShowDeleteStudentModal(false);
+      setDeletingStudent(null);
+      showToast(`Student ${target.name} and all associated records removed from database.`, 'info');
+
+      // Refresh cache in background without delaying UI modal close
+      if (refreshStudents) refreshStudents().catch(console.error);
+      if (refreshAcademicGrades) refreshAcademicGrades('all').catch(console.error);
+      if (refreshRecommendations) refreshRecommendations().catch(console.error);
     } catch (err: any) {
       console.error('Delete student error:', err);
       showToast(err.message || 'Failed to delete student', 'error');
+      setShowDeleteStudentModal(false);
+      setDeletingStudent(null);
+    } finally {
+      setIsDeletingStudent(false);
     }
-    setShowDeleteStudentModal(false);
-    setDeletingStudent(null);
   };
 
   // -------------------------------------------------------------
@@ -689,18 +722,28 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   };
 
   const handleConfirmDeleteGrade = async () => {
-    if (!deletingGradeRecord) return;
+    if (!deletingGradeRecord || isDeletingGrade) return;
     const target = deletingGradeRecord;
+    setIsDeletingGrade(true);
     try {
       await fetchApi(`/academic-records/${encodeURIComponent(target.id)}?student_id=${encodeURIComponent(target.studentId)}&code=${encodeURIComponent(target.code)}&term=${encodeURIComponent(target.term)}`, {
         method: 'DELETE'
       });
+      // Close modal immediately simultaneously with notification (no delay!)
+      setShowDeleteGradeModal(false);
+      setDeletingGradeRecord(null);
       showToast(`Grade record for ${target.code} deleted successfully from database.`, 'info');
-      if (refreshAcademicGrades) await refreshAcademicGrades('all');
-      if (refreshStudents) await refreshStudents();
+
+      // Refresh in background without delaying UI modal close
+      if (refreshAcademicGrades) refreshAcademicGrades('all').catch(console.error);
+      if (refreshStudents) refreshStudents().catch(console.error);
     } catch (err: any) {
       console.error('Failed to delete grade record:', err);
       showToast(`Could not delete from database: ${err.message || 'Error'}`, 'error');
+      setShowDeleteGradeModal(false);
+      setDeletingGradeRecord(null);
+    } finally {
+      setIsDeletingGrade(false);
     }
 
     setMockAcademicGrades(prev => prev.filter(g => g.id !== target.id));
@@ -714,8 +757,6 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         };
       });
     }
-    setShowDeleteGradeModal(false);
-    setDeletingGradeRecord(null);
   };
 
   // -------------------------------------------------------------
@@ -782,19 +823,27 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
 
   const handleDownloadStudentAcademicRecord = async (st: Student) => {
     try {
-      // Fetch fresh live records directly from backend API for this student
-      let records: any[] = rawStudentGrades;
-      try {
-        const liveData = await fetchApi(`/academic-records?student_id=${encodeURIComponent(st.student_id)}`);
-        if (Array.isArray(liveData) && liveData.length > 0) {
-          records = liveData;
+      const isFilteredTerm = Boolean(activeHistoryTermTab && activeHistoryTermTab !== 'ALL');
+      let records: any[] = [];
+
+      // If user selected a specific term in the modal, export exactly what is displayed in that term tab!
+      if (isFilteredTerm && activeDisplayHistoryMap[activeHistoryTermTab] && activeDisplayHistoryMap[activeHistoryTermTab].length > 0) {
+        records = activeDisplayHistoryMap[activeHistoryTermTab];
+      } else {
+        // Fetch fresh live records directly from backend API for this student
+        records = rawStudentGrades;
+        try {
+          const liveData = await fetchApi(`/academic-records?student_id=${encodeURIComponent(st.student_id)}`);
+          if (Array.isArray(liveData) && liveData.length > 0) {
+            records = liveData;
+          }
+        } catch (e) {
+          // Fallback to loaded rawStudentGrades
         }
-      } catch (e) {
-        // Fallback to loaded rawStudentGrades
       }
 
       if (!records || records.length === 0) {
-        showToast(`No academic records found for ${st.name} (${st.student_id}).`, 'info');
+        showToast(`No academic records found for ${st.name} (${st.student_id})${isFilteredTerm ? ` in ${activeHistoryTermTab}` : ''}.`, 'info');
         return;
       }
 
@@ -804,6 +853,13 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       const studentId = st.student_id || 'N/A';
       const studentName = (st.name || 'Student').replace(/"/g, '""');
       const program = (st.program || 'BSIT').replace(/"/g, '""');
+
+      let termPoints = 0;
+      let termTotalUnits = 0;
+      let termPassedUnits = 0;
+      let termFailedUnits = 0;
+      let termPassedCount = 0;
+      let termFailedCount = 0;
 
       for (const item of records) {
         const r: any = item;
@@ -827,12 +883,23 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         } else if (isPassed) {
           finalGrade = parsedGrade !== null ? parsedGrade : (rawNum >= 1.0 && rawNum <= 3.0 ? rawNum : 2.0);
           finalStatus = 'passed';
+          termPoints += Number(finalGrade) * units;
+          termTotalUnits += units;
+          termPassedUnits += units;
+          termPassedCount++;
+        } else if (r.status === 'not_taken') {
+          finalGrade = 'N/A';
+          finalStatus = 'not_taken';
         } else {
           finalGrade = parsedGrade !== null && parsedGrade > 3.0 ? parsedGrade : 5;
           finalStatus = 'failed';
+          termPoints += Number(finalGrade) * units;
+          termTotalUnits += units;
+          termFailedUnits += units;
+          termFailedCount++;
         }
 
-        const term = (r.term || 'Academic Record').replace(/"/g, '""');
+        const term = (r.curriculumTerm || r.term || (isFilteredTerm ? activeHistoryTermTab : 'Academic Record')).replace(/"/g, '""');
         const recYear = r.year_level || r.yearLevel || r.enrolled_year_level || r.curriculum_year_level || st.year || 1;
 
         rows.push([
@@ -849,8 +916,18 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
         ].join(','));
       }
 
-      // Summary row at bottom for Excel viewers matching chatbot export
-      if (studentGwaCalculation) {
+      // Summary row at bottom for Excel viewers
+      if (isFilteredTerm) {
+        const termGwa = termTotalUnits > 0 ? (termPoints / termTotalUnits).toFixed(2) : 'N/A';
+        rows.push('');
+        rows.push([
+          `"Summary: Term (${activeHistoryTermTab.replace(/"/g, '""')}) GWA: ${termGwa}"`,
+          `"Passed Units: ${termPassedUnits}"`,
+          `"Failed Subjects: ${termFailedCount}"`,
+          `"Term Status: ${termFailedCount > 0 ? 'With Deficiencies' : 'All Passed'}"`,
+          '""', '""', '""', '""', '""', '""'
+        ].join(','));
+      } else if (studentGwaCalculation) {
         rows.push('');
         rows.push([
           `"Summary: Overall GWA ${studentGwaCalculation.gwa || 'N/A'}"`,
@@ -862,9 +939,10 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
       }
 
       const csvContent = rows.join('\r\n');
-      const filename = `${st.student_id}_Academic_Record.csv`;
+      const termSuffix = isFilteredTerm ? `_${activeHistoryTermTab.replace(/[^a-zA-Z0-9]+/g, '_')}` : '';
+      const filename = `${st.student_id}${termSuffix}_Academic_Record.csv`;
       downloadCsvFile(csvContent, filename);
-      showToast(`Exported ${filename} successfully!`, 'success');
+      showToast(`Exported ${filename} (${isFilteredTerm ? activeHistoryTermTab : 'All Terms'}) successfully!`, 'success');
     } catch (err: any) {
       console.error('Failed to export student academic record:', err);
       showToast(err.message || 'Failed to download academic record', 'error');
@@ -1855,7 +1933,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
               </div>
               <button
                 type="button"
-                onClick={() => setShowHistoryModal(false)}
+                onClick={handleCloseHistoryModal}
                 style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px' }}
               >
                 <X size={22} />
@@ -2318,14 +2396,14 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                   borderColor: '#BBF7D0',
                   background: '#F0FDF4'
                 }}
-                title="Download Student Academic Record Excel / CSV Spreadsheet"
+                title={activeHistoryTermTab === 'ALL' ? "Download Complete Student Academic Record Excel / CSV" : `Download ${activeHistoryTermTab} Record Excel / CSV`}
               >
-                <Download size={15} color="#16A34A" /> Download Excel
+                <Download size={15} color="#16A34A" /> Download Excel {activeHistoryTermTab !== 'ALL' ? `(${activeHistoryTermTab})` : ''}
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowHistoryModal(false)}
+                onClick={handleCloseHistoryModal}
                 className="btn btn-primary"
                 style={{ fontSize: '0.85rem' }}
               >
@@ -2489,12 +2567,14 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                 type="button"
                 onClick={() => setShowDeleteStudentModal(false)}
                 className="btn btn-secondary"
+                disabled={isDeletingStudent}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteStudent}
+                disabled={isDeletingStudent}
                 style={{
                   background: '#DC2626',
                   color: '#FFFFFF',
@@ -2503,10 +2583,11 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                   borderRadius: '8px',
                   fontWeight: 700,
                   fontSize: '0.85rem',
-                  cursor: 'pointer'
+                  cursor: isDeletingStudent ? 'not-allowed' : 'pointer',
+                  opacity: isDeletingStudent ? 0.7 : 1
                 }}
               >
-                Delete Student
+                {isDeletingStudent ? 'Deleting...' : 'Delete Student'}
               </button>
             </div>
           </div>
@@ -2536,12 +2617,14 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                 type="button"
                 onClick={() => setShowDeleteGradeModal(false)}
                 className="btn btn-secondary"
+                disabled={isDeletingGrade}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteGrade}
+                disabled={isDeletingGrade}
                 style={{
                   background: '#DC2626',
                   color: '#FFFFFF',
@@ -2550,10 +2633,11 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
                   borderRadius: '8px',
                   fontWeight: 700,
                   fontSize: '0.85rem',
-                  cursor: 'pointer'
+                  cursor: isDeletingGrade ? 'not-allowed' : 'pointer',
+                  opacity: isDeletingGrade ? 0.7 : 1
                 }}
               >
-                Delete Grade
+                {isDeletingGrade ? 'Deleting...' : 'Delete Grade'}
               </button>
             </div>
           </div>

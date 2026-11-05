@@ -184,11 +184,15 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
 
   const handleConfirmDeleteStudent = async () => {
     if (!deletingStudent) return;
+    const target = deletingStudent;
+    // Close modal immediately simultaneously with notification (no delay!)
+    setShowDeleteStudentModal(false);
+    setDeletingStudent(null);
     try {
-      await fetchApi(`/students/${encodeURIComponent(deletingStudent.student_id || deletingStudent.id)}?cascade=true`, {
+      await fetchApi(`/students/${encodeURIComponent(target.student_id || target.id)}?cascade=true`, {
         method: 'DELETE'
       });
-      const delSid = String(deletingStudent.student_id || deletingStudent.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
+      const delSid = String(target.student_id || target.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
       setMockStudents(prev => prev.filter(s => {
         const sSid = String(s.student_id || s.id).replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^GCT-/i, '').toLowerCase().trim();
         return sSid !== delSid;
@@ -199,15 +203,13 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
           return gSid !== delSid;
         }));
       }
-      showToast?.(`Student ${deletingStudent.name} and all records removed from database.`, 'info');
-      if (refreshStudents) await refreshStudents();
-      if (refreshAcademicGrades) await refreshAcademicGrades('all');
+      showToast?.(`Student ${target.name} and all records removed from database.`, 'info');
+      if (refreshStudents) refreshStudents().catch(console.error);
+      if (refreshAcademicGrades) refreshAcademicGrades('all').catch(console.error);
     } catch (err: any) {
       console.error('Error deleting student:', err);
       showToast?.(err.message || 'Failed to delete student', 'error');
     }
-    setShowDeleteStudentModal(false);
-    setDeletingStudent(null);
   };
 
   // Upload Handlers

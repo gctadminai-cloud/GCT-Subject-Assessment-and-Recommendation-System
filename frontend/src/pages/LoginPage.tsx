@@ -118,7 +118,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoToRegister }) => {
             <label className="form-label">Username / Student ID</label>
             <input
               type="text"
-              placeholder="e.g. GCT-2026-0123 or 10526"
+              placeholder="e.g. 123456"
               value={username}
               onChange={e => setUsername(e.target.value)}
               className="form-input"

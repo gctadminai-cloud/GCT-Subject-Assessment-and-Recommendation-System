@@ -1718,7 +1718,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         </div>
 
         {/* Quick Suggestion Prompts */}
-        {((isGuest || isStudent) || quickPrompts.length > 0) && (
+        {quickPrompts.length > 0 && (
           <div
             style={{
               padding: '0.65rem 1.5rem',
@@ -1730,31 +1730,6 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
               background: '#FFFFFF'
             }}
           >
-            {(isGuest || isStudent) && (
-              <button
-                type="button"
-                onClick={() => setShowFaqModal(true)}
-                style={{
-                  background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
-                  border: '1px solid #1E3A8A',
-                  borderRadius: '9999px',
-                  padding: '0.4rem 0.95rem',
-                  color: '#FFFFFF',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-                }}
-              >
-                <BookOpen size={13} />
-                Browse FAQs
-              </button>
-            )}
             {quickPrompts.map((qp, idx) => (
               <button
                 key={idx}
@@ -2380,7 +2355,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           </div>
 
           {/* Quick Prompts */}
-          {((isGuest || isStudent) || quickPrompts.length > 0) && (
+          {quickPrompts.length > 0 && (
             <div style={{
               padding: '0.5rem 0.75rem',
               borderTop: '1px solid #E2E8F0',
@@ -2390,32 +2365,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
               flexShrink: 0,
               background: '#FFFFFF'
             }}>
-              {(isGuest || isStudent) && (
-              <button
-                type="button"
-                onClick={() => setShowFaqModal(true)}
-                style={{
-                  background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
-                  border: '1px solid #1E3A8A',
-                  borderRadius: '9999px',
-                  padding: '0.4rem 0.95rem',
-                  color: '#FFFFFF',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-                }}
-              >
-                <BookOpen size={13} />
-                Browse FAQs
-              </button>
-            )}
-            {quickPrompts.map((qp, idx) => (
+              {quickPrompts.map((qp, idx) => (
                 <button
                   key={idx}
                   type="button"

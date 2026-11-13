@@ -36,8 +36,8 @@ const GCT_OFFICIAL_FAQS = [
       /freshm[ae]n\s+requirements?/i,
       /new\s+(?:college\s+)?student\s+requirements?/i
     ],
-    answerEn: `**Admission Requirements for New College Students:**\n- High School Report (SF 9)\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
-    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- High School Report (SF 9)\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
+    answerEn: `**Admission Requirements for New College Students:**\n- Senior High School Report (SF 9/Form 137)\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
+    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- Senior High School Report (SF 9/Form 137)\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
   },
   {
     id: 2,

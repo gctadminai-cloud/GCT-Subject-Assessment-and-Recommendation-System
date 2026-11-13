@@ -476,7 +476,7 @@ const GCT_INSTITUTIONAL_FAQS: FAQItem[] = [
     id: 1,
     question: 'What are the admission requirements for new college students?',
     category: 'Admissions',
-    answer: '• High School Report (SF 9)\n• Certificate of Good Moral Character\n• Four (4) recent 1×1 ID pictures\n• Photocopy of PSA Birth Certificate'
+    answer: '• Senior High School Report Card (Form 138)\n• Certificate of Good Moral Character\n• One (1) recent 1×1 ID picture\n• Photocopy of PSA Birth Certificate'
   },
   {
     id: 2,
@@ -488,7 +488,7 @@ const GCT_INSTITUTIONAL_FAQS: FAQItem[] = [
     id: 3,
     question: 'What are the requirements for transferees?',
     category: 'Transferees',
-    answer: '• Transfer Credentials / Honorable Dismissal\n• Certified copy of college subjects taken\n• Certificate of Good Moral Character\n• Four (4) recent 1×1 ID pictures\n• Photocopy of PSA Birth Certificate'
+    answer: '• Transfer Credentials / Honorable Dismissal\n• Certified copy of college subjects taken\n• Certificate of Good Moral Character\n• One (1) recent 1×1 ID picture\n• Photocopy of PSA Birth Certificate'
   },
   {
     id: 4,

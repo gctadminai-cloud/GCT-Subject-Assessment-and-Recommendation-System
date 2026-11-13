@@ -36,8 +36,8 @@ const GCT_OFFICIAL_FAQS = [
       /freshm[ae]n\s+requirements?/i,
       /new\s+(?:college\s+)?student\s+requirements?/i
     ],
-    answerEn: `**Admission Requirements for New College Students:**\n- Senior High School Report (SF 9/Form 137)\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
-    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- Senior High School Report (SF 9/Form 137)\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
+    answerEn: `**Admission Requirements for New College Students:**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate`,
+    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate`
   },
   {
     id: 2,
@@ -62,8 +62,8 @@ const GCT_OFFICIAL_FAQS = [
       /requirements?\s+ng\s+(?:mga\s+)?transferee/i,
       /requirements?\s+kapag\s+lumipat/i
     ],
-    answerEn: `**Requirements for Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy of college subjects taken\n- Certificate of Good Moral Character\n- Four (4) recent 1×1 ID pictures\n- Photocopy of PSA Birth Certificate`,
-    answerTl: `**Mga Kinakailangan para sa Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy ng mga nakuhang college subjects\n- Certificate of Good Moral Character\n- Apat (4) na pirasong 1×1 ID pictures\n- Photocopy ng PSA Birth Certificate`
+    answerEn: `**Requirements for Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy of college subjects taken\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate`,
+    answerTl: `**Mga Kinakailangan para sa Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy ng mga nakuhang college subjects\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate`
   },
   {
     id: 4,
@@ -138,9 +138,9 @@ const GCT_OFFICIAL_FAQS = [
 const GCT_FAQS_CONTEXT_BLOCK = `
 OFFICIAL GCT INSTITUTIONAL FAQs & FACTS:
 1. Admission Requirements for New College Students:
-   - High School Report (SF 9)
+   - Senior High School Report Card (Form 138)
    - Certificate of Good Moral Character
-   - Four (4) recent 1x1 ID pictures
+   - One (1) recent 1x1 ID picture
    - Photocopy of PSA Birth Certificate
 2. Requirements for Old Students:
    - Clearance from the previous semester
@@ -150,7 +150,7 @@ OFFICIAL GCT INSTITUTIONAL FAQs & FACTS:
    - Transfer Credentials / Honorable Dismissal
    - Certified copy of college subjects taken
    - Certificate of Good Moral Character
-   - Four (4) recent 1x1 ID pictures
+   - One (1) recent 1x1 ID picture
    - Photocopy of PSA Birth Certificate
 4. Transferee Subject Crediting / Accreditation:
    - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.
@@ -173,8 +173,8 @@ function matchGctFaq(query, isTagalog = false) {
   // If user asked general "faq", "faqs", or "frequently asked questions"
   if (/^(?:faqs?|frequently\s+asked\s+questions?|listahan\s+ng\s+faqs?)$/i.test(q.replace(/[^\w\s]/g, '').trim())) {
     return isTagalog
-      ? `### Garcia College of Technology — Mga Madalas Itanong (FAQs)\n\n1. **Admission Requirements (New College Students):**\n   - High School Report (SF 9)\n   - Certificate of Good Moral Character\n   - Apat (4) na 1×1 ID pictures\n   - Photocopy ng PSA Birth Certificate\n\n2. **Requirements para sa Dating Estudyante (Old Students):**\n   - Clearance mula sa nakaraang semestre\n   - School ID\n   - Grades mula sa nakaraang semestre\n\n3. **Requirements para sa Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy ng subjects taken\n   - Certificate of Good Moral Character\n   - Apat (4) na 1×1 ID pictures\n   - Photocopy ng PSA Birth Certificate\n\n4. **Pag-credit ng Subjects para sa Transferees:**\n   - Opo. Maaaring mag-apply para sa accreditation sa Office of the Registrar, subject to approval ng College Dean.\n\n5. **Pakikipag-ugnayan sa Registrar:**\n   - Telepono: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **Misyon ng GCT:**\n   - Magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\n7. **Kailan Naitatag:**\n   - Naitatag noong taong 1968.\n\n8. **Lokasyon:**\n   - Osmeña Avenue, Estancia, Kalibo, Aklan.`
-      : `### Garcia College of Technology — Frequently Asked Questions (FAQs)\n\n1. **Admission Requirements for New College Students:**\n   - High School Report (SF 9)\n   - Certificate of Good Moral Character\n   - Four (4) recent 1×1 ID pictures\n   - Photocopy of PSA Birth Certificate\n\n2. **Requirements for Old Students:**\n   - Clearance from the previous semester\n   - School ID\n   - Grades from the previous semester\n\n3. **Requirements for Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy of college subjects taken\n   - Certificate of Good Moral Character\n   - Four (4) recent 1×1 ID pictures\n   - Photocopy of PSA Birth Certificate\n\n4. **Can transferees have previous subjects credited?**\n   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\n5. **How to contact the GCT College Registrar:**\n   - Phone: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **GCT's Mission:**\n   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\n7. **When Established:**\n   - GCT was established in 1968.\n\n8. **Campus Location:**\n   - GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.`;
+      ? `### Garcia College of Technology — Mga Madalas Itanong (FAQs)\n\n1. **Admission Requirements (New College Students):**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n2. **Requirements para sa Dating Estudyante (Old Students):**\n   - Clearance mula sa nakaraang semestre\n   - School ID\n   - Grades mula sa nakaraang semestre\n\n3. **Requirements para sa Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy ng subjects taken\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n4. **Pag-credit ng Subjects para sa Transferees:**\n   - Opo. Maaaring mag-apply para sa accreditation sa Office of the Registrar, subject to approval ng College Dean.\n\n5. **Pakikipag-ugnayan sa Registrar:**\n   - Telepono: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **Misyon ng GCT:**\n   - Magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\n7. **Kailan Naitatag:**\n   - Naitatag noong taong 1968.\n\n8. **Lokasyon:**\n   - Osmeña Avenue, Estancia, Kalibo, Aklan.`
+      : `### Garcia College of Technology — Frequently Asked Questions (FAQs)\n\n1. **Admission Requirements for New College Students:**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n2. **Requirements for Old Students:**\n   - Clearance from the previous semester\n   - School ID\n   - Grades from the previous semester\n\n3. **Requirements for Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy of college subjects taken\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n4. **Can transferees have previous subjects credited?**\n   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\n5. **How to contact the GCT College Registrar:**\n   - Phone: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **GCT's Mission:**\n   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\n7. **When Established:**\n   - GCT was established in 1968.\n\n8. **Campus Location:**\n   - GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.`;
   }
 
   for (const item of GCT_OFFICIAL_FAQS) {
@@ -1249,20 +1249,7 @@ async function queryChatbot(req, res) {
     if (userRole === 'guest') {
       if (faqMatch) {
         assistantResponse = faqMatch;
-        systemPrompt = `You are the official GCT AI Assistant for Garcia College of Technology.
-User status: Unauthenticated Visitor / Guest.
-The user asked an official institutional FAQ about Garcia College of Technology.
-Official GCT Institutional Fact:
-${faqMatch}
-
-${GCT_FAQS_CONTEXT_BLOCK}
-
-PRIMARY LANGUAGE DIRECTIVE:
-Answer in ${userIsTagalog ? 'Tagalog / Filipino' : 'English'}.
-Strictly follow the zero emojis rule.
-Answer accurately according to the official GCT facts provided above.
-
-USER MESSAGE: "${query}"`;
+        systemPrompt = '';
       } else {
         const isRegistrationOrPublic = /\b(create account|create student account|how to register|register|sign up|signup|how to apply|apply|programs|program|course|courses|offer|admissions|admission|office hours|campus|location|contact|registrar office|faq|faqs)\b/i.test(query);
 
@@ -1338,20 +1325,7 @@ Instructions:
 
       if (faqMatch) {
         assistantResponse = faqMatch;
-        systemPrompt = `You are the official GCT AI Academic Advising Assistant for Garcia College of Technology.
-User: ${userName} (Logged-in Student).
-The student asked an official institutional FAQ about Garcia College of Technology.
-Official GCT Institutional Fact:
-${faqMatch}
-
-${GCT_FAQS_CONTEXT_BLOCK}
-
-PRIMARY LANGUAGE DIRECTIVE:
-Answer in ${userIsTagalog ? 'Tagalog / Filipino' : 'English'}.
-Strictly follow the zero emojis rule.
-Answer accurately according to the official GCT facts provided above.
-
-USER MESSAGE: "${query}"`;
+        systemPrompt = '';
       } else {
 
         // Check if student is attempting to query another student ID or other students

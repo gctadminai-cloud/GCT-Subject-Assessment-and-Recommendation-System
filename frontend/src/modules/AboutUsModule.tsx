@@ -9,7 +9,11 @@ import {
   Cpu,
   Users
 } from 'lucide-react';
+import ianPhoto from '../assets/team/ian-gabriel-vega.jpg';
 import ninoPhoto from '../assets/team/nino-tolibas.jpg';
+import jazperPhoto from '../assets/team/jazper-francisco.jpg';
+import markPhoto from '../assets/team/mark-lester-arevalo.jpg';
+import myckoPhoto from '../assets/team/mycko-lawrence-zapansa.jpg';
 import gctCampusImg from '../assets/campus/gct-campus.jpg';
 import bytemeLogo from '../assets/byteme/byteme-logo.png';
 import gctLogo from '../assets/campus/gct-logo.png';
@@ -30,7 +34,7 @@ export interface DeveloperMember {
 // 01: Ian Gabriel Vega (Project Manager - FIRST)
 // 02: Niño Tolibas (Programmer - with official photo)
 // 03: Jazper Francisco (UI/UX Designer & Frontend Developer)
-// 04: Mark Arevalo (Database Specialist & Backend Architect)
+// 04: Mark Lester Arevalo (Database Specialist & Backend Architect)
 // 05: Mycko Lawrence Zapansa (Systems QA & Technical Documentation)
 const MEMBERS: DeveloperMember[] = [
   {
@@ -47,7 +51,7 @@ const MEMBERS: DeveloperMember[] = [
       'System quality assurance review and milestone presentations'
     ],
     skills: ['Project Management', 'Agile / Scrum', 'System Architecture', 'Quality Delivery', 'Strategic Planning'],
-    photoUrl: ''
+    photoUrl: ianPhoto || '/team/ian-gabriel-vega.jpg'
   },
   {
     id: 'dev-2',
@@ -79,11 +83,11 @@ const MEMBERS: DeveloperMember[] = [
       'Component prototyping & design system standardization'
     ],
     skills: ['UI/UX Design', 'Tailwind / Modern CSS', 'React Components', 'Figma', 'Responsive Design'],
-    photoUrl: ''
+    photoUrl: jazperPhoto || '/team/jazper-francisco.jpg'
   },
   {
     id: 'dev-4',
-    name: 'Mark Arevalo',
+    name: 'Mark Lester Arevalo',
     role: 'Database Specialist & Backend Architect',
     roleBadge: 'Database Specialist',
     program: 'Bachelor of Science in Information Technology',
@@ -95,7 +99,7 @@ const MEMBERS: DeveloperMember[] = [
       'Student academic records data modeling and schema normalization'
     ],
     skills: ['Database Architecture', 'Supabase / PostgreSQL', 'SQL Optimization', 'Schema Modeling', 'API Integration'],
-    photoUrl: ''
+    photoUrl: markPhoto || '/team/mark-lester-arevalo.jpg'
   },
   {
     id: 'dev-5',
@@ -111,7 +115,7 @@ const MEMBERS: DeveloperMember[] = [
       'Bug tracking, requirement verification, and compliance validation'
     ],
     skills: ['Quality Assurance', 'Test Case Design', 'Technical Writing', 'User Acceptance Testing', 'System Documentation'],
-    photoUrl: ''
+    photoUrl: myckoPhoto || '/team/mycko-lawrence-zapansa.jpg'
   }
 ];
 

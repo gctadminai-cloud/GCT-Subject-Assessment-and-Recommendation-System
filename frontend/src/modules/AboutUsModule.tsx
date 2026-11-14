@@ -6,8 +6,7 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldCheck,
-  Cpu,
-  Users
+  Cpu
 } from 'lucide-react';
 import ianPhoto from '../assets/team/ian-gabriel-vega.jpg';
 import ninoPhoto from '../assets/team/nino-tolibas.jpg';
@@ -366,30 +365,6 @@ export const AboutUsModule: React.FC = () => {
       <div className="byteme-card-container scroll-reveal">
         {/* LEFTSIDE: BYTEME SENTENCES & STORY (50% WIDTH) */}
         <div className="byteme-text-side scroll-reveal-left">
-          {/* Header Tag */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              color: 'var(--primary)',
-              background: '#EFF6FF',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              border: '1px solid #BFDBFE',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}>
-              <Users size={12} /> Team ByteMe
-            </span>
-
-            <span style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 600 }}>
-              Official Capstone Software Engineering Group
-            </span>
-          </div>
-
           {/* Main Title */}
           <div>
             <h3 style={{

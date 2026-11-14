@@ -6,7 +6,8 @@ const {
   buildDeficienciesTableMarkdown,
   buildStudentsTableMarkdown,
   classifyStudentQueryIntent,
-  formatTargetTermText
+  formatTargetTermText,
+  generateStudentCsv
 } = require('../controllers/chatbotController');
 
 describe('Chatbot Table Formatting & Anti-Memorandum Sanitizer', () => {
@@ -83,6 +84,34 @@ Satisfactory standing.`;
     expect(formatTargetTermText(2, 2)).toBe('Year 2, 2nd Semester');
     expect(formatTargetTermText(3, 3)).toBe('Year 3, Summer');
     expect(formatTargetTermText(1, 1)).toBe('Year 1, 1st Semester');
+  });
+
+  it('generates institutional grade CSV with exactly 2-decimal grades (1.00, 1.50, 2.00, 3.00, 5.00) and recommended subjects below', () => {
+    const student = { student_id: '12350', name: 'Francisco, Mark', program: 'BSIT', year_level: 1 };
+    const records = [
+      { code: 'CC 101', title: 'Intro to Computing', units: 3, grade: 1, status: 'passed', term: '2025-2026 1st Sem' },
+      { code: 'C.O. 1', title: 'College Orientation', units: 1, grade: 1.5, status: 'passed', term: '2025-2026 1st Sem' },
+      { code: 'UTS 1', title: 'Understanding the Self', units: 3, grade: 2.25, status: 'passed', term: '2025-2026 1st Sem' },
+      { code: 'History 1', title: 'Readings in History', units: 3, grade: 3, status: 'passed', term: '2025-2026 1st Sem' },
+      { code: 'Math 1', title: 'College Algebra', units: 3, grade: 5, status: 'failed', term: '2025-2026 1st Sem' }
+    ];
+    const recommendedSubjects = [
+      { code: 'CC 102', title: 'Computer Programming 1', units: 3, year: 1, semester: '2nd Sem', prerequisites: 'CC 101', isPrereqMet: true }
+    ];
+
+    const csv = generateStudentCsv(student, records, '2.55', {
+      recommendedSubjects,
+      targetTermText: '2025-2026 2nd Sem'
+    });
+
+    expect(csv).toContain('Student ID,Student Name,Program,Year Level,Subject Code,Subject Title,Units,Grade,Status,Academic Term');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"CC 101","Intro to Computing",3,"1.00","passed","2025-2026 1st Sem"');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"C.O. 1","College Orientation",1,"1.50","passed","2025-2026 1st Sem"');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"UTS 1","Understanding the Self",3,"2.25","passed","2025-2026 1st Sem"');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"History 1","Readings in History",3,"3.00","passed","2025-2026 1st Sem"');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"Math 1","College Algebra",3,"5.00","failed","2025-2026 1st Sem"');
+    expect(csv).toContain('RECOMMENDED SUBJECTS (2025-2026 2nd Sem)');
+    expect(csv).toContain('CC 102');
   });
 });
 

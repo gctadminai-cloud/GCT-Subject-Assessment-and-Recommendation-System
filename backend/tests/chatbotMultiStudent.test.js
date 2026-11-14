@@ -296,9 +296,342 @@ describe('Chatbot Multi-Student & Target Term Recommendations Tests', () => {
       expect(jsonResponse.response).toContain('IT 5');
       // Must contain student enrollment status
       expect(jsonResponse.response).toContain('Enrollment Status');
-      // Must attach Excel file export
+      // Must attach Excel file export containing the exact Recommended Subjects table shown in response!
       expect(jsonResponse.file_export).not.toBeNull();
       expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.csv_data).toContain('RECOMMENDED SUBJECTS');
+      expect(jsonResponse.file_export.csv_data).toContain('Fili 2');
+      expect(jsonResponse.file_export.csv_data).toContain('IT 4');
+    });
+
+    it('asks a follow-up question when user asks for grades without specifying a term', async () => {
+      const mockSupabase = {
+        from: (table) => {
+          if (table === 'students') {
+            return {
+              select: () => ({
+                or: () => ({
+                  limit: () => ({
+                    data: [{
+                      id: '12718',
+                      student_id: '12718',
+                      name: 'Arevalo, Mark Lester Palmon',
+                      full_name: 'Arevalo, Mark Lester Palmon',
+                      program: 'BSIT',
+                      year_level: 2
+                    }]
+                  })
+                }),
+                ilike: () => ({ limit: () => ({ data: [] }) }),
+                limit: () => ({ data: [] }),
+                data: []
+              })
+            };
+          }
+          if (table === 'grade_records') {
+            return {
+              select: () => ({
+                in: () => ({
+                  order: () => ({
+                    order: () => ({
+                      data: [
+                        { subject: 'CC 101', grade: 1.75, academic_year: '2024-2025', semester: '1', year_level: 1 },
+                        { subject: 'CC 102', grade: 2.0, academic_year: '2024-2025', semester: '2', year_level: 1 },
+                        { subject: 'CC 103', grade: 1.5, academic_year: '2025-2026', semester: '1', year_level: 2 }
+                      ]
+                    }),
+                    data: []
+                  }),
+                  data: []
+                })
+              })
+            };
+          }
+          if (table === 'academic_records' || table === 'recommendations') {
+            return {
+              select: () => ({
+                or: () => ({ data: [] }),
+                eq: () => ({ limit: () => ({ data: [] }), data: [] }),
+                limit: () => ({ data: [] }),
+                data: []
+              })
+            };
+          }
+          return {
+            select: () => ({
+              eq: () => ({ limit: () => ({ data: [] }), data: [] }),
+              limit: () => ({ data: [] }),
+              or: () => ({ data: [] }),
+              in: () => ({
+                order: () => ({
+                  order: () => ({ data: [] }),
+                  data: []
+                }),
+                data: []
+              }),
+              data: []
+            })
+          };
+        }
+      };
+
+      const req = {
+        body: {
+          query: 'give me the grades of the student 12718',
+          history: []
+        },
+        user: { role: 'admin', full_name: 'Registrar Admin' }
+      };
+
+      let jsonResponse = null;
+      const res = {
+        json: (payload) => {
+          jsonResponse = payload;
+          return payload;
+        },
+        status: () => res
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Must NOT dump all grades immediately
+      expect(jsonResponse.file_export).toBeNull();
+      // Must ask a follow-up question
+      expect(jsonResponse.response).toMatch(/Which academic term or semester's grades would you like to review|Aling academic year o semestre/i);
+      // Must list recorded terms
+      expect(jsonResponse.response).toContain('2024-2025 1st Sem');
+      expect(jsonResponse.response).toContain('2024-2025 2nd Sem');
+      expect(jsonResponse.response).toContain('2025-2026 1st Sem');
+      expect(jsonResponse.response).toContain('All Terms');
+      // Must provide available terms in student_action for UI pills
+      expect(jsonResponse.student_action?.available_terms).toEqual([
+        '2024-2025 1st Sem',
+        '2024-2025 2nd Sem',
+        '2025-2026 1st Sem'
+      ]);
+    });
+
+    it('displays requested term grades and generates matching Excel file when user answers follow-up with a specific term', async () => {
+      const mockSupabase = {
+        from: (table) => {
+          if (table === 'students') {
+            return {
+              select: () => ({
+                or: () => ({
+                  limit: () => ({
+                    data: [{
+                      id: '12718',
+                      student_id: '12718',
+                      name: 'Arevalo, Mark Lester Palmon',
+                      full_name: 'Arevalo, Mark Lester Palmon',
+                      program: 'BSIT',
+                      year_level: 2
+                    }]
+                  })
+                }),
+                ilike: () => ({ limit: () => ({ data: [] }) }),
+                limit: () => ({ data: [] }),
+                data: []
+              })
+            };
+          }
+          if (table === 'grade_records') {
+            return {
+              select: () => ({
+                in: () => ({
+                  order: () => ({
+                    order: () => ({
+                      data: [
+                        { subject: 'CC 101', grade: 1.75, academic_year: '2024-2025', semester: '1', year_level: 1 },
+                        { subject: 'CC 102', grade: 2.0, academic_year: '2024-2025', semester: '2', year_level: 1 },
+                        { subject: 'CC 103', grade: 1.5, academic_year: '2025-2026', semester: '1', year_level: 2 }
+                      ]
+                    }),
+                    data: []
+                  }),
+                  data: []
+                })
+              })
+            };
+          }
+          if (table === 'academic_records' || table === 'recommendations') {
+            return {
+              select: () => ({
+                or: () => ({ data: [] }),
+                eq: () => ({ limit: () => ({ data: [] }), data: [] }),
+                limit: () => ({ data: [] }),
+                data: []
+              })
+            };
+          }
+          return {
+            select: () => ({
+              eq: () => ({ limit: () => ({ data: [] }), data: [] }),
+              limit: () => ({ data: [] }),
+              or: () => ({ data: [] }),
+              in: () => ({
+                order: () => ({
+                  order: () => ({ data: [] }),
+                  data: []
+                }),
+                data: []
+              }),
+              data: []
+            })
+          };
+        }
+      };
+
+      const req = {
+        body: {
+          query: '1st sem 2025-2026',
+          history: [
+            { sender: 'user', text: 'give me the grades of student 12718' },
+            { sender: 'bot', text: 'Which academic term or semester\'s grades would you like to review for Arevalo, Mark Lester Palmon (12718)?' }
+          ]
+        },
+        user: { role: 'admin', full_name: 'Registrar Admin' }
+      };
+
+      let jsonResponse = null;
+      const res = {
+        json: (payload) => {
+          jsonResponse = payload;
+          return payload;
+        },
+        status: () => res
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Should display the grades table for 2025-2026 1st Sem
+      expect(jsonResponse.response).toContain('Official Academic Record & Grade Sheet');
+      expect(jsonResponse.response).toContain('CC 103');
+      // Should NOT include CC 101 because it's filtered to 2025-2026 1st Sem
+      expect(jsonResponse.response).not.toContain('CC 101');
+      // Must generate matching Excel export for that term
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.csv_data).toContain('Student ID,Student Name,Program,Year Level,Subject Code,Subject Title,Units,Grade,Status,Academic Term');
+      expect(jsonResponse.file_export.csv_data).toContain('2025-2026 1st Sem');
+      expect(jsonResponse.file_export.csv_data).toContain('CC 103');
+    });
+
+    it('correctly recalls student 12310 from history and does not falsely match another student sharing first name when answering with 2025-2026 2nd Sem', async () => {
+      const mockSupabase = {
+        from: (table) => {
+          if (table === 'students') {
+            return {
+              select: () => ({
+                or: (clause) => ({
+                  limit: () => {
+                    if (clause.includes('12310')) {
+                      return {
+                        data: [{
+                          id: '12310',
+                          student_id: '12310',
+                          name: 'Tolibas, Niño',
+                          full_name: 'Tolibas, Niño',
+                          program: 'BSIT',
+                          year_level: 2
+                        }]
+                      };
+                    }
+                    if (clause.includes('13268')) {
+                      return {
+                        data: [{
+                          id: '13268',
+                          student_id: '13268',
+                          name: 'NIÑO PRINCE JENO NABAYRA',
+                          full_name: 'NIÑO PRINCE JENO NABAYRA',
+                          program: 'BSIT',
+                          year_level: 1
+                        }]
+                      };
+                    }
+                    return { data: [] };
+                  }
+                }),
+                ilike: () => ({ limit: () => ({ data: [] }) }),
+                limit: () => ({
+                  data: [
+                    { id: '13268', student_id: '13268', name: 'NIÑO PRINCE JENO NABAYRA', full_name: 'NIÑO PRINCE JENO NABAYRA', program: 'BSIT', year_level: 1 },
+                    { id: '12310', student_id: '12310', name: 'Tolibas, Niño', full_name: 'Tolibas, Niño', program: 'BSIT', year_level: 2 }
+                  ]
+                }),
+                data: []
+              })
+            };
+          }
+          if (table === 'grade_records') {
+            return {
+              select: () => ({
+                in: () => ({
+                  order: () => ({
+                    order: () => ({
+                      data: [
+                        { subject: 'IT 201', grade: 1.75, academic_year: '2025-2026', semester: '1', year_level: 1 },
+                        { subject: 'IT 202', grade: 2.0, academic_year: '2025-2026', semester: '2', year_level: 1 },
+                        { subject: 'IT 301', grade: 1.5, academic_year: '2026-2027', semester: '1', year_level: 2 }
+                      ]
+                    }),
+                    data: []
+                  }),
+                  data: []
+                })
+              })
+            };
+          }
+          return {
+            select: () => ({
+              eq: () => ({ limit: () => ({ data: [] }), data: [] }),
+              limit: () => ({ data: [] }),
+              or: () => ({ data: [] }),
+              in: () => ({
+                order: () => ({
+                  order: () => ({ data: [] }),
+                  data: []
+                }),
+                data: []
+              }),
+              data: []
+            })
+          };
+        }
+      };
+
+      const req = {
+        body: {
+          query: '2025-2026 2nd Sem',
+          history: [
+            { sender: 'user', text: 'give me the record of student 12310' },
+            { sender: 'bot', text: 'Which academic term or semester\'s grades would you like to review for Tolibas, Niño ( 12310 )?', student_id: '12310' }
+          ]
+        },
+        user: { role: 'admin', full_name: 'Registrar Admin' }
+      };
+
+      let jsonResponse = null;
+      const res = {
+        json: (payload) => {
+          jsonResponse = payload;
+          return payload;
+        },
+        status: () => res
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Must target student 12310 (Tolibas, Niño), NEVER student 13268 (NIÑO PRINCE JENO NABAYRA)!
+      expect(jsonResponse.response).toContain('12310');
+      expect(jsonResponse.response).toContain('Tolibas, Niño');
+      expect(jsonResponse.response).not.toContain('13268');
+      expect(jsonResponse.response).not.toContain('NIÑO PRINCE JENO NABAYRA');
+      // Must contain IT 202 (2025-2026 2nd Sem)
+      expect(jsonResponse.response).toContain('IT 202');
     });
 
     it('safely distinguishes between Express next function and mock Supabase client', async () => {

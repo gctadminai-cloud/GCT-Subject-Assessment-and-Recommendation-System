@@ -48,6 +48,10 @@ export interface AcademicGrade {
   id: string;
   studentId: string;
   studentName: string;
+  lastName?: string;
+  firstName?: string;
+  course?: string;
+  semesterName?: string;
   code: string;
   title: string;
   units: number;

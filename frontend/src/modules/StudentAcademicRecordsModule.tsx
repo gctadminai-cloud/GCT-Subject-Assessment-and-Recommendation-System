@@ -24,8 +24,9 @@ import { fetchApi } from '../config/api';
 import { buildCompleteStudentGrades, sortTermsChronologically, normalizeSubjCode, GCT_CURRICULUM_BSIT, GCT_CURRICULUM_BSCS } from '../utils/curriculumData';
 import {
   parseExcelOrCsvFile,
-  exportStudentsToExcel,
-  downloadCsvFile
+  exportGradeSheetCsvToExcel,
+  exportCompleteAllGradesExcel,
+  type CompleteGradeRow
 } from '../utils/exportUtils';
 
 export interface StudentAcademicRecordsModuleProps {
@@ -104,6 +105,7 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
   const [historyViewMode, setHistoryViewMode] = useState<'curriculum' | 'chronological'>('curriculum');
   const [loadingHistoryGrades, setLoadingHistoryGrades] = useState(false);
   const [fetchedStudentGrades, setFetchedStudentGrades] = useState<Record<string, AcademicGrade[]>>({});
+  const [isExportingRoster, setIsExportingRoster] = useState(false);
 
   const handleCloseHistoryModal = useCallback(() => {
     setShowHistoryModal(false);
@@ -828,18 +830,11 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
 
       // If user selected a specific term in the modal, export exactly what is displayed in that term tab!
       if (isFilteredTerm && activeDisplayHistoryMap[activeHistoryTermTab] && activeDisplayHistoryMap[activeHistoryTermTab].length > 0) {
-        records = activeDisplayHistoryMap[activeHistoryTermTab];
+        records = activeDisplayHistoryMap[activeHistoryTermTab].filter((g: any) => g.status !== 'not_taken');
       } else {
-        // Fetch fresh live records directly from backend API for this student
-        records = rawStudentGrades;
-        try {
-          const liveData = await fetchApi(`/academic-records?student_id=${encodeURIComponent(st.student_id)}`);
-          if (Array.isArray(liveData) && liveData.length > 0) {
-            records = liveData;
-          }
-        } catch (e) {
-          // Fallback to loaded rawStudentGrades
-        }
+        // When All Terms is selected, export the complete taken curriculum history (matching the modal table)
+        const allTaken = studentAcademicHistoryGrades.filter(g => g.status !== 'not_taken');
+        records = allTaken.length > 0 ? allTaken : rawStudentGrades;
       }
 
       if (!records || records.length === 0) {
@@ -863,54 +858,64 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
 
       for (const item of records) {
         const r: any = item;
+        const code = (r.code || r.subject?.code || r.subject_code || r.subject_id || 'SUBJ').replace(/"/g, '""');
+        const title = (r.title || r.subject?.title || r.subject_title || 'Curriculum Course').replace(/"/g, '""');
+        const units = r.units != null ? Number(r.units) : (r.subject?.units != null ? Number(r.subject.units) : 3);
+
         const isDropped = Boolean(r.is_dropped || r.isDropped || r.status === 'dropped' || String(r.raw_grade || r.rawGrade) === '9' || String(r.raw_grade || r.rawGrade).toUpperCase() === 'DRP');
-        const rawStr = String(r.raw_grade || r.rawGrade || '').trim();
-        const rawNum = parseFloat(rawStr);
-        const parsedGrade = (r.grade != null && !isNaN(Number(r.grade))) ? Number(r.grade) : null;
-        const isFailedOrDef = !isDropped && (r.status === 'failed' || rawStr === '5' || rawStr === '5.0' || rawStr === '0.75' || (parsedGrade !== null && (parsedGrade === 5.0 || parsedGrade > 3.0)) || (!isNaN(rawNum) && rawNum < 1.0));
-        const isPassed = !isDropped && !isFailedOrDef && (r.status === 'passed' || (parsedGrade !== null && parsedGrade >= 1.0 && parsedGrade <= 3.0));
+        const isNotTaken = r.status === 'not_taken';
 
-        const code = (r.subject?.code || r.code || r.subject_code || r.subject_id || '').replace(/"/g, '""');
-        const title = (r.subject?.title || r.title || r.subject_title || '').replace(/"/g, '""');
-        const units = Number(r.subject?.units || r.units || 3);
-
-        let finalGrade: string | number = 'N/A';
-        let finalStatus = 'failed';
+        let finalGrade = 'N/A';
+        let finalStatus = 'passed';
 
         if (isDropped) {
-          finalGrade = 'N/A';
+          finalGrade = 'DRP';
           finalStatus = 'dropped';
-        } else if (isPassed) {
-          finalGrade = parsedGrade !== null ? parsedGrade : (rawNum >= 1.0 && rawNum <= 3.0 ? rawNum : 2.0);
-          finalStatus = 'passed';
-          termPoints += Number(finalGrade) * units;
-          termTotalUnits += units;
-          termPassedUnits += units;
-          termPassedCount++;
-        } else if (r.status === 'not_taken') {
+        } else if (isNotTaken) {
           finalGrade = 'N/A';
           finalStatus = 'not_taken';
-        } else {
-          finalGrade = parsedGrade !== null && parsedGrade > 3.0 ? parsedGrade : 5;
-          finalStatus = 'failed';
-          termPoints += Number(finalGrade) * units;
+        } else if (r.grade != null && r.grade !== '' && !isNaN(Number(r.grade))) {
+          const num = Number(r.grade);
+          finalGrade = num.toFixed(2);
+          finalStatus = (r.status === 'failed' || num > 3.0 || num === 5) ? 'failed' : 'passed';
+          if (finalStatus === 'passed') {
+            termPoints += num * units;
+            termPassedUnits += units;
+            termPassedCount++;
+          } else {
+            termPoints += num * units;
+            termFailedUnits += units;
+            termFailedCount++;
+          }
           termTotalUnits += units;
-          termFailedUnits += units;
-          termFailedCount++;
+        } else if (r.rawGrade != null && r.rawGrade !== '' && !isNaN(parseFloat(String(r.rawGrade)))) {
+          const num = parseFloat(String(r.rawGrade));
+          finalGrade = num.toFixed(2);
+          finalStatus = (r.status === 'failed' || num > 3.0 || num === 5) ? 'failed' : 'passed';
+          if (finalStatus === 'passed') {
+            termPoints += num * units;
+            termPassedUnits += units;
+            termPassedCount++;
+          } else {
+            termPoints += num * units;
+            termFailedUnits += units;
+            termFailedCount++;
+          }
+          termTotalUnits += units;
         }
 
-        const term = (r.curriculumTerm || r.term || (isFilteredTerm ? activeHistoryTermTab : 'Academic Record')).replace(/"/g, '""');
+        const term = (r.term || r.curriculumTerm || (isFilteredTerm ? activeHistoryTermTab : 'Academic Record')).replace(/"/g, '""');
         const recYear = r.year_level || r.yearLevel || r.enrolled_year_level || r.curriculum_year_level || st.year || 1;
 
         rows.push([
           `"${studentId}"`,
           `"${studentName}"`,
           `"${program}"`,
-          `"${recYear}"`,
+          recYear,
           `"${code}"`,
           `"${title}"`,
           units,
-          finalGrade,
+          `"${finalGrade}"`,
           `"${finalStatus}"`,
           `"${term}"`
         ].join(','));
@@ -940,8 +945,8 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
 
       const csvContent = rows.join('\r\n');
       const termSuffix = isFilteredTerm ? `_${activeHistoryTermTab.replace(/[^a-zA-Z0-9]+/g, '_')}` : '';
-      const filename = `${st.student_id}${termSuffix}_Academic_Record.csv`;
-      downloadCsvFile(csvContent, filename);
+      const filename = `${st.student_id}${termSuffix}_Academic_Record.xlsx`;
+      exportGradeSheetCsvToExcel(csvContent, filename);
       showToast(`Exported ${filename} (${isFilteredTerm ? activeHistoryTermTab : 'All Terms'}) successfully!`, 'success');
     } catch (err: any) {
       console.error('Failed to export student academic record:', err);
@@ -1277,6 +1282,215 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
     }
   };
 
+  // -------------------------------------------------------------
+  // COMPLETE INSTITUTIONAL ALL GRADES ROSTER EXPORT
+  // -------------------------------------------------------------
+  const prepareCompleteGradeRows = useCallback((studentsToExport: Student[]): CompleteGradeRow[] => {
+    const rows: CompleteGradeRow[] = [];
+    const targetCourse = selectedCourseCode ? selectedCourseCode.toUpperCase().trim() : null;
+    const targetYear = selectedYearLevel ? Number(selectedYearLevel) : null;
+
+    const parseNameParts = (fullNameStr: string) => {
+      let lName = '';
+      let fName = '';
+      let dispName = (fullNameStr || '').trim();
+
+      if (dispName.includes(',')) {
+        const parts = dispName.split(',');
+        lName = parts[0].trim().toUpperCase();
+        fName = parts.slice(1).join(',').trim().toUpperCase();
+        dispName = `${fName} ${lName}`.trim();
+      } else if (dispName) {
+        const parts = dispName.split(/\s+/);
+        if (parts.length > 1) {
+          lName = parts[parts.length - 1].toUpperCase();
+          fName = parts.slice(0, -1).join(' ').toUpperCase();
+        } else {
+          lName = dispName.toUpperCase();
+          fName = dispName.toUpperCase();
+        }
+      }
+      return { lastName: lName, firstName: fName, displayName: dispName };
+    };
+
+    studentsToExport.forEach(st => {
+      if (!st) return;
+      const stProgram = String(st.program || 'BSIT').toUpperCase().trim();
+      if (targetCourse && stProgram !== targetCourse) return;
+
+      const cleanSid = String(st.student_id || st.id || '').replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^gct-/i, '').trim();
+      const rawSid = String(st.student_id || st.id || '').trim();
+      const nameInfo = parseNameParts(st.name);
+
+      let sGrades = (fetchedStudentGrades[st.student_id] && fetchedStudentGrades[st.student_id].length > 0)
+        ? fetchedStudentGrades[st.student_id]
+        : (cleanSid && fetchedStudentGrades[cleanSid] && fetchedStudentGrades[cleanSid].length > 0)
+        ? fetchedStudentGrades[cleanSid]
+        : (cleanSid && gradesByStudentIdMap.get(cleanSid.toLowerCase())) ||
+          (rawSid && gradesByStudentIdMap.get(rawSid.toLowerCase())) ||
+          [];
+
+      if ((!sGrades || sGrades.length === 0) && Array.isArray(mockAcademicGrades)) {
+        sGrades = mockAcademicGrades.filter(g => {
+          const gSid = String(g.studentId || '').replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^gct-/i, '').toLowerCase().trim();
+          return gSid === cleanSid.toLowerCase() || gSid === rawSid.toLowerCase();
+        });
+      }
+
+      // Filter grade records strictly to the requested course (if any) and requested year level (if any)
+      let filteredGrades = Array.isArray(sGrades) ? sGrades : [];
+      if (targetCourse) {
+        filteredGrades = filteredGrades.filter(g => {
+          const c = String((g as any).course || (g as any).subject?.program || stProgram).toUpperCase().trim();
+          return c === targetCourse;
+        });
+      }
+      if (targetYear !== null) {
+        filteredGrades = filteredGrades.filter(g => {
+          const y = Number(g.yearLevel || (g as any).year_level || (g as any).enrolled_year_level);
+          return y === targetYear;
+        });
+      }
+
+      if (filteredGrades.length > 0) {
+        const sorted = [...filteredGrades].sort((a, b) => {
+          const yA = Number(a.yearLevel) || 1;
+          const yB = Number(b.yearLevel) || 1;
+          if (yA !== yB) return yA - yB;
+          const ayA = String(a.academicYear || a.term || '');
+          const ayB = String(b.academicYear || b.term || '');
+          if (ayA !== ayB) return ayA.localeCompare(ayB);
+          const semA = Number(a.semester) || 1;
+          const semB = Number(b.semester) || 1;
+          return semA - semB;
+        });
+
+        sorted.forEach(g => {
+          const lName = (g as any).lastName || (g as any).last_name || nameInfo.lastName;
+          const fName = (g as any).firstName || (g as any).first_name || nameInfo.firstName;
+          const dName = (g as any).studentName && !(g as any).studentName.includes(',')
+            ? (g as any).studentName
+            : (fName && lName ? `${fName} ${lName}` : nameInfo.displayName);
+
+          let semStr = 'First';
+          const rawSem = String(g.semester || (g as any).semester_name || (g as any).semesterName || g.term || '').toLowerCase();
+          if (rawSem.includes('summer') || rawSem === '3') {
+            semStr = 'Summer';
+          } else if (rawSem.includes('2') || rawSem.includes('second')) {
+            semStr = 'Second';
+          } else {
+            semStr = 'First';
+          }
+
+          let formattedGrade = '';
+          if (g.status === 'dropped' || g.isDropped) {
+            formattedGrade = 'DRP';
+          } else if (g.grade != null && !isNaN(Number(g.grade)) && Number(g.grade) > 0) {
+            formattedGrade = Number(g.grade).toFixed(2);
+          } else if (g.rawGrade && !isNaN(parseFloat(String(g.rawGrade))) && parseFloat(String(g.rawGrade)) > 0) {
+            formattedGrade = parseFloat(String(g.rawGrade)).toFixed(2);
+          } else if (g.status === 'failed' || Number(g.grade) === 5 || Number(g.grade) === 0) {
+            formattedGrade = '5.00';
+          } else {
+            formattedGrade = '';
+          }
+
+          rows.push({
+            studentId: cleanSid || rawSid,
+            lastName: lName,
+            firstName: fName,
+            name: dName,
+            course: targetCourse || st.program || (g as any).course || 'BSIT',
+            yearLevel: targetYear !== null ? targetYear : Number(g.yearLevel || (g as any).year_level || st.year || 1),
+            semester: semStr,
+            academicYear: g.academicYear || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '2024-2025',
+            subject: g.code || (g as any).subject || g.title || 'N/A',
+            grade: formattedGrade,
+            units: Number(g.units || 3)
+          });
+        });
+      } else {
+        // Fallback: build curriculum default subjects strictly matching the target year and course
+        const completeGrades = buildCompleteStudentGrades(st, []);
+        const targetCurriculum = completeGrades.filter(g => {
+          const y = Number(g.yearLevel || st.year || 1);
+          const c = String((g as any).subject?.program || (g as any).course || stProgram).toUpperCase().trim();
+          const matchY = targetYear === null || y === targetYear;
+          const matchC = targetCourse === null || c === targetCourse;
+          return matchY && matchC;
+        });
+
+        targetCurriculum.forEach(g => {
+          let semStr = 'First';
+          const rawSem = String(g.semester || g.term || '').toLowerCase();
+          if (rawSem.includes('summer') || rawSem === '3') {
+            semStr = 'Summer';
+          } else if (rawSem.includes('2') || rawSem.includes('second')) {
+            semStr = 'Second';
+          } else {
+            semStr = 'First';
+          }
+
+          rows.push({
+            studentId: cleanSid || rawSid,
+            lastName: nameInfo.lastName,
+            firstName: nameInfo.firstName,
+            name: nameInfo.displayName,
+            course: targetCourse || st.program || 'BSIT',
+            yearLevel: targetYear !== null ? targetYear : Number(g.yearLevel || st.year || 1),
+            semester: semStr,
+            academicYear: g.academicYear || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '2025-2026',
+            subject: g.code || g.title || 'N/A',
+            grade: '',
+            units: Number(g.units || 3)
+          });
+        });
+      }
+    });
+
+    return rows;
+  }, [fetchedStudentGrades, gradesByStudentIdMap, mockAcademicGrades, selectedCourseCode, selectedYearLevel]);
+
+  const handleExportCompleteRoster = async () => {
+    try {
+      if (!filteredStudents || filteredStudents.length === 0) {
+        showToast('No students match the current filter criteria to export.', 'info');
+        return;
+      }
+
+      setIsExportingRoster(true);
+
+      if (!mockAcademicGrades || mockAcademicGrades.length === 0) {
+        try {
+          await refreshAcademicGrades('all');
+        } catch (e) {
+          console.warn('Could not refresh grades before export:', e);
+        }
+      }
+
+      const rows = prepareCompleteGradeRows(filteredStudents);
+      if (rows.length === 0) {
+        showToast('No grade records found for the selected filter criteria.', 'info');
+        setIsExportingRoster(false);
+        return;
+      }
+
+      const coursePart = selectedCourseCode ? selectedCourseCode : 'All_Programs';
+      const yearPart = selectedYearLevel ? `Year${selectedYearLevel}` : 'All_Years';
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const baseName = `GCT_${coursePart}_${yearPart}_ALL_GRADES_${dateStr}.xlsx`;
+
+      exportCompleteAllGradesExcel(rows, baseName);
+
+      showToast(`Exported ${rows.length} grade records for ${filteredStudents.length} students successfully!`, 'success');
+    } catch (err: any) {
+      console.error('Failed to export complete roster:', err);
+      showToast(err.message || 'Failed to export grade roster', 'error');
+    } finally {
+      setIsExportingRoster(false);
+    }
+  };
+
   return (
     <div style={{ paddingBottom: '3rem' }}>
       {/* ========================================================= */}
@@ -1331,11 +1545,13 @@ export const StudentAcademicRecordsModule: React.FC<StudentAcademicRecordsModule
           </button>
 
           <button
-            onClick={() => exportStudentsToExcel(filteredStudents, `GCT_${selectedCourseCode || 'Roster'}_${new Date().toISOString().slice(0, 10)}.xlsx`)}
+            onClick={handleExportCompleteRoster}
+            disabled={isExportingRoster}
             className="btn btn-secondary"
             style={{ fontSize: '0.82rem', padding: '0.55rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            title={`Export complete academic grade records for ${filteredStudents.length} students as Excel (.xlsx)`}
           >
-            <Download size={15} /> Export Roster (.xlsx)
+            <Download size={15} /> {isExportingRoster ? 'Exporting...' : 'Export Roster (.xlsx)'}
           </button>
 
           <button

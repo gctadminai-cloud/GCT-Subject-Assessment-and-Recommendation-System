@@ -35,9 +35,9 @@ export const AdminDashboardContent: React.FC<AdminDashboardProps> = ({ activeTab
     semester?: '1' | '2' | 'summer'
   ) => {
     isChatbotDirectNavRef.current = true;
-    if (studentId) setSelectedStudentForTab(studentId);
-    if (targetTerm) setSelectedTermForTab(targetTerm);
-    if (semester) setSelectedSemesterForTab(semester);
+    setSelectedStudentForTab(studentId || '');
+    setSelectedTermForTab(targetTerm || '');
+    setSelectedSemesterForTab(semester || undefined);
     onTabChange?.(tab);
   };
 

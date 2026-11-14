@@ -35,6 +35,7 @@ export function generateCsv(data: Record<string, any>[]): string {
 
 /**
  * Export data array directly to a Microsoft Excel (.xlsx) file
+ * Explicitly formats Grade and GWA columns with '0.00' so Excel retains 2 decimal places.
  */
 export function exportToExcel(
   data: Record<string, any>[],
@@ -43,10 +44,156 @@ export function exportToExcel(
 ) {
   if (!data || data.length === 0) return;
   const worksheet = XLSX.utils.json_to_sheet(data);
+
+  if (worksheet && worksheet['!ref']) {
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    const gradeCols: number[] = [];
+    const headers = Object.keys(data[0] || {});
+
+    headers.forEach((h, idx) => {
+      const lower = h.toLowerCase().trim();
+      if (lower.includes('grade') || lower === 'gwa') {
+        gradeCols.push(idx);
+      }
+    });
+
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (const C of gradeCols) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = worksheet[addr];
+        if (cell && cell.v != null && cell.v !== '' && !isNaN(Number(cell.v))) {
+          const num = Number(cell.v);
+          const formatted = num.toFixed(2);
+          cell.t = 's';
+          cell.v = formatted;
+          cell.w = formatted;
+          cell.z = '@';
+        }
+      }
+    }
+  }
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   const excelFileName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
   XLSX.writeFile(workbook, excelFileName);
+}
+
+/**
+ * Converts grade records CSV or tabular grade data into an official Microsoft Excel (.xlsx) file.
+ * Formats every numeric grade cell with explicit 2-decimal format ('0.00') and '0.00' display text,
+ * so Microsoft Excel always opens the file showing 1.00, 1.25, 1.50, 2.00, 3.00, 5.00 instead of truncating trailing zeros.
+ * Also configures generous auto column widths so titles and names are never clipped.
+ */
+export function exportGradeSheetCsvToExcel(csvContent: string, fileName: string) {
+  try {
+    const cleanFileName = fileName.endsWith('.xlsx') ? fileName : (fileName.replace(/\.csv$/i, '') + '.xlsx');
+    const workbook = XLSX.read(csvContent, { type: 'string', raw: false });
+    const sheetName = workbook.SheetNames[0] || 'Grade Sheet';
+    const worksheet = workbook.Sheets[sheetName];
+
+    if (!worksheet || !worksheet['!ref']) {
+      downloadCsvFile(csvContent, fileName);
+      return;
+    }
+
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+    // Track the active table section's Grade column index across multi-table exports
+    let currentGradeCol: number | null = null;
+
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      // 1. Check if this row is a table header row
+      let isHeaderRow = false;
+      let foundGradeColInThisRow: number | null = null;
+
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = worksheet[cellAddress];
+        if (!cell || cell.v == null) continue;
+
+        const strVal = String(cell.v).trim().toLowerCase();
+        if (
+          strVal === 'grade' ||
+          strVal === 'final grade' ||
+          strVal === 'deficiency grade' ||
+          strVal === 'raw grade'
+        ) {
+          foundGradeColInThisRow = C;
+        }
+        if (
+          strVal === 'student id' ||
+          strVal === 'subject code' ||
+          strVal === 'subject' ||
+          strVal === 'category'
+        ) {
+          isHeaderRow = true;
+        }
+      }
+
+      if (isHeaderRow) {
+        // Switching to a new section header
+        currentGradeCol = foundGradeColInThisRow;
+        continue;
+      }
+
+      // 2. Check for banner or separator row (e.g. empty row, "RECOMMENDED SUBJECTS", "Summary:")
+      const firstCellAddress = XLSX.utils.encode_cell({ r: R, c: range.s.c });
+      const firstCell = worksheet[firstCellAddress];
+      const firstVal = firstCell && firstCell.v != null ? String(firstCell.v).trim().toLowerCase() : '';
+      if (
+        !firstVal ||
+        firstVal.startsWith('recommended subjects') ||
+        firstVal.startsWith('active deficiencies') ||
+        firstVal.startsWith('summary:') ||
+        firstVal.startsWith('===')
+      ) {
+        currentGradeCol = null;
+        continue;
+      }
+
+      // 3. Format numeric grade cells in the active table section
+      // Default to column H (index 7) if no explicit header was encountered
+      const effectiveGradeCol = currentGradeCol != null ? currentGradeCol : 7;
+      const gradeCellAddr = XLSX.utils.encode_cell({ r: R, c: effectiveGradeCol });
+      const gradeCell = worksheet[gradeCellAddr];
+
+      if (gradeCell && gradeCell.v != null) {
+        const rawVal = String(gradeCell.v).trim();
+        // Skip header words or non-numeric statuses
+        if (!/^(grade|deficiency|status|n\/?a|drp|dropped|passed|failed|pending)$/i.test(rawVal)) {
+          const numVal = parseFloat(rawVal);
+          if (!isNaN(numVal) && isFinite(numVal)) {
+            const formatted = numVal.toFixed(2);
+            // String cell with '@' format preserves exact "1.00", "1.25", "1.50", "2.00", "3.00", "5.00" in Microsoft Excel without rounding to integers
+            gradeCell.t = 's';
+            gradeCell.v = formatted;
+            gradeCell.w = formatted;
+            gradeCell.z = '@';
+          }
+        }
+      }
+    }
+
+    // Auto-fit generous column widths for Garcia College of Technology format
+    worksheet['!cols'] = [
+      { wch: 14 }, // Student ID
+      { wch: 28 }, // Student Name
+      { wch: 12 }, // Program
+      { wch: 12 }, // Year Level
+      { wch: 16 }, // Subject Code
+      { wch: 42 }, // Subject Title
+      { wch: 8 },  // Units
+      { wch: 10 }, // Grade
+      { wch: 12 }, // Status
+      { wch: 24 }  // Academic Term
+    ];
+
+    XLSX.writeFile(workbook, cleanFileName);
+  } catch (err) {
+    console.warn('exportGradeSheetCsvToExcel encountered an error, falling back to CSV download:', err);
+    downloadCsvFile(csvContent, fileName);
+  }
 }
 
 /**
@@ -368,5 +515,187 @@ export function exportStudentsToExcel(students: any[], fileName?: string) {
 
   const outFileName = fileName || `GCT_Student_Roster_${new Date().toISOString().slice(0, 10)}.xlsx`;
   exportToExcel(formattedData, outFileName, 'Students');
+}
+
+export interface CompleteGradeRow {
+  studentId: string;
+  lastName: string;
+  firstName: string;
+  name: string;
+  course: string;
+  yearLevel: number | string;
+  semester: string;
+  academicYear: string;
+  subject: string;
+  grade: number | string | null;
+  units: number | string;
+}
+
+/**
+ * Export complete institutional grade records into Microsoft Excel (.xlsx) format.
+ * Matches official institutional format:
+ * - Sheet name: 'ALL GRADES'
+ * - Row 1: ALL GRADES
+ * - Row 2: Complete Grade Record
+ * - Row 3: Blank spacer
+ * - Row 4 Headers: Student ID | Last Name | First Name | Name | Course | Year Level | Semester | Academic Year | Subject | Grade | Units
+ * - Grades strictly formatted to 2 decimals ('1.00', '1.25', '1.50', '2.00', '3.00', '5.00') as text cells with '@' format.
+ * - Auto-filter applied to row 4 headers.
+ */
+export function exportCompleteAllGradesExcel(
+  records: CompleteGradeRow[],
+  fileName: string = 'GCT_ALL_GRADES_Complete_Record.xlsx'
+) {
+  if (!records || records.length === 0) return;
+
+  const aoa: any[][] = [
+    ['ALL GRADES'],
+    ['Complete Grade Record'],
+    []
+  ];
+
+  const headers = [
+    'Student ID',
+    'Last Name',
+    'First Name',
+    'Name',
+    'Course',
+    'Year Level',
+    'Semester',
+    'Academic Year',
+    'Subject',
+    'Grade',
+    'Units'
+  ];
+  aoa.push(headers);
+
+  records.forEach(r => {
+    let formattedGrade = '';
+    if (r.grade !== null && r.grade !== undefined && r.grade !== '') {
+      const num = parseFloat(String(r.grade));
+      if (!isNaN(num)) {
+        formattedGrade = num.toFixed(2);
+      } else {
+        formattedGrade = String(r.grade).trim();
+      }
+    }
+
+    aoa.push([
+      r.studentId,
+      r.lastName,
+      r.firstName,
+      r.name,
+      r.course,
+      Number(r.yearLevel) || 1,
+      r.semester,
+      r.academicYear,
+      r.subject,
+      formattedGrade,
+      Number(r.units) || 3
+    ]);
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+
+  if (worksheet && worksheet['!ref']) {
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    const gradeCol = 9; // Column J (0-indexed: 9)
+
+    // Format all numeric grade cells in data rows (rows >= 4) with explicit 2-decimal string format
+    for (let R = 4; R <= range.e.r; ++R) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: gradeCol });
+      const cell = worksheet[addr];
+      if (cell && cell.v != null && cell.v !== '') {
+        const strVal = String(cell.v).trim();
+        const numVal = parseFloat(strVal);
+        if (!isNaN(numVal)) {
+          const formatted = numVal.toFixed(2);
+          cell.t = 's';
+          cell.v = formatted;
+          cell.w = formatted;
+          cell.z = '@';
+        }
+      }
+    }
+
+    // Auto-filter on header row (row index 3, Excel row 4)
+    worksheet['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 3, c: 0 },
+        e: { r: range.e.r, c: 10 }
+      })
+    };
+  }
+
+  // Generous column widths matching Garcia College of Technology standard format
+  worksheet['!cols'] = [
+    { wch: 14 }, // Student ID
+    { wch: 18 }, // Last Name
+    { wch: 20 }, // First Name
+    { wch: 24 }, // Name
+    { wch: 12 }, // Course
+    { wch: 12 }, // Year Level
+    { wch: 14 }, // Semester
+    { wch: 16 }, // Academic Year
+    { wch: 16 }, // Subject
+    { wch: 12 }, // Grade
+    { wch: 10 }  // Units
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'ALL GRADES');
+
+  const cleanFileName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
+  XLSX.writeFile(workbook, cleanFileName);
+}
+
+/**
+ * Export complete institutional grade records into standard CSV format.
+ * Includes UTF-8 BOM (\uFEFF) and identical 11-column structure with 2-decimal grades.
+ */
+export function exportCompleteAllGradesCsv(
+  records: CompleteGradeRow[],
+  fileName: string = 'GCT_ALL_GRADES_Complete_Record.csv'
+) {
+  if (!records || records.length === 0) return;
+
+  const lines: string[] = [
+    '"ALL GRADES"',
+    '"Complete Grade Record"',
+    '""',
+    '"Student ID","Last Name","First Name","Name","Course","Year Level","Semester","Academic Year","Subject","Grade","Units"'
+  ];
+
+  records.forEach(r => {
+    let formattedGrade = '';
+    if (r.grade !== null && r.grade !== undefined && r.grade !== '') {
+      const num = parseFloat(String(r.grade));
+      if (!isNaN(num)) {
+        formattedGrade = num.toFixed(2);
+      } else {
+        formattedGrade = String(r.grade).trim();
+      }
+    }
+
+    const row = [
+      `"${String(r.studentId).replace(/"/g, '""')}"`,
+      `"${String(r.lastName).replace(/"/g, '""')}"`,
+      `"${String(r.firstName).replace(/"/g, '""')}"`,
+      `"${String(r.name).replace(/"/g, '""')}"`,
+      `"${String(r.course).replace(/"/g, '""')}"`,
+      Number(r.yearLevel) || 1,
+      `"${String(r.semester).replace(/"/g, '""')}"`,
+      `"${String(r.academicYear).replace(/"/g, '""')}"`,
+      `"${String(r.subject).replace(/"/g, '""')}"`,
+      `"${formattedGrade}"`,
+      Number(r.units) || 3
+    ].join(',');
+
+    lines.push(row);
+  });
+
+  const csvContent = lines.join('\r\n');
+  const cleanFileName = fileName.endsWith('.csv') ? fileName : `${fileName}.csv`;
+  downloadCsvFile(csvContent, cleanFileName);
 }
 

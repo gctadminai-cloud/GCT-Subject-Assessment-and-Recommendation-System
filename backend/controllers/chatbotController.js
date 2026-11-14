@@ -365,9 +365,23 @@ function cleanMemorandumFormatting(text) {
     .replace(/^(?:TO|FROM|DATE|SUBJECT):\s*[^\n]*\n?/gmi, '')
     // Convert numbered bureaucratic headings into standard Markdown section headings
     .replace(/^(\d+\.)\s+(STUDENT PROFILE SUMMARY|FORMAL REGISTRAR EVALUATION|SUBJECT RECOMMENDATIONS FOR THE UPCOMING TERM|SYSTEM ACTIONS & FILE GENERATION NOTICE)\b/gmi, '### $2')
+    // Strip bracketed pseudo-buttons that LLMs sometimes hallucinate like [Download Assessment File (EXCEL)], [Open Academic Records], [Open Subject Recommendations]
+    .replace(/^\s*\[(?:Download[^\n\]]*|Open Academic Records[^\n\]]*|Open Subject Recommendations[^\n\]]*)\]\s*$/gmi, '')
     // Remove triple or more newlines
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * Helper to format numeric academic grades with 2 decimal places (e.g. 1.00, 1.25, 1.50, 2.00, 5.00)
+ */
+function formatGrade2Decimals(val) {
+  if (val === null || val === undefined || val === '' || val === 'N/A' || val === 'DRP') return val || 'N/A';
+  const num = parseFloat(String(val).trim());
+  if (!isNaN(num) && num > 0) {
+    return num.toFixed(2);
+  }
+  return String(val);
 }
 
 /**
@@ -390,7 +404,7 @@ function buildGradesTableMarkdown(records) {
     if (r.is_dropped || r.status === 'dropped') {
       gradeStr = 'DRP';
     } else if (r.grade != null && r.grade !== '') {
-      gradeStr = typeof r.grade === 'number' ? r.grade.toFixed(2) : String(r.grade);
+      gradeStr = formatGrade2Decimals(r.grade);
     }
     const statusStr = r.status === 'passed' ? 'Passed' : (r.is_dropped || r.status === 'dropped' ? 'Dropped' : 'Failed');
     const termStr = r.term || `${r.academic_year || ''} ${r.semester || ''}`.trim() || '—';
@@ -447,7 +461,7 @@ function buildDeficienciesTableMarkdown(activeDeficiencies) {
     const code = d.code || 'SUBJ';
     const title = String(d.title || 'Course').replace(/\|/g, '-').trim();
     const units = d.units != null ? d.units : 3;
-    const gradeStr = d.grade != null && d.grade !== '' ? (typeof d.grade === 'number' ? d.grade.toFixed(2) : String(d.grade)) : (d.status === 'dropped' ? 'DRP' : '5.00');
+    const gradeStr = d.grade != null && d.grade !== '' ? formatGrade2Decimals(d.grade) : (d.status === 'dropped' ? 'DRP' : '5.00');
     const statusStr = d.status === 'dropped' ? 'Dropped' : 'Failed (Retake Required)';
     const termStr = d.term || 'Previous Term';
     return `| \`${code}\` | ${title} | ${units} | **${gradeStr}** | ${statusStr} | ${termStr} |`;
@@ -745,13 +759,22 @@ function extractTargetTermAndSemester(query, studentYear = null) {
     detectedSem = 'summer';
   }
 
-  const isSpecificFilter = Boolean(detectedYear !== null || detectedSem !== null);
+  // 3. Detect Academic Year (e.g. 2024-2025, 2025-2026)
+  const ayMatch = q.match(/\b((?:19|20)\d{2}-(?:19|20)\d{2})\b/);
+  const detectedAY = ayMatch ? ayMatch[1] : null;
+
+  const isSpecificFilter = Boolean(detectedYear !== null || detectedSem !== null || detectedAY !== null);
 
   // If year was not explicitly mentioned, but student's year level is known and semester was requested:
   const effectiveYear = detectedYear || (detectedSem && Number(studentYear) >= 1 && Number(studentYear) <= 4 ? Number(studentYear) : null);
 
   let targetTerm = null;
-  if (effectiveYear && detectedSem && detectedSem !== 'summer') {
+  if (detectedAY && detectedSem) {
+    const semLabel = detectedSem === 'summer' ? 'Summer' : (detectedSem === '2' ? '2nd Sem' : '1st Sem');
+    targetTerm = `${detectedAY} ${semLabel}`;
+  } else if (detectedAY) {
+    targetTerm = `AY ${detectedAY}`;
+  } else if (effectiveYear && detectedSem && detectedSem !== 'summer') {
     const yrLabel = effectiveYear === 1 ? '1st' : effectiveYear === 2 ? '2nd' : effectiveYear === 3 ? '3rd' : '4th';
     const semLabel = detectedSem === '2' ? '2nd' : '1st';
     targetTerm = `${yrLabel} Year • ${semLabel} Sem`;
@@ -766,16 +789,27 @@ function extractTargetTermAndSemester(query, studentYear = null) {
     year: effectiveYear,
     explicitYear: detectedYear,
     semester: detectedSem,
+    academic_year: detectedAY,
     target_term: targetTerm,
     isSpecificFilter
   };
 }
 
 /**
- * Checks if an academic grade record matches the requested year level and/or semester.
+ * Checks if an academic grade record matches the requested year level, semester, and/or academic year.
  */
-function matchesRecordTerm(record, targetYear, targetSem) {
+function matchesRecordTerm(record, targetYear, targetSem, targetAcademicYear = null) {
   if (!record) return false;
+
+  // Academic Year check (if targetAcademicYear was requested, e.g. "2025-2026")
+  if (targetAcademicYear) {
+    const cleanAY = String(targetAcademicYear).trim().toLowerCase();
+    const rAY = String(record.academic_year || '').trim().toLowerCase();
+    const rTerm = String(record.term || '').trim().toLowerCase();
+    if (!rAY.includes(cleanAY) && !rTerm.includes(cleanAY)) {
+      return false;
+    }
+  }
 
   // Year level check (if targetYear was requested)
   if (targetYear !== null && targetYear !== undefined) {
@@ -809,53 +843,174 @@ function matchesRecordTerm(record, targetYear, targetSem) {
 }
 
 /**
- * Format academic record as a downloadable CSV/Excel spreadsheet string
+ * Extract distinct academic terms and semester labels from records in chronological order
  */
-function generateStudentCsv(student, records, gwa) {
-  const headers = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'];
-  const rows = [headers.join(',')];
+function getDistinctTermsList(records) {
+  if (!Array.isArray(records) || records.length === 0) return [];
+  const map = new Map();
+  records.forEach(r => {
+    const rawTerm = (r.term || '').trim();
+    if (!rawTerm) return;
+    if (!map.has(rawTerm)) {
+      const yr = Number(r.year_level || r.enrolled_year_level || r.curriculum_year_level || 0);
+      const yrLabel = yr ? (yr === 1 ? '1st Year' : yr === 2 ? '2nd Year' : yr === 3 ? '3rd Year' : `${yr}th Year`) : '';
+      const semLabel = r.semester === 'summer' ? 'Summer' : (r.semester === '2' ? '2nd Sem' : '1st Sem');
+      const alias = yrLabel ? `${yrLabel} • ${semLabel}` : '';
+      map.set(rawTerm, {
+        term: rawTerm,
+        academicYear: r.academic_year || '',
+        semester: r.semester || '',
+        yearLevel: yr || null,
+        displayLabel: alias ? `${rawTerm} (${alias})` : rawTerm
+      });
+    }
+  });
+  return Array.from(map.values());
+}
 
+/**
+ * Format student evaluation / grades as a downloadable CSV/Excel spreadsheet string
+ * When recommendations are queried, the Recommended Subjects table is placed at top.
+ * When grades are queried, the official grade sheet for that term (or all terms) is formatted.
+ */
+function generateStudentCsv(student, records, gwa, options = {}) {
+  const {
+    intent = 'grades',
+    recommendedSubjects = [],
+    activeDeficiencies = [],
+    targetTermText = '',
+    totalRecommendedUnits = 0,
+    enrollmentStatus = null,
+    isFilteredByTerm = false,
+    termLabel = ''
+  } = options;
+
+  const rows = [];
   const studentId = student.student_id || student.id || 'N/A';
+  const cleanId = String(studentId).replace(/^GCT-/i, '').trim();
   const studentName = (student.name || student.full_name || 'Student').replace(/"/g, '""');
   const program = (student.program || 'BSIT').replace(/"/g, '""');
+  const yearLevel = student.year_level || student.year || 1;
 
-  if (!records || records.length === 0) {
-    rows.push([
-      `"${studentId}"`,
-      `"${studentName}"`,
-      `"${program}"`,
-      `"${student.year_level || student.year || 1}"`,
-      'N/A',
-      'No graded subjects recorded yet',
-      '0',
-      'N/A',
-      'N/A',
-      'N/A'
-    ].join(','));
-  } else {
-    for (const r of records) {
-      const code = (r.code || '').replace(/"/g, '""');
-      const title = (r.title || '').replace(/"/g, '""');
-      const units = Number(r.units) || 3;
-      const isFailedOrDef = r.status === 'failed' || (!r.is_dropped && r.grade != null && Number(r.grade) > 3.0);
-      const isDropped = r.is_dropped || r.status === 'dropped';
-      let grade = 'N/A';
+  // 1. PRIMARY TABLE: OFFICIAL GRADE SHEET / ACADEMIC RECORDS
+  // Standard format matching institutional export:
+  // Student ID, Student Name, Program, Year Level, Subject Code, Subject Title, Units, Grade, Status, Academic Term
+  const gradeHeaders = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'];
+  rows.push(gradeHeaders.join(','));
+
+  if (records && records.length > 0) {
+    records.forEach(r => {
+      const code = (r.code || r.subject?.code || r.subject || r.subject_code || r.subject_id || 'SUBJ').replace(/"/g, '""');
+      const title = (r.title || r.subject?.title || r.subject_title || 'Curriculum Course').replace(/"/g, '""');
+      const units = r.units != null ? Number(r.units) : (r.subject?.units != null ? Number(r.subject.units) : 3);
+
+      const isDropped = Boolean(r.is_dropped || r.isDropped || r.status === 'dropped' || String(r.raw_grade || r.rawGrade) === '9' || String(r.raw_grade || r.rawGrade).toUpperCase() === 'DRP');
+      const isNotTaken = r.status === 'not_taken';
+
+      let finalGrade = 'N/A';
+      let finalStatus = 'passed';
+
       if (isDropped) {
-        grade = 'N/A';
-      } else if (r.grade != null && !isNaN(Number(r.grade))) {
-        grade = Number(r.grade);
-      } else if (isFailedOrDef) {
-        grade = 5.0;
+        finalGrade = 'DRP';
+        finalStatus = 'dropped';
+      } else if (isNotTaken) {
+        finalGrade = 'N/A';
+        finalStatus = 'not_taken';
+      } else if (r.grade != null && r.grade !== '' && !isNaN(Number(r.grade))) {
+        const num = Number(r.grade);
+        finalGrade = num.toFixed(2);
+        finalStatus = (r.status === 'failed' || num > 3.0 || num === 5) ? 'failed' : 'passed';
+      } else if (r.raw_grade != null && r.raw_grade !== '' && !isNaN(parseFloat(String(r.raw_grade)))) {
+        const num = parseFloat(String(r.raw_grade));
+        finalGrade = num.toFixed(2);
+        finalStatus = (r.status === 'failed' || num > 3.0 || num === 5) ? 'failed' : 'passed';
+      } else {
+        finalGrade = 'N/A';
+        finalStatus = r.status || 'failed';
       }
-      const status = (isDropped ? 'dropped' : (isFailedOrDef ? 'failed' : (r.status || 'passed'))).replace(/"/g, '""');
-      const term = (r.term || 'Academic Record').replace(/"/g, '""');
-      const recYear = r.year_level || r.year || r.enrolled_year_level || r.curriculum_year_level || student.year_level || student.year || 1;
+
+      const term = (r.term || r.curriculumTerm || `${r.academic_year || ''} ${r.semester || ''}`.trim() || (isFilteredByTerm ? termLabel : 'Academic Record')).replace(/"/g, '""');
+      const recYear = r.year_level || r.yearLevel || r.enrolled_year_level || r.curriculum_year_level || yearLevel || 1;
 
       rows.push([
-        `"${studentId}"`,
+        `"${cleanId}"`,
         `"${studentName}"`,
         `"${program}"`,
-        `"${recYear}"`,
+        recYear,
+        `"${code}"`,
+        `"${title}"`,
+        units,
+        `"${finalGrade}"`,
+        `"${finalStatus}"`,
+        `"${term}"`
+      ].join(','));
+    });
+  } else if (!recommendedSubjects || recommendedSubjects.length === 0) {
+    rows.push([
+      `"${cleanId}"`,
+      `"${studentName}"`,
+      `"${program}"`,
+      yearLevel,
+      `"N/A"`,
+      `"No graded subjects recorded yet"`,
+      0,
+      `"N/A"`,
+      `"N/A"`,
+      `"N/A"`
+    ].join(','));
+  }
+
+  // 2. UNDER THAT: RECOMMENDED SUBJECTS (If there are recommended subjects in the AI response)
+  if (recommendedSubjects && recommendedSubjects.length > 0) {
+    rows.push('');
+    rows.push(`"RECOMMENDED SUBJECTS (${(targetTermText || 'Upcoming Term').replace(/"/g, '""')})"`);
+    const recHeaders = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Classification', 'Prerequisites / Remarks', 'Target Term'];
+    rows.push(recHeaders.map(h => `"${h}"`).join(','));
+
+    recommendedSubjects.forEach(rec => {
+      const cat = (rec.reason === 'retake' || rec.isRetake ? 'Retake Priority' : 'Regular Track').replace(/"/g, '""');
+      const code = (rec.code || '').replace(/"/g, '""');
+      const title = (rec.title || '').replace(/"/g, '""');
+      const units = Number(rec.units) || 3;
+      const remarks = (rec.notes || rec.remarks || rec.prerequisites || 'None').replace(/"/g, '""');
+      const recYear = rec.year_level || rec.year || yearLevel || 1;
+
+      rows.push([
+        `"${cleanId}"`,
+        `"${studentName}"`,
+        `"${program}"`,
+        recYear,
+        `"${code}"`,
+        `"${title}"`,
+        units,
+        `"${cat}"`,
+        `"${remarks}"`,
+        `"${(targetTermText || 'Upcoming Term').replace(/"/g, '""')}"`
+      ].join(','));
+    });
+  }
+
+  // 3. UNDER THAT: ACTIVE DEFICIENCIES (If any)
+  if (activeDeficiencies && activeDeficiencies.length > 0) {
+    rows.push('');
+    rows.push(`"ACTIVE DEFICIENCIES / RETAKE PRIORITY"`);
+    const defHeaders = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Term Recorded'];
+    rows.push(defHeaders.map(h => `"${h}"`).join(','));
+
+    activeDeficiencies.forEach(d => {
+      const code = (d.code || '').replace(/"/g, '""');
+      const title = (d.title || '').replace(/"/g, '""');
+      const units = Number(d.units) || 3;
+      const grade = d.grade != null ? formatGrade2Decimals(d.grade) : '5.00';
+      const status = (d.status || 'failed').replace(/"/g, '""');
+      const term = (d.term || 'Recorded Deficiency').replace(/"/g, '""');
+      const dYear = d.year_level || d.year || yearLevel || 1;
+
+      rows.push([
+        `"${cleanId}"`,
+        `"${studentName}"`,
+        `"${program}"`,
+        dYear,
         `"${code}"`,
         `"${title}"`,
         units,
@@ -863,12 +1018,8 @@ function generateStudentCsv(student, records, gwa) {
         `"${status}"`,
         `"${term}"`
       ].join(','));
-    }
+    });
   }
-
-  // Summary row at bottom for Excel viewers
-  rows.push('');
-  rows.push(`"","","","Cumulative GWA:","${gwa || 'N/A'}","","Total Graded Subjects:","${records.length}",""`);
 
   return rows.join('\r\n');
 }
@@ -916,11 +1067,10 @@ function generateMultiStudentCsv(studentsDataList) {
       allRows.push('');
     }
 
-    // Historical Grade Records table
-    allRows.push(`"ACADEMIC GRADES RECORD"`);
-    allRows.push(['Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'].map(h => `"${h}"`).join(','));
+    // Grade Records table (Exact 10 columns matching institutional format)
+    allRows.push(['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Grade', 'Status', 'Academic Term'].join(','));
     if (!records || records.length === 0) {
-      allRows.push(`"N/A","No recorded subjects found",0,"N/A","N/A","N/A"`);
+      allRows.push([`"${cleanId}"`, `"${studentName}"`, `"${program}"`, yearLevel, `"N/A"`, `"No recorded subjects found"`, 0, `"N/A"`, `"N/A"`, `"N/A"`].join(','));
     } else {
       records.forEach(r => {
         const code = (r.code || '').replace(/"/g, '""');
@@ -932,13 +1082,25 @@ function generateMultiStudentCsv(studentsDataList) {
         if (isDropped) {
           grade = 'N/A';
         } else if (r.grade != null && !isNaN(Number(r.grade))) {
-          grade = Number(r.grade);
+          grade = Number(r.grade).toFixed(2);
         } else if (isFailedOrDef) {
-          grade = 5.0;
+          grade = '5.00';
         }
         const status = (isDropped ? 'dropped' : (isFailedOrDef ? 'failed' : (r.status || 'passed'))).replace(/"/g, '""');
         const term = (r.term || 'Academic Record').replace(/"/g, '""');
-        allRows.push(`"${code}","${title}",${units},${grade},"${status}","${term}"`);
+        const recYear = r.year_level || r.year || yearLevel || 1;
+        allRows.push([
+          `"${cleanId}"`,
+          `"${studentName}"`,
+          `"${program}"`,
+          recYear,
+          `"${code}"`,
+          `"${title}"`,
+          units,
+          `"${grade}"`,
+          `"${status}"`,
+          `"${term}"`
+        ].join(','));
       });
     }
 
@@ -1018,13 +1180,40 @@ function getStudentEnrollmentStatus(student, records, activeAcademicYear = '2026
 /**
  * Format academic record as a downloadable Microsoft Word document (.doc)
  */
-function generateStudentWord(student, records, gwa) {
+function generateStudentWord(student, records, gwa, options = {}) {
+  const {
+    intent = 'grades',
+    recommendedSubjects = [],
+    activeDeficiencies = [],
+    targetTermText = '',
+    totalRecommendedUnits = 0,
+    enrollmentStatus = null,
+    isFilteredByTerm = false,
+    termLabel = ''
+  } = options;
+
   const studentId = student.student_id || student.id || 'N/A';
+  const cleanId = String(studentId).replace(/^GCT-/i, '').trim();
   const studentName = student.name || student.full_name || 'Student';
   const program = student.program || 'BSIT';
   const yearLevel = student.year_level || student.year || 1;
+  const statusLabel = enrollmentStatus?.statusLabel || 'Active';
 
-  const rowsHtml = (!records || records.length === 0)
+  const isRec = intent === 'recommendation' || (recommendedSubjects && recommendedSubjects.length > 0 && intent !== 'grades');
+
+  const recRowsHtml = (!recommendedSubjects || recommendedSubjects.length === 0)
+    ? `<tr><td colspan="5" style="text-align:center; padding:12px; color:#64748b;">No recommended subjects recorded.</td></tr>`
+    : recommendedSubjects.map(rec => `
+      <tr>
+        <td style="border:1px solid #cbd5e1; padding:8px 12px; font-family:Calibri,sans-serif; font-size:10.5pt; font-weight:bold;">${rec.code || ''}</td>
+        <td style="border:1px solid #cbd5e1; padding:8px 12px; font-family:Calibri,sans-serif; font-size:10.5pt;">${rec.title || ''}</td>
+        <td style="border:1px solid #cbd5e1; padding:8px 12px; text-align:center; font-family:Calibri,sans-serif; font-size:10.5pt;">${rec.units || 3}</td>
+        <td style="border:1px solid #cbd5e1; padding:8px 12px; text-align:center; font-family:Calibri,sans-serif; font-size:10.5pt; color:${rec.reason === 'retake' ? '#b91c1c' : '#1e3a8a'};">${rec.reason === 'retake' ? 'Retake Priority' : 'Regular'}</td>
+        <td style="border:1px solid #cbd5e1; padding:8px 12px; font-family:Calibri,sans-serif; font-size:10pt;">${rec.notes || rec.remarks || 'None'}</td>
+      </tr>
+    `).join('');
+
+  const gradeRowsHtml = (!records || records.length === 0)
     ? `<tr><td colspan="5" style="text-align:center; padding:12px; color:#64748b;">No graded subjects recorded yet.</td></tr>`
     : records.map(r => `
       <tr>
@@ -1039,7 +1228,7 @@ function generateStudentWord(student, records, gwa) {
   return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
 <meta charset='utf-8'>
-<title>Official Academic Record - ${studentName}</title>
+<title>${isRec ? 'Subject Recommendations' : 'Academic Record'} - ${studentName}</title>
 <style>
   body { font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; margin: 40px; color: #1e293b; }
   .header { text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 14px; margin-bottom: 24px; }
@@ -1048,36 +1237,55 @@ function generateStudentWord(student, records, gwa) {
   .meta-box { background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 14px 18px; margin-bottom: 20px; border-radius: 6px; }
   .meta-table { width: 100%; border-collapse: collapse; }
   .meta-table td { padding: 5px 8px; font-size: 11pt; }
-  .grades-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  .grades-table th { background-color: #1e3a8a; color: #ffffff; border: 1px solid #1e3a8a; padding: 10px 12px; font-size: 11pt; text-align: left; }
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+  .data-table th { background-color: #1e3a8a; color: #ffffff; border: 1px solid #1e3a8a; padding: 10px 12px; font-size: 11pt; text-align: left; }
   .footer { margin-top: 36px; font-size: 9.5pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
 </style>
 </head>
 <body>
   <div class="header">
     <div class="title">GARCIA COLLEGE OF TECHNOLOGY</div>
-    <div class="subtitle">OFFICE OF THE REGISTRAR — OFFICIAL ACADEMIC EVALUATION</div>
+    <div class="subtitle">OFFICE OF THE REGISTRAR — OFFICIAL ACADEMIC REPORT</div>
   </div>
 
   <div class="meta-box">
     <table class="meta-table">
       <tr>
         <td><strong>Student Name:</strong> ${studentName}</td>
-        <td><strong>Student ID:</strong> ${studentId}</td>
+        <td><strong>Student ID:</strong> ${cleanId}</td>
       </tr>
       <tr>
         <td><strong>Degree Program:</strong> ${program}</td>
         <td><strong>Year Level:</strong> Year ${yearLevel}</td>
       </tr>
       <tr>
+        <td><strong>Enrollment Status:</strong> ${statusLabel}</td>
         <td><strong>Cumulative GWA:</strong> <span style="color:#1e3a8a; font-weight:bold;">${gwa || 'N/A'}</span></td>
-        <td><strong>Evaluation Date:</strong> ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
       </tr>
+      ${isRec ? `<tr><td><strong>Target Advising Term:</strong> ${targetTermText}</td><td><strong>Recommended Load:</strong> ${totalRecommendedUnits} units</td></tr>` : ''}
     </table>
   </div>
 
-  <h3 style="color:#1e3a8a; margin-bottom:8px; font-size:13pt;">Curriculum Grades & Course Completion</h3>
-  <table class="grades-table">
+  ${isRec ? `
+  <h3 style="color:#1e3a8a; margin-bottom:8px; font-size:13pt;">Recommended Course Load (${targetTermText} • ${totalRecommendedUnits} Units)</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 18%;">Subject Code</th>
+        <th style="width: 42%;">Subject Title</th>
+        <th style="width: 10%; text-align:center;">Units</th>
+        <th style="width: 12%; text-align:center;">Category</th>
+        <th style="width: 18%;">Remarks</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${recRowsHtml}
+    </tbody>
+  </table>
+  ` : ''}
+
+  <h3 style="color:#1e3a8a; margin-bottom:8px; font-size:13pt;">${isRec ? 'Historical Coursework Background (Reference)' : (isFilteredByTerm ? `Grade Sheet (${termLabel})` : 'Curriculum Grades & Course Completion')}</h3>
+  <table class="data-table">
     <thead>
       <tr>
         <th style="width: 18%;">Subject Code</th>
@@ -1088,7 +1296,7 @@ function generateStudentWord(student, records, gwa) {
       </tr>
     </thead>
     <tbody>
-      ${rowsHtml}
+      ${gradeRowsHtml}
     </tbody>
   </table>
 
@@ -1102,22 +1310,54 @@ function generateStudentWord(student, records, gwa) {
 /**
  * Format academic record as a downloadable Plain Text file (.txt)
  */
-function generateStudentText(student, records, gwa) {
+function generateStudentText(student, records, gwa, options = {}) {
+  const {
+    intent = 'grades',
+    recommendedSubjects = [],
+    activeDeficiencies = [],
+    targetTermText = '',
+    totalRecommendedUnits = 0,
+    enrollmentStatus = null,
+    isFilteredByTerm = false,
+    termLabel = ''
+  } = options;
+
+  const cleanId = String(student.student_id || student.id || 'N/A').replace(/^GCT-/i, '').trim();
+  const isRec = intent === 'recommendation' || (recommendedSubjects && recommendedSubjects.length > 0 && intent !== 'grades');
+
   const lines = [
     '====================================================================',
     '                   GARCIA COLLEGE OF TECHNOLOGY                     ',
-    '              OFFICE OF THE REGISTRAR - ACADEMIC RECORD             ',
+    `              OFFICE OF THE REGISTRAR - ${isRec ? 'RECOMMENDATIONS' : 'ACADEMIC RECORD'}             `,
     '====================================================================',
     `Student Name: ${student.name || student.full_name || 'Student'}`,
-    `Student ID:   ${student.student_id || student.id || 'N/A'}`,
+    `Student ID:   ${cleanId}`,
     `Program:      ${student.program || 'BSIT'}`,
     `Year Level:   Year ${student.year_level || student.year || 1}`,
+    `Enrollment:   ${enrollmentStatus?.statusLabel || 'Active'}`,
     `Cumulative GWA: ${gwa || 'N/A'}`,
+    isRec ? `Target Term:  ${targetTermText} (${totalRecommendedUnits} Units)` : (isFilteredByTerm ? `Selected Term: ${termLabel}` : ''),
     `Date Generated: ${new Date().toLocaleString()}`,
-    '--------------------------------------------------------------------',
-    'CODE       | TITLE                                | UNITS | GRADE | STATUS',
     '--------------------------------------------------------------------'
-  ];
+  ].filter(Boolean);
+
+  if (isRec && recommendedSubjects && recommendedSubjects.length > 0) {
+    lines.push(`\n--- RECOMMENDED SUBJECTS FOR ${targetTermText} ---`);
+    lines.push('CODE       | TITLE                                | UNITS | CATEGORY');
+    lines.push('--------------------------------------------------------------------');
+    recommendedSubjects.forEach(rec => {
+      const code = (rec.code || '').padEnd(10, ' ');
+      const title = (rec.title || '').substring(0, 36).padEnd(36, ' ');
+      const units = String(rec.units || 3).padEnd(5, ' ');
+      const cat = (rec.reason === 'retake' ? 'RETAKE' : 'REGULAR').padEnd(8, ' ');
+      lines.push(`${code} | ${title} | ${units} | ${cat}`);
+    });
+    lines.push('--------------------------------------------------------------------');
+  }
+
+  lines.push(`\n--- ${isRec ? 'HISTORICAL GRADE RECORDS' : 'ACADEMIC GRADE SHEET'} ---`);
+  lines.push('CODE       | TITLE                                | UNITS | GRADE | STATUS');
+  lines.push('--------------------------------------------------------------------');
 
   if (!records || records.length === 0) {
     lines.push('No graded subjects recorded yet.');
@@ -1309,8 +1549,13 @@ async function getActiveAcademicTerm(supabaseClient) {
  * Flexible student search by ID, name, or substring
  */
 async function searchStudentInText(query, supabase) {
+  if (!query || typeof query !== 'string') return null;
+
+  // 0. Remove academic years (e.g. 2024-2025, 2025-2026) so they are NEVER falsely treated as student IDs
+  const queryWithoutAY = query.replace(/\b(?:19|20)\d{2}-(?:19|20)\d{2}\b/g, ' ');
+
   // Check for ID pattern: e.g. 10526, 2023-0001, GCT-10526, 9364, 12310
-  const idMatch = query.match(/\b\d{4}-\d{4,5}\b/) || query.match(/\b\d{4,6}\b/) || query.match(/\bGCT-\d+\b/i);
+  const idMatch = queryWithoutAY.match(/\b\d{4}-\d{4,5}\b/) || queryWithoutAY.match(/\b\d{4,6}\b/) || queryWithoutAY.match(/\bGCT-\d+\b/i);
   const targetId = idMatch ? idMatch[0].trim() : null;
 
   if (targetId) {
@@ -1372,7 +1617,7 @@ async function searchStudentInText(query, supabase) {
   const { data: studentsData } = await supabase.from('students').select('*').limit(2000);
   const students = studentsData || [];
 
-  const lowerQuery = query.toLowerCase();
+  const lowerQuery = queryWithoutAY.toLowerCase();
 
   // Exclude institutional and general stop words so school name (Garcia College of Technology) never triggers false student matches
   const stopWords = new Set([
@@ -1383,19 +1628,17 @@ async function searchStudentInText(query, supabase) {
     'gct', 'class', 'classes', 'ano', 'ang', 'trabaho', 'dito', 'saan', 'paano', 'bakit'
   ]);
 
-  const hasStudentIntent = /\b(student|estudyante|kay|ni|si|record\s+of|grades?\s+of|profile\s+of|lookup|search|assessment\s+of)\b/i.test(lowerQuery);
-
   for (const s of students) {
     const fullName = (s.name || s.full_name || '').toLowerCase().trim();
     if (!fullName) continue;
 
-    // Full name match (e.g. "Francis Joseph Garcia" or "Sung Jinwoo")
+    // Full name match (e.g. "Francis Joseph Garcia" or "Tolibas, Niño")
     const cleanFull = fullName.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
     if (cleanFull.length >= 3 && lowerQuery.includes(cleanFull)) {
       return s;
     }
 
-    // Match reversed name (e.g. "Sung Jinwoo" when stored as "Jinwoo Sung" or vice versa)
+    // Match reversed name (e.g. "Niño Tolibas" when stored as "Tolibas, Niño" or vice versa)
     const nameWords = cleanFull.split(' ').filter(Boolean);
     if (nameWords.length >= 2) {
       const reversed = `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`;
@@ -1410,15 +1653,11 @@ async function searchStudentInText(query, supabase) {
 
     if (parts.length === 0) continue;
 
-    if (hasStudentIntent) {
-      if (parts.some(p => new RegExp(`\\b${p}\\b`, 'i').test(lowerQuery))) {
-        return s;
-      }
-    } else {
-      const matchedCount = parts.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(lowerQuery)).length;
-      if (matchedCount >= 2) {
-        return s;
-      }
+    // Strict requirement: Never match on a single first name (e.g. 'Niño' must not match another student).
+    // At least 2 name components (e.g. surname + first name) must match!
+    const matchedCount = parts.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(lowerQuery)).length;
+    if (matchedCount >= 2) {
+      return s;
     }
   }
 
@@ -1434,8 +1673,33 @@ async function findTargetStudent(query, supabase, history = []) {
   const directMatch = await searchStudentInText(query, supabase);
   if (directMatch) return directMatch;
 
-  // 2. If user sent broken continuation message (e.g. sent incomplete first part, then continuation)
+  // 2. Check conversation history (from most recent to oldest)
   if (Array.isArray(history) && history.length > 0) {
+    const recentReversed = [...history].reverse();
+
+    // 2a. Priority 1: Check for explicitly attached student_id from prior turn's studentAction
+    for (const turn of recentReversed) {
+      if (turn.student_id) {
+        const cleanId = String(turn.student_id).replace(/^GCT-/i, '').trim();
+        const s = await searchStudentInText(cleanId, supabase);
+        if (s) return s;
+      }
+    }
+
+    // 2b. Priority 2: Extract explicit numeric student ID from recent turns (ignoring academic years)
+    for (const turn of recentReversed) {
+      const text = turn.text || turn.content || '';
+      if (!text) continue;
+      const cleanTurnText = text.replace(/\b(?:19|20)\d{2}-(?:19|20)\d{2}\b/g, ' ');
+      const idMatch = cleanTurnText.match(/\b(?:GCT-)?(?:\d{4}-\d{4,5}|\d{4,6})\b/i);
+      if (idMatch) {
+        const cleanId = idMatch[0].replace(/^GCT-/i, '').trim();
+        const s = await searchStudentInText(cleanId, supabase);
+        if (s) return s;
+      }
+    }
+
+    // 2c. Priority 3: Check combined user turns (e.g. broken continuation)
     const userTurns = history.filter(h => h && (h.sender === 'user' || h.role === 'user') && h.text);
     const lastUserTurn = userTurns[userTurns.length - 1];
     if (lastUserTurn && lastUserTurn.text && lastUserTurn.text.trim() !== query.trim()) {
@@ -1444,9 +1708,9 @@ async function findTargetStudent(query, supabase, history = []) {
       if (combinedMatch) return combinedMatch;
     }
 
-    // 3. Check recent conversation turns (latest to oldest) to recall previously discussed student
-    const recentReversed = [...history].reverse();
+    // 2d. Priority 4: Search user turns with searchStudentInText
     for (const turn of recentReversed) {
+      if (turn.sender !== 'user' && turn.role !== 'user') continue;
       const text = turn.text || turn.content || '';
       if (!text) continue;
       const turnMatch = await searchStudentInText(text, supabase);
@@ -1923,13 +2187,51 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
           const activeTerm = await getActiveAcademicTerm(db);
           const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
 
+          const isStudentGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?)\b/i.test(query) && !isAskingOpinion && !/\b(hi|hello|kumusta|hey)\b/i.test(query);
+          const isStudentExplicitAll = /\b(?:all|lahat|entire|complete|buo|cumulative|tor|transcript)\b/i.test(query);
+
+          if (isStudentGradesQuery && !termAnalysis.isSpecificFilter && !isStudentExplicitAll && records.length > 0) {
+            const distinctTerms = getDistinctTermsList(records);
+            if (distinctTerms.length > 1) {
+              const termsListMarkdown = distinctTerms.map(t => `- **${t.displayLabel}**`).join('\n');
+              const studentFollowUp = userIsTagalog
+                ? `Aling academic year o semestre ang nais mong makitang marka, **${userName}**?\n\n` +
+                  `**Mga nakatalang termino sa iyong record:**\n` +
+                  `${termsListMarkdown}\n` +
+                  `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
+                  `*Piliin o i-type ang nais mong termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat").*`
+                : `Which academic term or semester's grades would you like to view, **${userName}**?\n\n` +
+                  `**Recorded terms on file:**\n` +
+                  `${termsListMarkdown}\n` +
+                  `- **All Terms / Cumulative Grade Sheet**\n\n` +
+                  `*Please select or reply with your desired term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms").*`;
+
+              return res.json({
+                id: 'chat-' + Date.now(),
+                query,
+                response: studentFollowUp,
+                role: userRole,
+                timestamp: new Date().toISOString(),
+                file_export: null,
+                student_action: {
+                  student_id: studentInfo.student_id,
+                  student_name: userName,
+                  program: studentInfo.program,
+                  pending_action: 'clarify_grades_term',
+                  available_terms: distinctTerms.map(t => t.term)
+                }
+              });
+            }
+          }
+
           // Filter records if a specific term or semester was requested
           let displayRecords = records;
           let isFilteredByTerm = false;
           let termLabelClean = '';
 
           if (termAnalysis.isSpecificFilter) {
-            const matching = records.filter(r => matchesRecordTerm(r, termAnalysis.year, termAnalysis.semester));
+            const filterYear = termAnalysis.academic_year ? termAnalysis.explicitYear : termAnalysis.year;
+            const matching = records.filter(r => matchesRecordTerm(r, filterYear, termAnalysis.semester, termAnalysis.academic_year));
             if (matching.length > 0) {
               displayRecords = matching;
               isFilteredByTerm = true;
@@ -2293,7 +2595,86 @@ ${studentGradesTableMarkdown}
 
           // Classify user intent
           const isRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
-          const isGradesOnlyQuery = /\b(?:grades?|marka|score|rating|transcript|talaan\s+ng\s+marka)\b/i.test(query) && !isRecQuery;
+          const isGradesOnlyQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?|record\s+ng\s+marka)\b/i.test(query) && !isRecQuery;
+
+          // Check if user explicitly asked for all terms
+          const isExplicitAllTerms = /\b(?:all|lahat|entire|complete|buo(?:ng)?|cumulative|tor|transcript\s+of\s+records|all\s+terms?|lahat\s+ng\s+termino)\b/i.test(query);
+
+          // Check if this turn is a follow-up answer to a prior prompt asking which term's grades they want
+          const lastBotTurn = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-1)[0]
+            : null;
+          const lastBotText = String(lastBotTurn?.text || lastBotTurn?.content || '');
+          const lastUserTurn = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender === 'user' || h.role === 'user') && (h.text || h.content)).slice(-1)[0]
+            : null;
+          const lastUserText = String(lastUserTurn?.text || lastUserTurn?.content || '');
+
+          const isFollowUpToGradesPrompt = 
+            /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms available on file|mga nakatalang termino/i.test(lastBotText) ||
+            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText));
+
+          const effectiveGradesQuery = isGradesOnlyQuery || (isFollowUpToGradesPrompt && !isRecQuery);
+
+          // 🔒 FOLLOW-UP CLARIFICATION QUESTION:
+          // When the user asks for a student's grades without specifying which term, DO NOT dump all grades immediately!
+          // Ask which academic year or semester they want, presenting recorded terms on file.
+          if (effectiveGradesQuery && !termAnalysis.isSpecificFilter && !isExplicitAllTerms) {
+            const distinctTerms = getDistinctTermsList(records);
+            if (records.length === 0) {
+              const noGradesMsg = userIsTagalog
+                ? `Walang natagpuang rekord ng nakaraang marka para kay **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`) sa opisyal na database.\n\n` +
+                  `Nais ninyo bang tingnan ang kanyang **Inirerekomendang mga Asignatura (Subject Recommendations)** para sa enrollment?\n\n` +
+                  `*Maaari ninyong i-type ang "Subject Recommendations" o gamitin ang action buttons sa ibaba.*`
+                : `No recorded past grades found on file for **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`) in the official database.\n\n` +
+                  `Would you like to review their **Subject Recommendations** for the upcoming semester instead?\n\n` +
+                  `*Please reply with "Subject Recommendations" or use the action buttons below.*`;
+              return res.json({
+                id: 'chat-' + Date.now(),
+                query,
+                response: noGradesMsg,
+                role: userRole,
+                timestamp: new Date().toISOString(),
+                file_export: null,
+                student_action: {
+                  student_id: targetStudent.student_id,
+                  student_name: targetStudent.name || targetStudent.full_name,
+                  program: targetStudent.program,
+                  pending_action: 'recommendation_offer',
+                  available_terms: ['Subject Recommendations']
+                }
+              });
+            }
+
+            const termsListMarkdown = distinctTerms.map(t => `- **${t.displayLabel}**`).join('\n');
+            const followUpResponse = userIsTagalog
+              ? `Aling academic year o semestre ang nais ninyong makitang marka para kay **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`)?\n\n` +
+                `**Mga nakatalang termino sa kanyang academic records:**\n` +
+                `${termsListMarkdown}\n` +
+                `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
+                `*Pakisabi kung aling termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat") ang nais ninyong suriin.*`
+              : `Which academic term or semester's grades would you like to review for **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`)?\n\n` +
+                `**Recorded terms available on file for this student:**\n` +
+                `${termsListMarkdown}\n` +
+                `- **All Terms / Cumulative Grade Sheet**\n\n` +
+                `*Please reply with your preferred term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms") to view the official grade sheet.*`;
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: followUpResponse,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: {
+                student_id: targetStudent.student_id,
+                student_name: targetStudent.name || targetStudent.full_name,
+                program: targetStudent.program,
+                pending_action: 'clarify_grades_term',
+                available_terms: distinctTerms.map(t => t.term)
+              }
+            });
+          }
 
           // Check if user requested a specific year level and/or semester (e.g. "2nd year 1st sem")
           let displayRecords = records;
@@ -2301,12 +2682,13 @@ ${studentGradesTableMarkdown}
           let termLabelClean = '';
 
           if (termAnalysis.isSpecificFilter) {
-            const matching = records.filter(r => matchesRecordTerm(r, termAnalysis.year, termAnalysis.semester));
+            const filterYear = termAnalysis.academic_year ? termAnalysis.explicitYear : termAnalysis.year;
+            const matching = records.filter(r => matchesRecordTerm(r, filterYear, termAnalysis.semester, termAnalysis.academic_year));
             if (matching.length > 0) {
               displayRecords = matching;
               isFilteredByTerm = true;
               termLabelClean = termAnalysis.target_term ? termAnalysis.target_term.replace(/[^a-zA-Z0-9]+/g, '_') : 'Term';
-            } else if (isGradesOnlyQuery) {
+            } else if (effectiveGradesQuery) {
               // ONLY bail out with "No recorded grades" IF the query was EXCLUSIVELY asking for past grades in that term!
               const availableTerms = Array.from(new Set(records.map(r => r.term).filter(Boolean))).join(', ');
               const noTermMsg = userIsTagalog
@@ -2336,26 +2718,77 @@ ${studentGradesTableMarkdown}
 
           const { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa } = calculateStudentStats(displayRecords);
 
+          // Run official deterministic Assessment Engine (with target term override if user requested a specific term for recommendation)
+          const targetTermOverride = (isRecQuery && termAnalysis.isSpecificFilter)
+            ? { year: termAnalysis.year, semester: termAnalysis.semester }
+            : null;
+          const evalData = await getStudentEvaluationData(targetStudent, records, db, targetTermOverride);
+          const { recommendedSubjects, activeDeficiencies, targetTerm, totalRecommendedUnits } = evalData;
+          const targetTermText = formatTargetTermText(targetTerm?.year_level, targetTerm?.semester);
+
+          let queryIntent = 'comprehensive';
+          if (isRecQuery) {
+            queryIntent = 'recommendation';
+          } else if (effectiveGradesQuery) {
+            queryIntent = 'grades';
+          } else {
+            queryIntent = classifyStudentQueryIntent(query);
+          }
+
+          const csvOptions = {
+            intent: queryIntent,
+            recommendedSubjects,
+            activeDeficiencies,
+            targetTermText,
+            totalRecommendedUnits,
+            enrollmentStatus,
+            isFilteredByTerm,
+            termLabel: termAnalysis.target_term || (isFilteredByTerm ? termLabelClean : 'All Encoded Terms'),
+            stats: { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa }
+          };
+
           // Detect requested file format (word, excel, text, pdf)
           const requestedFormat = detectRequestedFileFormat(query);
           let fileData = '';
           let filename = '';
           let fileLabel = '';
-          const fileTermLabel = isFilteredByTerm ? ` (${termAnalysis.target_term})` : '';
-          const fileTermSuffix = isFilteredByTerm ? `_${termLabelClean}` : '';
 
           if (requestedFormat === 'word') {
-            fileData = generateStudentWord(targetStudent, displayRecords, gwa);
-            filename = `${cleanId}${fileTermSuffix}_Academic_Record.doc`;
-            fileLabel = `Download ${cleanId} Record${fileTermLabel} (Word Document)`;
+            fileData = generateStudentWord(targetStudent, displayRecords, gwa, csvOptions);
+            if (queryIntent === 'recommendation') {
+              filename = `${cleanId}_Subject_Recommendations_${termLabelClean || 'Upcoming'}.doc`;
+              fileLabel = `Download ${cleanId} Subject Recommendations (${targetTermText}) (Word Document)`;
+            } else if (queryIntent === 'grades') {
+              filename = `${cleanId}_Grade_Sheet${isFilteredByTerm ? `_${termLabelClean}` : '_All_Terms'}.doc`;
+              fileLabel = `Download ${cleanId} Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ' (All Terms)'} (Word Document)`;
+            } else {
+              filename = `${cleanId}_Academic_Evaluation_Report.doc`;
+              fileLabel = `Download ${cleanId} Academic Report & Recommendations (Word Document)`;
+            }
           } else if (requestedFormat === 'text') {
-            fileData = generateStudentText(targetStudent, displayRecords, gwa);
-            filename = `${cleanId}${fileTermSuffix}_Academic_Record.txt`;
-            fileLabel = `Download ${cleanId} Record${fileTermLabel} (Text File)`;
+            fileData = generateStudentText(targetStudent, displayRecords, gwa, csvOptions);
+            if (queryIntent === 'recommendation') {
+              filename = `${cleanId}_Subject_Recommendations_${termLabelClean || 'Upcoming'}.txt`;
+              fileLabel = `Download ${cleanId} Subject Recommendations (${targetTermText}) (Text File)`;
+            } else if (queryIntent === 'grades') {
+              filename = `${cleanId}_Grade_Sheet${isFilteredByTerm ? `_${termLabelClean}` : '_All_Terms'}.txt`;
+              fileLabel = `Download ${cleanId} Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ' (All Terms)'} (Text File)`;
+            } else {
+              filename = `${cleanId}_Academic_Evaluation_Report.txt`;
+              fileLabel = `Download ${cleanId} Academic Report & Recommendations (Text File)`;
+            }
           } else {
-            fileData = generateStudentCsv(targetStudent, displayRecords, gwa);
-            filename = `${cleanId}${fileTermSuffix}_Academic_Record.csv`;
-            fileLabel = `Download ${cleanId} Record${fileTermLabel} (Excel Spreadsheet)`;
+            fileData = generateStudentCsv(targetStudent, displayRecords, gwa, csvOptions);
+            if (queryIntent === 'recommendation') {
+              filename = `${cleanId}_Subject_Recommendations_${termLabelClean || 'Upcoming'}.csv`;
+              fileLabel = `Download ${cleanId} Subject Recommendations (${targetTermText}) (Excel Spreadsheet)`;
+            } else if (queryIntent === 'grades') {
+              filename = `${cleanId}_Grade_Sheet${isFilteredByTerm ? `_${termLabelClean}` : '_All_Terms'}.csv`;
+              fileLabel = `Download ${cleanId} Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ' (All Terms)'} (Excel Spreadsheet)`;
+            } else {
+              filename = `${cleanId}_Academic_Evaluation_Report.csv`;
+              fileLabel = `Download ${cleanId} Academic Report & Recommendations (Excel Spreadsheet)`;
+            }
           }
 
           fileExport = {
@@ -2370,24 +2803,17 @@ ${studentGradesTableMarkdown}
             student_id: targetStudent.student_id,
             student_name: targetStudent.name || targetStudent.full_name,
             program: targetStudent.program,
-            target_term: termAnalysis.target_term || undefined,
-            semester: termAnalysis.semester || undefined,
-            year_level: termAnalysis.year || undefined
+            target_term: targetTermText || termAnalysis.target_term || undefined,
+            semester: (targetTerm?.semester != null ? String(targetTerm.semester) : (termAnalysis.semester || undefined)),
+            year_level: targetTerm?.year_level || termAnalysis.year || undefined,
+            recommended_semester: (targetTerm?.semester != null ? String(targetTerm.semester) : undefined),
+            recommended_year_level: targetTerm?.year_level || undefined,
+            recommended_target_term: targetTermText || undefined
           };
-
-          // Run official deterministic Assessment Engine (with target term override if user requested a specific term for recommendation)
-          const targetTermOverride = (isRecQuery && termAnalysis.isSpecificFilter)
-            ? { year: termAnalysis.year, semester: termAnalysis.semester }
-            : null;
-          const evalData = await getStudentEvaluationData(targetStudent, records, db, targetTermOverride);
-          const { recommendedSubjects, activeDeficiencies, targetTerm, totalRecommendedUnits } = evalData;
-          const targetTermText = formatTargetTermText(targetTerm?.year_level, targetTerm?.semester);
 
           const gradesTableMarkdown = buildGradesTableMarkdown(displayRecords);
           const recommendationsTableMarkdown = buildRecommendationsTableMarkdown(recommendedSubjects);
           const deficienciesTableMarkdown = buildDeficienciesTableMarkdown(activeDeficiencies);
-
-          const queryIntent = classifyStudentQueryIntent(query);
           const narrativeExplanation = generateNarrativeExplanation({
             student: targetStudent,
             stats: { totalUnits, passedUnits, failedUnits, passedCount, failedCount, gwa },
@@ -2751,5 +3177,7 @@ module.exports = {
   getStudentEvaluationData,
   findMultipleTargetStudents,
   generateMultiStudentCsv,
-  getStudentEnrollmentStatus
+  getStudentEnrollmentStatus,
+  getDistinctTermsList,
+  generateStudentCsv
 };

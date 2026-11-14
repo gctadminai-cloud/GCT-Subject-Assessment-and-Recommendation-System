@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchApi } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { parseExcelOrCsvFile } from '../utils/exportUtils';
+import { parseExcelOrCsvFile, exportGradeSheetCsvToExcel } from '../utils/exportUtils';
 import { useOptionalRegistrarData } from '../modules/RegistrarDataContext';
 import {
   Send,
@@ -40,6 +40,11 @@ interface StudentAction {
   target_term?: string;
   semester?: '1' | '2' | 'summer';
   year_level?: number;
+  available_terms?: string[];
+  pending_action?: string;
+  recommended_semester?: '1' | '2' | 'summer';
+  recommended_year_level?: number;
+  recommended_target_term?: string;
 }
 
 interface ChatMessage {
@@ -87,6 +92,29 @@ export function extractClientTermAndSemester(query: string, studentYear?: number
   }
 
   return { year: effectiveYear, semester: detectedSem, target_term: targetTerm };
+}
+
+/**
+ * Extracts target term and semester specifically from recommended subjects sections
+ * e.g. "Official Recommended Subjects (Year 2, 2nd Semester)" -> semester: '2', targetTerm: 'Year 2, 2nd Semester'
+ */
+export function extractRecommendationTermFromText(text: string): { semester?: '1' | '2' | 'summer'; targetTerm?: string } {
+  if (!text) return {};
+  const match = text.match(/(?:recommended\s+subjects|inirerekomendang\s+mga\s+asignatura)[^(\n]*\(([^)]+)\)/i) ||
+                text.match(/(?:recommended\s+subjects|inirerekomendang\s+mga\s+asignatura)\s+(?:for|para\s+sa)?\s*([^\n:(]+)/i);
+  if (match && match[1]) {
+    const rawTerm = match[1].trim();
+    let sem: '1' | '2' | 'summer' | undefined = undefined;
+    if (/\b(?:2nd|second|2)\s*(?:sem|semester)\b/i.test(rawTerm) || /\bsem(?:ester)?\s*2\b/i.test(rawTerm)) {
+      sem = '2';
+    } else if (/\b(?:1st|first|1)\s*(?:sem|semester)\b/i.test(rawTerm) || /\bsem(?:ester)?\s*1\b/i.test(rawTerm)) {
+      sem = '1';
+    } else if (/summer|midyear/i.test(rawTerm)) {
+      sem = 'summer';
+    }
+    return { semester: sem, targetTerm: rawTerm };
+  }
+  return {};
 }
 
 /**
@@ -165,6 +193,12 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
   while (i < lines.length) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
+
+    // Filter out hallucinated pseudo-button brackets like [Download Assessment File (EXCEL)], [Open Academic Records], [Open Subject Recommendations]
+    if (/^\s*\[(?:download[^\n\]]*|open academic records[^\n\]]*|open subject recommendations[^\n\]]*)\]\s*$/i.test(trimmed)) {
+      i++;
+      continue;
+    }
 
     // 1. Detect Markdown Table block (lines starting and ending with '|')
     if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.includes('|')) {
@@ -749,12 +783,17 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
       const isWord = file.format === 'word' || file.filename.endsWith('.doc') || file.filename.endsWith('.docx');
       const isText = file.format === 'text' || file.filename.endsWith('.txt');
 
-      let mimeType = 'text/csv;charset=utf-8;';
-      if (isWord) {
-        mimeType = 'application/msword;charset=utf-8;';
-      } else if (isText) {
-        mimeType = 'text/plain;charset=utf-8;';
+      if (!isWord && !isText) {
+        // Native Microsoft Excel (.xlsx) file download
+        // Explicitly formats grades with '0.00' so 1.00, 1.25, 1.50, 2.00, 3.00, 5.00 are preserved in Excel
+        const excelName = file.filename.endsWith('.xlsx') ? file.filename : (file.filename.replace(/\.csv$/i, '') + '.xlsx');
+        exportGradeSheetCsvToExcel(content, excelName);
+        return;
       }
+
+      let mimeType = isWord
+        ? 'application/msword;charset=utf-8;'
+        : 'text/plain;charset=utf-8;';
 
       const blob = new Blob(['\uFEFF' + content], { type: mimeType });
       const url = URL.createObjectURL(blob);
@@ -952,7 +991,9 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         .slice(-10)
         .map(m => ({
           sender: m.sender,
-          text: m.text
+          text: m.text,
+          student_id: m.studentAction?.student_id,
+          student_name: m.studentAction?.student_name
         }));
 
       const res = await fetchApi(
@@ -975,7 +1016,10 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           ...rawAction,
           target_term: rawAction.target_term || clientAnalysis.target_term || undefined,
           semester: rawAction.semester || clientAnalysis.semester || undefined,
-          year_level: rawAction.year_level || clientAnalysis.year || undefined
+          year_level: rawAction.year_level || clientAnalysis.year || undefined,
+          recommended_semester: rawAction.recommended_semester || undefined,
+          recommended_year_level: rawAction.recommended_year_level || undefined,
+          recommended_target_term: rawAction.recommended_target_term || undefined
         };
       }
 
@@ -1600,11 +1644,75 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                   );
                 })()}
 
+                {/* Quick Term Selection Pills for Grades Clarification */}
+                {msg.studentAction?.available_terms && msg.studentAction.available_terms.length > 0 && (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem' }}>
+                      Select term to view grades:
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      {msg.studentAction.available_terms.map((t, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSend(t)}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            background: '#F8FAFC',
+                            border: '1px solid #CBD5E1',
+                            color: '#1E293B',
+                            borderRadius: '16px',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = '#E2E8F0';
+                            e.currentTarget.style.borderColor = '#94A3B8';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = '#F8FAFC';
+                            e.currentTarget.style.borderColor = '#CBD5E1';
+                          }}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => handleSend('All Terms')}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          background: '#EFF6FF',
+                          border: '1px solid #93C5FD',
+                          color: '#1D4ED8',
+                          borderRadius: '16px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = '#DBEAFE';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = '#EFF6FF';
+                        }}
+                      >
+                        All Terms
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Direct Action Links to Academic Records & Recommendations */}
                 {msg.studentAction && onNavigateTab && (() => {
-                  const clientAnalysis = extractClientTermAndSemester(msg.text, msg.studentAction?.year_level);
-                  const targetTerm = msg.studentAction?.target_term || clientAnalysis.target_term || undefined;
-                  const semester = msg.studentAction?.semester || clientAnalysis.semester || undefined;
+                  const recTextAnalysis = extractRecommendationTermFromText(msg.text);
+                  const recSemester = msg.studentAction?.recommended_semester || recTextAnalysis.semester || msg.studentAction?.semester;
+                  const recTargetTerm = msg.studentAction?.recommended_target_term || recTextAnalysis.targetTerm || msg.studentAction?.target_term;
+                  const recSemLabel = recSemester === '1' ? '1st Sem' : recSemester === '2' ? '2nd Sem' : recSemester === 'summer' ? 'Summer' : '';
+                  const recBadge = recSemLabel ? ` (${recSemLabel})` : '';
 
                   return (
                     <div
@@ -1617,7 +1725,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                     >
                       <button
                         type="button"
-                        onClick={() => onNavigateTab('student_academic_records', msg.studentAction!.student_id, targetTerm, semester)}
+                        onClick={() => onNavigateTab('student_academic_records', msg.studentAction!.student_id, undefined, undefined)}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1633,7 +1741,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                           boxShadow: '0 1px 3px rgba(37, 99, 235, 0.1)',
                           transition: 'all 0.2s ease'
                         }}
-                        title={`Open ${msg.studentAction.student_id} in Academic Records`}
+                        title={`Open Academic Records for ${msg.studentAction.student_id}`}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = '#DBEAFE';
                           e.currentTarget.style.borderColor = '#60A5FA';
@@ -1644,15 +1752,12 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                         }}
                       >
                         <BookOpen size={14} />
-                        <span>
-                          Open in Academic Records ({msg.studentAction.student_id}
-                          {targetTerm ? ` • ${targetTerm}` : ''})
-                        </span>
+                        <span>Open Academic Records</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => onNavigateTab('recommendations', msg.studentAction!.student_id, targetTerm, semester)}
+                        onClick={() => onNavigateTab('recommendations', msg.studentAction!.student_id, recTargetTerm, recSemester as any)}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1668,7 +1773,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                           boxShadow: '0 1px 3px rgba(126, 34, 206, 0.1)',
                           transition: 'all 0.2s ease'
                         }}
-                        title={`Open ${msg.studentAction.student_id} in Subject Recommendations`}
+                        title={`Open Subject Recommendations for ${msg.studentAction.student_id}`}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = '#F3E8FF';
                           e.currentTarget.style.borderColor = '#C084FC';
@@ -1680,8 +1785,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                       >
                         <Sparkles size={14} />
                         <span>
-                          Open in Subject Recommendations
-                          {semester ? ` (${semester === '1' ? '1st Sem' : semester === '2' ? '2nd Sem' : 'Summer'})` : ''}
+                          Open in Subject Recommendations{recBadge}
                         </span>
                       </button>
                     </div>
@@ -2276,17 +2380,60 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                     );
                   })()}
 
+                  {/* Quick Term Selection Pills for Grades Clarification in Popup View */}
+                  {msg.studentAction?.available_terms && msg.studentAction.available_terms.length > 0 && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#475569', marginBottom: '0.3rem' }}>
+                        Select term to view grades:
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                        {msg.studentAction.available_terms.map((t, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSend(t)}
+                            style={{
+                              padding: '0.28rem 0.55rem',
+                              background: '#F8FAFC',
+                              border: '1px solid #CBD5E1',
+                              color: '#1E293B',
+                              borderRadius: '14px',
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = '#EFF6FF';
+                              e.currentTarget.style.borderColor = '#93C5FD';
+                              e.currentTarget.style.color = '#1D4ED8';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = '#F8FAFC';
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              e.currentTarget.style.color = '#1E293B';
+                            }}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Floating Action Buttons */}
                   {msg.studentAction && onNavigateTab && (() => {
-                    const clientAnalysis = extractClientTermAndSemester(msg.text, msg.studentAction?.year_level);
-                    const targetTerm = msg.studentAction?.target_term || clientAnalysis.target_term || undefined;
-                    const semester = msg.studentAction?.semester || clientAnalysis.semester || undefined;
+                    const recTextAnalysis = extractRecommendationTermFromText(msg.text);
+                    const recSemester = msg.studentAction?.recommended_semester || recTextAnalysis.semester || msg.studentAction?.semester;
+                    const recTargetTerm = msg.studentAction?.recommended_target_term || recTextAnalysis.targetTerm || msg.studentAction?.target_term;
+                    const recSemLabel = recSemester === '1' ? '1st Sem' : recSemester === '2' ? '2nd Sem' : recSemester === 'summer' ? 'Summer' : '';
+                    const recBadge = recSemLabel ? ` (${recSemLabel})` : '';
 
                     return (
                       <div style={{ marginTop: '0.55rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         <button
                           type="button"
-                          onClick={() => onNavigateTab('student_academic_records', msg.studentAction!.student_id, targetTerm, semester)}
+                          onClick={() => onNavigateTab('student_academic_records', msg.studentAction!.student_id, undefined, undefined)}
                           style={{
                             padding: '0.35rem 0.65rem',
                             background: '#EFF6FF',
@@ -2300,17 +2447,14 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                             alignItems: 'center',
                             gap: '0.3rem'
                           }}
-                          title={`Open ${msg.studentAction.student_id} in Academic Records`}
+                          title={`Open Academic Records for ${msg.studentAction.student_id}`}
                         >
                           <BookOpen size={12} />
-                          <span>
-                            Records ({msg.studentAction.student_id}
-                            {targetTerm ? ` • ${targetTerm}` : ''})
-                          </span>
+                          <span>Open Academic Records</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => onNavigateTab('recommendations', msg.studentAction!.student_id, targetTerm, semester)}
+                          onClick={() => onNavigateTab('recommendations', msg.studentAction!.student_id, recTargetTerm, recSemester as any)}
                           style={{
                             padding: '0.35rem 0.65rem',
                             background: '#FAF5FF',
@@ -2324,12 +2468,11 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                             alignItems: 'center',
                             gap: '0.3rem'
                           }}
-                          title={`Open ${msg.studentAction.student_id} in Subject Recommendations`}
+                          title={`Open Subject Recommendations for ${msg.studentAction.student_id}`}
                         >
                           <Sparkles size={12} />
                           <span>
-                            Recs
-                            {semester ? ` (${semester === '1' ? '1st Sem' : semester === '2' ? '2nd Sem' : 'Summer'})` : ''}
+                            Recommendations{recBadge}
                           </span>
                         </button>
                       </div>

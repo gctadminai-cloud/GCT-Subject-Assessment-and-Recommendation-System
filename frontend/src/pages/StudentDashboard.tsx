@@ -4,6 +4,7 @@ import { useUI } from '../context/UIContext';
 import { fetchApi } from '../config/api';
 import { buildCompleteStudentGrades } from '../utils/curriculumData';
 import type { AcademicGrade, Student } from '../modules/types';
+import { AboutUsModule } from '../modules/AboutUsModule';
 import {
   BookOpen,
   Calendar,
@@ -16,7 +17,9 @@ import {
   Loader2,
   Award,
   TrendingUp,
-  RotateCcw
+  RotateCcw,
+  ArrowLeft,
+  Info
 } from 'lucide-react';
 
 interface StudentDashboardProps {
@@ -24,9 +27,11 @@ interface StudentDashboardProps {
   onTabChange?: (tab: string) => void;
 }
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, onTabChange }) => {
   const { user, student, logout } = useAuth();
   const { confirmAction } = useUI();
+  const [localTab, setLocalTab] = useState<'curriculum' | 'about_us'>('curriculum');
+  const isAboutUs = activeTab === 'about_us' || activeTab === 'about' || localTab === 'about_us';
   const [liveStudentData, setLiveStudentData] = useState<{ year_level?: number; program?: string; full_name?: string } | null>(null);
 
   const targetStudentId = useMemo(() => {
@@ -73,6 +78,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
     const handlePopState = () => {
       if (!isMounted) return;
       if (modalOpen) return;
+
+      if (isAboutUs) {
+        setLocalTab('curriculum');
+        if (onTabChange) onTabChange('home');
+        window.history.pushState({ page: 'gct_student_hub' }, '', window.location.href);
+        return;
+      }
+
       modalOpen = true;
 
       confirmAction({
@@ -433,7 +446,40 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
         minWidth: 0,
         boxSizing: 'border-box'
       }}>
-
+        {isAboutUs ? (
+          <div>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalTab('curriculum');
+                  if (onTabChange) onTabChange('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.55rem 1rem',
+                  borderRadius: '10px',
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#1E293B',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <ArrowLeft size={16} />
+                <span>Back to Curriculum Grade Sheet</span>
+              </button>
+            </div>
+            <AboutUsModule />
+          </div>
+        ) : (
+          <>
         {/* STUDENT ACADEMIC PROFILE & SUMMARY DASHBOARD CARD */}
         <div style={{
           background: '#FFFFFF',
@@ -1054,6 +1100,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
           </div>
           </>
         )}
+          </>
+        )}
 
       </main>
 
@@ -1065,9 +1113,45 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
         textAlign: 'center',
         fontSize: '0.78rem',
         color: '#64748B',
-        marginTop: 'auto'
+        marginTop: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.75rem',
+        flexWrap: 'wrap'
       }}>
-        © 2026 Garcia College of Technology. All rights reserved.
+        <span>© 2026 Garcia College of Technology. All rights reserved.</span>
+        <span style={{ color: '#CBD5E1' }}>•</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (isAboutUs) {
+              setLocalTab('curriculum');
+              if (onTabChange) onTabChange('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+              setLocalTab('about_us');
+              if (onTabChange) onTabChange('about_us');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--primary)',
+            fontWeight: 700,
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            textDecoration: 'underline'
+          }}
+        >
+          <Info size={13} />
+          <span>{isAboutUs ? 'Curriculum Grade Sheet' : 'About Us'}</span>
+        </button>
       </footer>
 
     </div>

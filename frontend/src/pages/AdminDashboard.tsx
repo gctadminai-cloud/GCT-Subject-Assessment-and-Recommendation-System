@@ -9,7 +9,8 @@ import {
   StudentAcademicRecordsModule,
   RecommendationsModule,
   CurriculumModule,
-  UserManagementModule
+  UserManagementModule,
+  AboutUsModule
 } from '../modules';
 
 interface AdminDashboardProps {
@@ -76,12 +77,16 @@ export const AdminDashboardContent: React.FC<AdminDashboardProps> = ({ activeTab
     curriculum: 'Curriculum Catalog & Program Matrices',
     manage_accounts: 'User & Account Governance',
     users: 'User & Account Governance',
+    about_us: 'About Garcia College of Technology',
+    about: 'About Garcia College of Technology',
     reports: 'Institutional Academic Analytics & Reports',
     settings: 'System Settings & Academic Rules'
   };
 
   const pageSubtitles: Record<string, string> = {
     home: 'System governance, degree program distribution, academic rules & administrative logs',
+    about_us: 'Institutional heritage, academic mission, campus location & SARS platform overview',
+    about: 'Institutional heritage, academic mission, campus location & SARS platform overview',
     chatbot: 'Grounded in institutional database',
     ai_chatbot: 'Grounded in institutional database',
     student_academic_records: 'Unified student directory, section schedulers, academic grade sheets, and advising histories',
@@ -172,13 +177,26 @@ export const AdminDashboardContent: React.FC<AdminDashboardProps> = ({ activeTab
           </>
         ) : (
           <>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                {pageTitles[currentTab] || 'Administrator Portal'}
-              </h2>
-              <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
-                {pageSubtitles[currentTab] || pageSubtitles.home}
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <img
+                src="/gct-logo.png"
+                alt="Garcia College of Technology Logo"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  minWidth: '42px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))'
+                }}
+              />
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                  {pageTitles[currentTab] || 'Administrator Portal'}
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
+                  {pageSubtitles[currentTab] || pageSubtitles.home}
+                </p>
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
@@ -256,6 +274,7 @@ export const AdminDashboardContent: React.FC<AdminDashboardProps> = ({ activeTab
         )}
         {currentTab === 'curriculum' && <CurriculumModule />}
         {(currentTab === 'manage_accounts' || currentTab === 'users') && <UserManagementModule />}
+        {(currentTab === 'about_us' || currentTab === 'about') && <AboutUsModule />}
       </main>
 
       {/* FOOTER - Hidden on chatbot tab so input sits at bottom of screen */}

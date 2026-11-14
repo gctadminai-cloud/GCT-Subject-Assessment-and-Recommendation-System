@@ -8,7 +8,8 @@ import {
   StaffHomeModule,
   StudentAcademicRecordsModule,
   RecommendationsModule,
-  CurriculumModule
+  CurriculumModule,
+  AboutUsModule
 } from '../modules';
 
 interface StaffDashboardProps {
@@ -77,6 +78,8 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
     curriculum: 'Curriculum Management',
     manage_accounts: 'User & Account Governance',
     users: 'User & Account Governance',
+    about_us: 'About Garcia College of Technology',
+    about: 'About Garcia College of Technology',
     reports: 'Reports & Analytics',
     settings: 'System Settings & Policies'
   };
@@ -95,6 +98,8 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
     curriculum: 'Institutional course offerings, credit allocations & prerequisite configurations',
     manage_accounts: 'User account directory & registration approval governance',
     users: 'User account directory & registration approval governance',
+    about_us: 'Institutional heritage, academic mission, campus location & SARS platform overview',
+    about: 'Institutional heritage, academic mission, campus location & SARS platform overview',
     reports: 'Institutional academic performance metrics and report exports',
     settings: 'Decision engine thresholds, passing grade standards, and active semester controls'
   };
@@ -190,13 +195,26 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
           </>
         ) : (
           <>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                {pageTitles[currentTab] || 'Dashboard'}
-              </h2>
-              <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
-                {pageSubtitles[currentTab] || pageSubtitles.home}
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <img
+                src="/gct-logo.png"
+                alt="Garcia College of Technology Logo"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  minWidth: '42px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))'
+                }}
+              />
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                  {pageTitles[currentTab] || 'Dashboard'}
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
+                  {pageSubtitles[currentTab] || pageSubtitles.home}
+                </p>
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
@@ -276,6 +294,7 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
         )}
         {currentTab === 'curriculum' && <CurriculumModule />}
         {(currentTab === 'manage_accounts' || currentTab === 'users') && renderAdminRestrictedBanner('User Account Governance')}
+        {(currentTab === 'about_us' || currentTab === 'about') && <AboutUsModule />}
       </main>
 
       {/* FOOTER - Hidden on chatbot tab so input sits at bottom of screen */}

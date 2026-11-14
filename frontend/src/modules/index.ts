@@ -12,3 +12,4 @@ export * from './CurriculumModule';
 export * from './UserManagementModule';
 export * from './ReportsAnalyticsModule';
 export * from './SystemSettingsModule';
+export * from './AboutUsModule';

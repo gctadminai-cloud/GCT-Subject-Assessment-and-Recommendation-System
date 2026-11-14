@@ -11,10 +11,12 @@ import {
   LogOut,
   Pin,
   ChevronRight,
-  Menu
+  Menu,
+  Info
 } from 'lucide-react';
 
 import { useUI } from '../context/UIContext';
+import bytemeLogo from '../assets/byteme/byteme-logo.png';
 
 interface SidebarProps {
   activeTab?: string;
@@ -104,14 +106,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <img
-                src="/logo.png"
-                alt="Garcia College of Technology Logo"
+                src={bytemeLogo}
+                alt="ByteMe Logo"
                 style={{
                   width: '38px',
                   height: '38px',
                   minWidth: '38px',
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))'
+                  filter: 'drop-shadow(0 2px 6px rgba(14, 116, 144, 0.25))'
                 }}
               />
               {isExpanded && (
@@ -123,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                     Assessment & Recommendation
                   </p>
                   <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', margin: 0 }}>
-                    Garcia College of Technology
+                    Developed by ByteMe
                   </p>
                 </div>
               )}
@@ -262,6 +264,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                     </button>
                   </>
                 )}
+
+                {/* ABOUT US NAVIGATION ITEM (BELOW USER MANAGEMENT) */}
+                <button
+                  onClick={() => onTabChange?.('about_us')}
+                  className="btn"
+                  style={{
+                    justifyContent: isExpanded ? 'flex-start' : 'center',
+                    padding: '0.65rem 0.85rem',
+                    background: (activeTab === 'about_us' || activeTab === 'about') ? 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' : 'transparent',
+                    color: (activeTab === 'about_us' || activeTab === 'about') ? '#FFFFFF' : 'var(--text-main)',
+                    border: 'none',
+                    borderRadius: '10px'
+                  }}
+                  title="About Garcia College of Technology & SARS System"
+                >
+                  <Info size={18} />
+                  {isExpanded && <span style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>About Us</span>}
+                </button>
               </>
             )}
 

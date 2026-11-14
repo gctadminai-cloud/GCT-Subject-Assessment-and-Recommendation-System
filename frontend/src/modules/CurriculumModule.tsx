@@ -228,6 +228,10 @@ export const CurriculumModule: React.FC = () => {
 
   const handleCommitImport = async () => {
     if (!parsedResult || parsedResult.subjects.length === 0) return;
+    if (!parsedResult.isValid) {
+      showToast(`Cannot import: Missing required column(s): ${parsedResult.missingColumns.join(', ')}`, 'error');
+      return;
+    }
     setIsCommittingImport(true);
 
     try {
@@ -1165,11 +1169,96 @@ export const CurriculumModule: React.FC = () => {
                         <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{importFile.name}</span>
                         <span style={{ color: 'var(--text-muted)' }}>({(importFile.size / 1024).toFixed(1)} KB)</span>
                       </div>
-                      <span style={{ color: '#16A34A', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <CheckCircle2 size={14} /> Ready for Sync
+                      <span style={{ color: parsedResult?.isValid ? '#16A34A' : '#DC2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                        {parsedResult?.isValid ? (
+                          <><CheckCircle2 size={14} /> Structure Verified</>
+                        ) : (
+                          <><AlertCircle size={14} /> Validation Required</>
+                        )}
                       </span>
                     </div>
                   )}
+
+                  {/* Required Column Structure Verification Card (Cat. No., Descriptive Title, Lec, Lab, units, Pre-Requisite) */}
+                  <div style={{
+                    background: parsedResult.isValid ? '#F0FDF4' : '#FEF2F2',
+                    border: `1px solid ${parsedResult.isValid ? '#BBF7D0' : '#FECACA'}`,
+                    borderRadius: '12px',
+                    padding: '0.95rem 1.15rem',
+                    marginBottom: '1.25rem'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem',
+                      marginBottom: '0.65rem'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.88rem',
+                        fontWeight: 800,
+                        color: parsedResult.isValid ? '#166534' : '#991B1B'
+                      }}>
+                        {parsedResult.isValid ? <CheckCircle2 size={18} color="#16A34A" /> : <AlertCircle size={18} color="#DC2626" />}
+                        <span>
+                          {parsedResult.isValid
+                            ? 'All Required Curriculum Columns Verified'
+                            : 'Required Curriculum Columns Missing'}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '3px 9px',
+                        borderRadius: '6px',
+                        background: parsedResult.isValid ? '#DCFCE7' : '#FEE2E2',
+                        color: parsedResult.isValid ? '#15803D' : '#B91C1C',
+                        border: `1px solid ${parsedResult.isValid ? '#86EFAC' : '#FCA5A5'}`
+                      }}>
+                        {parsedResult.isValid ? 'Valid GCT Curriculum Format' : `${parsedResult.missingColumns.length} Missing Column(s)`}
+                      </span>
+                    </div>
+
+                    {/* Columns Checklist Badges */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: parsedResult.isValid ? 0 : '0.65rem' }}>
+                      {[
+                        { label: 'Cat. No.', detected: parsedResult.detectedColumns?.catNo },
+                        { label: 'Descriptive Title', detected: parsedResult.detectedColumns?.descriptiveTitle },
+                        { label: 'Lec', detected: parsedResult.detectedColumns?.lec },
+                        { label: 'Lab', detected: parsedResult.detectedColumns?.lab },
+                        { label: 'units', detected: parsedResult.detectedColumns?.units },
+                        { label: 'Pre-Requisite', detected: parsedResult.detectedColumns?.preRequisite }
+                      ].map(col => (
+                        <span
+                          key={col.label}
+                          style={{
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            padding: '3px 9px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            background: col.detected ? '#DCFCE7' : '#FEE2E2',
+                            color: col.detected ? '#166534' : '#991B1B',
+                            border: `1px solid ${col.detected ? '#86EFAC' : '#FCA5A5'}`
+                          }}
+                        >
+                          {col.detected ? '✓' : '✗'} {col.label} {col.detected ? 'Verified' : 'Missing'}
+                        </span>
+                      ))}
+                    </div>
+
+                    {!parsedResult.isValid && (
+                      <div style={{ fontSize: '0.78rem', color: '#B91C1C', lineHeight: 1.5, marginTop: '0.4rem' }}>
+                        <strong>Storage Blocked:</strong> The uploaded file does not satisfy the official curriculum requirement. Missing: <strong>{parsedResult.missingColumns.join(', ')}</strong>. Please verify that your sheet header contains: <em>Cat. No., Descriptive Title, Lec, Lab, units, and Pre-Requisite</em> before saving to Supabase.
+                      </div>
+                    )}
+                  </div>
 
                   {parsedResult.warnings.length > 0 && (
                     <div style={{
@@ -1379,17 +1468,24 @@ export const CurriculumModule: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleCommitImport}
-                    disabled={isCommittingImport || parsedResult.subjects.length === 0}
+                    disabled={isCommittingImport || !parsedResult.isValid || parsedResult.subjects.length === 0}
                     className="btn btn-primary"
                     style={{
                       fontSize: '0.82rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.45rem'
+                      gap: '0.45rem',
+                      opacity: (!parsedResult.isValid || isCommittingImport) ? 0.5 : 1,
+                      cursor: (!parsedResult.isValid || isCommittingImport) ? 'not-allowed' : 'pointer'
                     }}
+                    title={!parsedResult.isValid ? `Cannot store: Missing ${parsedResult.missingColumns.join(', ')}` : 'Commit verified curriculum to Supabase'}
                   >
                     {isCommittingImport ? (
                       <>Saving {parsedResult.subjects.length} Subjects to Supabase...</>
+                    ) : !parsedResult.isValid ? (
+                      <>
+                        <AlertCircle size={16} /> Cannot Store: Missing Required Columns
+                      </>
                     ) : (
                       <>
                         <CheckCircle2 size={16} />

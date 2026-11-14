@@ -192,7 +192,26 @@ async function importCurriculumBatch(req, res) {
       };
     });
 
-    // 2. Chunk upsert subjects (100 per batch)
+    // 2. Validate all subjects meet requirements (Cat. No., Descriptive Title, Lec, Lab, units, Pre-Requisite)
+    const invalidRows = [];
+    normalizedSubjects.forEach((s, idx) => {
+      if (!s.code) {
+        invalidRows.push(`Row ${idx + 1}: Missing Cat. No. (Subject Code)`);
+      } else if (!s.title) {
+        invalidRows.push(`Row ${idx + 1} (${s.code}): Missing Descriptive Title`);
+      } else if (s.units === undefined || isNaN(s.units) || s.units < 0) {
+        invalidRows.push(`Row ${idx + 1} (${s.code}): Invalid units value`);
+      }
+    });
+
+    if (invalidRows.length > 0) {
+      return res.status(400).json({
+        error: `Curriculum Validation Failed: ${invalidRows.length} subject(s) did not meet standard requirements (Cat. No., Descriptive Title, Lec, Lab, units, Pre-Requisite).`,
+        details: invalidRows.slice(0, 10)
+      });
+    }
+
+    // 3. Chunk upsert subjects (100 per batch)
     const chunk = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
     const subChunks = chunk(normalizedSubjects, 100);
 

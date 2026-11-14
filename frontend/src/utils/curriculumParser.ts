@@ -1,12 +1,25 @@
 import * as XLSX from 'xlsx';
 import type { CurriculumSubject } from '../modules/types';
 
+export interface RequiredColumnsStatus {
+  catNo: boolean;
+  descriptiveTitle: boolean;
+  lec: boolean;
+  lab: boolean;
+  units: boolean;
+  preRequisite: boolean;
+}
+
 export interface ParsedCurriculumResult {
   subjects: CurriculumSubject[];
   programs: string[];
   programCounts: Record<string, number>;
   yearCounts: Record<number, number>;
   prerequisiteCount: number;
+  detectedColumns: RequiredColumnsStatus;
+  missingColumns: string[];
+  isValid: boolean;
+  validationErrors: string[];
   warnings: string[];
 }
 
@@ -43,6 +56,16 @@ export async function parseCurriculumFile(file: File): Promise<ParsedCurriculumR
   const yearCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let prereqChainCount = 0;
 
+  // Track required columns (Cat. No., Descriptive Title, Lec, Lab, units, Pre-Requisite)
+  const detectedColumns: RequiredColumnsStatus = {
+    catNo: false,
+    descriptiveTitle: false,
+    lec: false,
+    lab: false,
+    units: false,
+    preRequisite: false
+  };
+
   workbook.SheetNames.forEach(sheetName => {
     const cleanSheetName = sheetName.trim();
     if (cleanSheetName.toLowerCase() === 'verify') return;
@@ -62,22 +85,38 @@ export async function parseCurriculumFile(file: File): Promise<ParsedCurriculumR
       const r = firstFewRows[i];
       if (!Array.isArray(r)) continue;
       const rStr = r.map(c => String(c || '').toLowerCase().trim());
-      const hasCode = rStr.some(c => /cat\.?\s*no\.?|subject\s*code|course\s*code|^code$/i.test(c));
+      const hasCode = rStr.some(c => /cat\.?\s*no\.?|catalog\s*no\.?|subject\s*code|course\s*code|^code$/i.test(c));
       const hasProgram = rStr.some(c => /degree|program|course/i.test(c));
       if (hasCode && hasProgram) {
         flatHeaderIdx = i;
         flatHeaderMap = {};
         r.forEach((cell, idx) => {
           const s = String(cell || '').toLowerCase().trim();
-          if (/cat\.?\s*no\.?|subject\s*code|course\s*code|^code$/i.test(s)) flatHeaderMap!.code = idx;
-          else if (/descriptive\s*title|description|^title$/i.test(s)) flatHeaderMap!.title = idx;
-          else if (/degree|program/i.test(s)) flatHeaderMap!.program = idx;
-          else if (/year|yr/i.test(s)) flatHeaderMap!.year = idx;
-          else if (/sem|term/i.test(s)) flatHeaderMap!.sem = idx;
-          else if (/^lec/i.test(s)) flatHeaderMap!.lec = idx;
-          else if (/^lab/i.test(s)) flatHeaderMap!.lab = idx;
-          else if (/units?|credit/i.test(s)) flatHeaderMap!.units = idx;
-          else if (/pre-?requisite/i.test(s)) flatHeaderMap!.prereq = idx;
+          if (/cat\.?\s*no\.?|catalog\s*no\.?|subject\s*code|course\s*code|^code$/i.test(s)) {
+            flatHeaderMap!.code = idx;
+            detectedColumns.catNo = true;
+          } else if (/descriptive\s*title|subject\s*title|course\s*title|description|^title$/i.test(s)) {
+            flatHeaderMap!.title = idx;
+            detectedColumns.descriptiveTitle = true;
+          } else if (/degree|program/i.test(s)) {
+            flatHeaderMap!.program = idx;
+          } else if (/year|yr/i.test(s)) {
+            flatHeaderMap!.year = idx;
+          } else if (/sem|term/i.test(s)) {
+            flatHeaderMap!.sem = idx;
+          } else if (/^lec(?:\s*units?|\.?)?$|^lecture(?:\s*units?)?$/i.test(s)) {
+            flatHeaderMap!.lec = idx;
+            detectedColumns.lec = true;
+          } else if (/^lab(?:\s*units?|\.?)?$|^laboratory(?:\s*units?)?$/i.test(s)) {
+            flatHeaderMap!.lab = idx;
+            detectedColumns.lab = true;
+          } else if (/^(?:total\s*)?units?$|credits?|credit\s*units?/i.test(s)) {
+            flatHeaderMap!.units = idx;
+            detectedColumns.units = true;
+          } else if (/pre-?requisites?|prereq/i.test(s)) {
+            flatHeaderMap!.prereq = idx;
+            detectedColumns.preRequisite = true;
+          }
         });
         break;
       }
@@ -194,12 +233,25 @@ export async function parseCurriculumFile(file: File): Promise<ParsedCurriculumR
         sectionHeaderMap = {};
         row.forEach((cell, cIdx) => {
           const s = String(cell || '').toLowerCase().trim();
-          if (/cat\.?\s*no\.?|subject\s*code|course\s*code|^code$/i.test(s)) sectionHeaderMap!.code = cIdx;
-          else if (/descriptive\s*title|description|^title$/i.test(s)) sectionHeaderMap!.title = cIdx;
-          else if (s === 'lec' || s.startsWith('lec')) sectionHeaderMap!.lec = cIdx;
-          else if (s === 'lab' || s.startsWith('lab')) sectionHeaderMap!.lab = cIdx;
-          else if (/units?|credit/i.test(s)) sectionHeaderMap!.units = cIdx;
-          else if (/pre-?requisite/i.test(s)) sectionHeaderMap!.prereq = cIdx;
+          if (/cat\.?\s*no\.?|catalog\s*no\.?|subject\s*code|course\s*code|^code$/i.test(s)) {
+            sectionHeaderMap!.code = cIdx;
+            detectedColumns.catNo = true;
+          } else if (/descriptive\s*title|subject\s*title|course\s*title|description|^title$/i.test(s)) {
+            sectionHeaderMap!.title = cIdx;
+            detectedColumns.descriptiveTitle = true;
+          } else if (/^lec(?:\s*units?|\.?)?$|^lecture(?:\s*units?)?$/i.test(s)) {
+            sectionHeaderMap!.lec = cIdx;
+            detectedColumns.lec = true;
+          } else if (/^lab(?:\s*units?|\.?)?$|^laboratory(?:\s*units?)?$/i.test(s)) {
+            sectionHeaderMap!.lab = cIdx;
+            detectedColumns.lab = true;
+          } else if (/^(?:total\s*)?units?$|credits?|credit\s*units?/i.test(s)) {
+            sectionHeaderMap!.units = cIdx;
+            detectedColumns.units = true;
+          } else if (/pre-?requisites?|prereq/i.test(s)) {
+            sectionHeaderMap!.prereq = cIdx;
+            detectedColumns.preRequisite = true;
+          }
         });
         return;
       }
@@ -248,12 +300,35 @@ export async function parseCurriculumFile(file: File): Promise<ParsedCurriculumR
     warnings.push('No valid curriculum rows could be recognized in the uploaded file. Please verify sheet format.');
   }
 
+  const missingColumns: string[] = [];
+  if (!detectedColumns.catNo) missingColumns.push('Cat. No.');
+  if (!detectedColumns.descriptiveTitle) missingColumns.push('Descriptive Title');
+  if (!detectedColumns.lec) missingColumns.push('Lec');
+  if (!detectedColumns.lab) missingColumns.push('Lab');
+  if (!detectedColumns.units) missingColumns.push('units');
+  if (!detectedColumns.preRequisite) missingColumns.push('Pre-Requisite');
+
+  const validationErrors: string[] = [];
+  if (missingColumns.length > 0) {
+    validationErrors.push(`Required curriculum column(s) missing: ${missingColumns.join(', ')}. The file must contain: Cat. No., Descriptive Title, Lec, Lab, units, and Pre-Requisite.`);
+  }
+
+  if (allSubjects.length === 0) {
+    validationErrors.push('No valid curriculum subjects could be recognized in the uploaded file.');
+  }
+
+  const isValid = missingColumns.length === 0 && allSubjects.length > 0 && validationErrors.length === 0;
+
   return {
     subjects: allSubjects,
     programs: Array.from(programSet),
     programCounts,
     yearCounts,
     prerequisiteCount: prereqChainCount,
+    detectedColumns,
+    missingColumns,
+    isValid,
+    validationErrors,
     warnings
   };
 }

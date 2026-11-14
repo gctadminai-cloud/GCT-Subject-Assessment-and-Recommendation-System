@@ -188,18 +188,30 @@ export const RegistrarDataProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         } catch (e) { }
 
-        const liveSubjects: CurriculumSubject[] = data.map((s: any) => ({
-          id: s.id,
-          code: s.code,
-          title: s.title,
-          units: Number(s.units || 3),
-          lecUnits: Number(s.lec_units || Math.max(1, Number(s.units || 3) - 1)),
-          labUnits: Number(s.lab_units || (Number(s.units || 3) > 2 ? 1 : 0)),
-          prerequisites: prereqsMap[s.id]?.join(', ') || s.prerequisites || 'None',
-          program: s.program || 'BSIT',
-          year_level: Number(s.year_level || 1),
-          semester: Number(s.semester || 1)
-        }));
+        const liveSubjects: CurriculumSubject[] = data.map((s: any) => {
+          const totalUnits = Number(s.units || 3);
+          const rawLec = s.lec_units !== null && s.lec_units !== undefined ? Number(s.lec_units) : totalUnits;
+          const rawLab = s.lab_units !== null && s.lab_units !== undefined ? Number(s.lab_units) : 0;
+
+          const rawPrereq = prereqsMap[s.id]?.join(', ') || s.prerequisites || 'None';
+          const trimmedPrereq = String(rawPrereq).trim();
+          const cleanPrereq = (!trimmedPrereq || trimmedPrereq === '-' || /^[*#\-~]+$/.test(trimmedPrereq) || /^(none|n\/a|na|nil|null)$/i.test(trimmedPrereq))
+            ? 'None'
+            : trimmedPrereq;
+
+          return {
+            id: s.id,
+            code: s.code,
+            title: s.title,
+            units: totalUnits,
+            lecUnits: rawLec,
+            labUnits: rawLab,
+            prerequisites: cleanPrereq,
+            program: s.program || 'BSIT',
+            year_level: Number(s.year_level || 1),
+            semester: Number(s.semester || 1)
+          };
+        });
         setCurriculumSubjects(liveSubjects);
       }
     } catch (err) {

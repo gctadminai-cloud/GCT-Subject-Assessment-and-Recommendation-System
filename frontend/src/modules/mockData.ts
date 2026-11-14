@@ -25,17 +25,97 @@ export const PROGRAM_CATALOG: ProgramInfo[] = [
     code: 'BSCS',
     name: 'Bachelor of Science in Computer Science',
     department: 'College of Computer Studies',
-    color: '#1D4ED8',
+    color: '#2563EB',
     bgColor: '#EFF6FF',
     description: 'Algorithmic computing, artificial intelligence, data structures, and computational theory.'
   },
   {
-    code: 'BSBA',
-    name: 'Bachelor of Science in Business Administration',
-    department: 'College of Business',
+    code: 'BSCE',
+    name: 'Bachelor of Science in Civil Engineering',
+    department: 'College of Engineering',
+    color: '#0284C7',
+    bgColor: '#F0F9FF',
+    description: 'Structural design, construction engineering, hydraulics, geotechnical, and infrastructure.'
+  },
+  {
+    code: 'BSEE',
+    name: 'Bachelor of Science in Electrical Engineering',
+    department: 'College of Engineering',
+    color: '#D97706',
+    bgColor: '#FFFBEB',
+    description: 'Power systems, electrical circuits, control instrumentation, and renewable energy.'
+  },
+  {
+    code: 'BSME',
+    name: 'Bachelor of Science in Mechanical Engineering',
+    department: 'College of Engineering',
+    color: '#EA580C',
+    bgColor: '#FFF7ED',
+    description: 'Thermal systems, machine design, manufacturing, fluid power, and mechanics.'
+  },
+  {
+    code: 'BSBA-FM',
+    name: 'BS in Business Administration - Financial Management',
+    department: 'College of Business Administration',
     color: '#059669',
     bgColor: '#ECFDF5',
-    description: 'Business management, marketing, finance, and entrepreneurship fundamentals.'
+    description: 'Corporate finance, investment analysis, banking, capital budgeting, and financial markets.'
+  },
+  {
+    code: 'BSBA-HRM',
+    name: 'BS in Business Administration - Human Resource Management',
+    department: 'College of Business Administration',
+    color: '#0D9488',
+    bgColor: '#F0FDFA',
+    description: 'Talent acquisition, organizational behavior, labor relations, and human resource development.'
+  },
+  {
+    code: 'BSBA-MM',
+    name: 'BS in Business Administration - Marketing Management',
+    department: 'College of Business Administration',
+    color: '#16A34A',
+    bgColor: '#F0FDF4',
+    description: 'Strategic marketing, brand management, digital marketing, consumer behavior, and sales administration.'
+  },
+  {
+    code: 'BSBA-OM',
+    name: 'BS in Business Administration - Operations Management',
+    department: 'College of Business Administration',
+    color: '#047857',
+    bgColor: '#ECFDF5',
+    description: 'Supply chain management, quality assurance, logistics, inventory control, and production operations.'
+  },
+  {
+    code: 'BSBA',
+    name: 'Bachelor of Science in Business Administration',
+    department: 'College of Business Administration',
+    color: '#059669',
+    bgColor: '#ECFDF5',
+    description: 'Business administration, commerce, marketing, and management fundamentals.'
+  },
+  {
+    code: 'BSHM',
+    name: 'Bachelor of Science in Hospitality Management',
+    department: 'College of Hospitality & Tourism',
+    color: '#B45309',
+    bgColor: '#FFFBEB',
+    description: 'Hotel operations, culinary arts, food and beverage service, and hospitality enterprise.'
+  },
+  {
+    code: 'BSOA',
+    name: 'Bachelor of Science in Office Administration',
+    department: 'College of Business Administration',
+    color: '#4F46E5',
+    bgColor: '#EEF2FF',
+    description: 'Executive office administration, corporate records, business communication, and clerical management.'
+  },
+  {
+    code: 'BSA',
+    name: 'Bachelor of Science in Accountancy',
+    department: 'College of Accountancy',
+    color: '#7C3AED',
+    bgColor: '#F5F3FF',
+    description: 'Financial reporting, auditing, taxation, cost accounting, and CPA regulatory standards.'
   }
 ];
 

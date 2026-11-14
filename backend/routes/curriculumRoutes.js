@@ -5,6 +5,7 @@ const {
   createSubject,
   updateSubject,
   deleteSubject,
+  importCurriculumBatch,
   getPrerequisites,
   createPrerequisite,
   deletePrerequisite
@@ -16,6 +17,7 @@ router.get('/subjects', authenticate, getSubjects);
 router.post('/subjects', authenticate, requireRole('registrar_admin'), createSubject);
 router.put('/subjects/:id', authenticate, requireRole('registrar_admin'), updateSubject);
 router.delete('/subjects/:id', authenticate, requireRole('registrar_admin'), deleteSubject);
+router.post('/import', authenticate, requireRole('registrar_admin'), importCurriculumBatch);
 
 // Prerequisites API
 router.get('/prerequisites', authenticate, getPrerequisites);

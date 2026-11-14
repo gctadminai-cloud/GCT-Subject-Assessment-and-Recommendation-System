@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -6,15 +6,24 @@ import {
   Trash2,
   School,
   BookOpen,
-  Sun
+  Sun,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Database
 } from 'lucide-react';
 import { useRegistrarData } from './RegistrarDataContext';
+import { fetchApi } from '../config/api';
+import { parseCurriculumFile, cleanPrerequisiteString, type ParsedCurriculumResult } from '../utils/curriculumParser';
 import type { CurriculumSubject } from './types';
 
 export const CurriculumModule: React.FC = () => {
   const {
     curriculumSubjects,
     setCurriculumSubjects,
+    refreshSubjects,
     PROGRAM_CATALOG,
     showToast
   } = useRegistrarData();
@@ -26,14 +35,55 @@ export const CurriculumModule: React.FC = () => {
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [subjectModalMode, setSubjectModalMode] = useState<'add' | 'edit'>('add');
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [isSavingSubject, setIsSavingSubject] = useState(false);
+
   const [subjFormCode, setSubjFormCode] = useState('');
   const [subjFormTitle, setSubjFormTitle] = useState('');
   const [subjFormLecUnits, setSubjFormLecUnits] = useState('2');
   const [subjFormLabUnits, setSubjFormLabUnits] = useState('1');
+  const [subjFormUnits, setSubjFormUnits] = useState('3');
   const [subjFormProgram, setSubjFormProgram] = useState('BSIT');
   const [subjFormYear, setSubjFormYear] = useState('1');
   const [subjFormSem, setSubjFormSem] = useState('1');
   const [subjFormPrereq, setSubjFormPrereq] = useState('None');
+
+  // Import Curriculum Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [isCommittingImport, setIsCommittingImport] = useState(false);
+  const [parsedResult, setParsedResult] = useState<ParsedCurriculumResult | null>(null);
+  const [importPreviewFilter, setImportPreviewFilter] = useState('ALL');
+  const [importPreviewSearch, setImportPreviewSearch] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Available programs computed dynamically from loaded subjects and PROGRAM_CATALOG
+  const availablePrograms = useMemo(() => {
+    const canonicalOrder = ['BSIT', 'BSCS', 'BSCE', 'BSEE', 'BSME', 'BSBA-FM', 'BSBA-HRM', 'BSBA-MM', 'BSBA-OM', 'BSHM', 'BSOA', 'BSA'];
+    const set = new Set<string>();
+
+    curriculumSubjects.forEach(s => {
+      if (s.program && s.program.trim()) {
+        set.add(s.program.trim().toUpperCase());
+      }
+    });
+
+    if (set.size === 0) {
+      PROGRAM_CATALOG.forEach(p => {
+        if (p.code !== 'BSBA') set.add(p.code);
+      });
+    }
+
+    // Sort according to institutional canonical order, then any additional programs
+    return Array.from(set).sort((a, b) => {
+      const idxA = canonicalOrder.indexOf(a);
+      const idxB = canonicalOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [PROGRAM_CATALOG, curriculumSubjects]);
 
   const handleOpenAddSubjectModal = () => {
     setSubjectModalMode('add');
@@ -41,8 +91,9 @@ export const CurriculumModule: React.FC = () => {
     setSubjFormCode('');
     setSubjFormTitle('');
     setSubjFormLecUnits('2');
-    setSubjFormLabUnits('1');
-    setSubjFormProgram('BSIT');
+    setSubjFormLabUnits('0');
+    setSubjFormUnits('3');
+    setSubjFormProgram(curriculumProgramFilter !== 'ALL' ? curriculumProgramFilter : 'BSIT');
     setSubjFormYear('1');
     setSubjFormSem('1');
     setSubjFormPrereq('None');
@@ -55,53 +106,154 @@ export const CurriculumModule: React.FC = () => {
     setSubjFormCode(s.code);
     setSubjFormTitle(s.title);
     setSubjFormLecUnits(String(s.lecUnits ?? 2));
-    setSubjFormLabUnits(String(s.labUnits ?? 1));
+    setSubjFormLabUnits(String(s.labUnits ?? 0));
+    setSubjFormUnits(String(s.units ?? 3));
     setSubjFormProgram(s.program);
     setSubjFormYear(String(s.year_level));
     setSubjFormSem(String(s.semester));
-    setSubjFormPrereq(s.prerequisites || 'None');
+    setSubjFormPrereq(cleanPrerequisiteString(s.prerequisites));
     setShowSubjectModal(true);
   };
 
-  const handleSaveSubject = (e: React.FormEvent) => {
+  const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalUnits = Number(subjFormLecUnits) + Number(subjFormLabUnits);
-    if (subjectModalMode === 'add') {
-      const newSubj: CurriculumSubject = {
-        id: 'sub-' + Date.now(),
-        code: subjFormCode.trim().toUpperCase(),
-        title: subjFormTitle.trim(),
-        lecUnits: Number(subjFormLecUnits),
-        labUnits: Number(subjFormLabUnits),
-        units: totalUnits,
-        program: subjFormProgram,
-        year_level: Number(subjFormYear),
-        semester: Number(subjFormSem),
-        prerequisites: subjFormPrereq.trim() || 'None'
-      };
-      setCurriculumSubjects(prev => [...prev, newSubj]);
-      showToast(`Subject ${newSubj.code} added to curriculum catalog!`, 'success');
-    } else {
-      setCurriculumSubjects(prev => prev.map(s => {
-        if (s.id === editingSubjectId) {
-          return {
-            ...s,
+    const totalUnits = Number(subjFormUnits) || (Number(subjFormLecUnits) + Number(subjFormLabUnits)) || 3;
+    const finalPrereq = cleanPrerequisiteString(subjFormPrereq);
+    setIsSavingSubject(true);
+
+    try {
+      if (subjectModalMode === 'add') {
+        const cleanCode = subjFormCode.trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const subjectId = `sub-${subjFormProgram.toLowerCase()}-${cleanCode}`;
+
+        await fetchApi('/curriculum/subjects', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: subjectId,
             code: subjFormCode.trim().toUpperCase(),
             title: subjFormTitle.trim(),
-            lecUnits: Number(subjFormLecUnits),
-            labUnits: Number(subjFormLabUnits),
+            lec_units: Number(subjFormLecUnits),
+            lab_units: Number(subjFormLabUnits),
             units: totalUnits,
             program: subjFormProgram,
             year_level: Number(subjFormYear),
             semester: Number(subjFormSem),
-            prerequisites: subjFormPrereq.trim() || 'None'
-          };
-        }
-        return s;
-      }));
-      showToast(`Subject ${subjFormCode.trim().toUpperCase()} updated successfully!`, 'success');
+            prerequisites: finalPrereq
+          })
+        });
+
+        showToast(`Subject ${subjFormCode.trim().toUpperCase()} added to Supabase curriculum catalog!`, 'success');
+      } else if (editingSubjectId) {
+        await fetchApi(`/curriculum/subjects/${editingSubjectId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            code: subjFormCode.trim().toUpperCase(),
+            title: subjFormTitle.trim(),
+            lec_units: Number(subjFormLecUnits),
+            lab_units: Number(subjFormLabUnits),
+            units: totalUnits,
+            program: subjFormProgram,
+            year_level: Number(subjFormYear),
+            semester: Number(subjFormSem),
+            prerequisites: finalPrereq
+          })
+        });
+
+        showToast(`Subject ${subjFormCode.trim().toUpperCase()} updated in Supabase!`, 'success');
+      }
+
+      await refreshSubjects();
+      setShowSubjectModal(false);
+    } catch (err: any) {
+      console.error('Save Subject Error:', err);
+      showToast(err.message || 'Failed to save subject to database', 'error');
+    } finally {
+      setIsSavingSubject(false);
     }
-    setShowSubjectModal(false);
+  };
+
+  const handleDeleteSubject = async (s: CurriculumSubject) => {
+    if (!window.confirm(`Are you sure you want to delete ${s.code} (${s.title}) from the curriculum?`)) {
+      return;
+    }
+
+    try {
+      await fetchApi(`/curriculum/subjects/${s.id}`, { method: 'DELETE' });
+      showToast(`Subject ${s.code} deleted from curriculum catalog`, 'info');
+      await refreshSubjects();
+    } catch (err: any) {
+      console.error('Delete Subject Error:', err);
+      // Fallback local deletion
+      setCurriculumSubjects(prev => prev.filter(item => item.id !== s.id));
+      showToast(`Subject ${s.code} removed from view`, 'info');
+    }
+  };
+
+  // -------------------------------------------------------------
+  // IMPORT CURRICULUM HANDLERS
+  // -------------------------------------------------------------
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFile(file);
+    setIsParsingFile(true);
+    setParsedResult(null);
+
+    try {
+      const result = await parseCurriculumFile(file);
+      setParsedResult(result);
+      setImportPreviewFilter('ALL');
+      setImportPreviewSearch('');
+      showToast(`Parsed ${result.subjects.length} subjects across ${result.programs.length} degree programs!`, 'info');
+    } catch (err: any) {
+      console.error('Curriculum parsing error:', err);
+      showToast('Failed to parse curriculum file: ' + (err.message || 'Invalid format'), 'error');
+    } finally {
+      setIsParsingFile(false);
+    }
+  };
+
+  const handleCommitImport = async () => {
+    if (!parsedResult || parsedResult.subjects.length === 0) return;
+    setIsCommittingImport(true);
+
+    try {
+      const payload = {
+        subjects: parsedResult.subjects.map(s => ({
+          id: s.id,
+          code: s.code,
+          title: s.title,
+          lec_units: s.lecUnits,
+          lab_units: s.labUnits,
+          units: s.units,
+          program: s.program,
+          year_level: s.year_level,
+          semester: s.semester,
+          prerequisites: s.prerequisites
+        }))
+      };
+
+      const res = await fetchApi('/curriculum/import', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      showToast(
+        res.message || `Successfully imported ${parsedResult.subjects.length} subjects into Supabase!`,
+        'success'
+      );
+
+      await refreshSubjects();
+      setShowImportModal(false);
+      setImportFile(null);
+      setParsedResult(null);
+    } catch (err: any) {
+      console.error('Commit import error:', err);
+      showToast(err.message || 'Failed to sync curriculum with database', 'error');
+    } finally {
+      setIsCommittingImport(false);
+    }
   };
 
   const searchLower = curriculumSearch.toLowerCase().trim();
@@ -113,9 +265,33 @@ export const CurriculumModule: React.FC = () => {
   });
 
   const isAllPrograms = curriculumProgramFilter === 'ALL';
-  const selectedProgObj = PROGRAM_CATALOG.find((p: any) => p.code === curriculumProgramFilter) || PROGRAM_CATALOG[0];
+  const selectedProgObj = useMemo(() => {
+    return PROGRAM_CATALOG.find((p: any) => p.code === curriculumProgramFilter) || {
+      code: curriculumProgramFilter,
+      name: curriculumProgramFilter,
+      department: 'Garcia College of Technology',
+      color: '#1D4ED8',
+      bgColor: '#EFF6FF',
+      description: 'Institutional Degree Program'
+    };
+  }, [PROGRAM_CATALOG, curriculumProgramFilter]);
+
   const programSubjects = curriculumSubjects.filter(s => s.program === curriculumProgramFilter);
   const programTotalCredits = programSubjects.reduce((acc, curr) => acc + (curr.units || 0), 0);
+
+  // Filtered rows for import preview modal
+  const previewSubjectsFiltered = useMemo(() => {
+    if (!parsedResult) return [];
+    let list = parsedResult.subjects;
+    if (importPreviewFilter !== 'ALL') {
+      list = list.filter(s => s.program === importPreviewFilter);
+    }
+    if (importPreviewSearch.trim()) {
+      const q = importPreviewSearch.toLowerCase().trim();
+      list = list.filter(s => s.code.toLowerCase().includes(q) || s.title.toLowerCase().includes(q));
+    }
+    return list;
+  }, [parsedResult, importPreviewFilter, importPreviewSearch]);
 
   return (
     <div>
@@ -136,24 +312,63 @@ export const CurriculumModule: React.FC = () => {
               <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
             </div>
 
-            {/* Program Filter Dropdown */}
+            {/* Dynamic Program Filter Dropdown */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <select
                 value={curriculumProgramFilter}
                 onChange={e => setCurriculumProgramFilter(e.target.value)}
                 className="form-select"
-                style={{ width: '180px', fontSize: '0.88rem', height: '38px', fontWeight: 700 }}
+                style={{ minWidth: '160px', fontSize: '0.88rem', height: '38px', fontWeight: 700 }}
               >
                 <option value="ALL">All Programs</option>
-                <option value="BSIT">BSIT</option>
-                <option value="BSCS">BSCS</option>
+                {availablePrograms.map(p => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Right side: Add Button on 'ALL' OR Program Metadata when a specific program is selected */}
-          {isAllPrograms ? (
-            <div>
+          {/* Action Buttons & Program Metadata */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            {!isAllPrograms && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Department:</span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {selectedProgObj.department}
+                </span>
+                <span style={{ fontWeight: 800, color: 'var(--primary)', background: '#EFF6FF', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid #BFDBFE' }}>
+                  Total Credits: {programTotalCredits} Units
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setShowImportModal(true);
+                setImportFile(null);
+                setParsedResult(null);
+              }}
+              className="btn btn-secondary"
+              style={{
+                height: '38px',
+                padding: '0 1rem',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                background: '#EFF6FF',
+                color: '#1D4ED8',
+                borderColor: '#BFDBFE'
+              }}
+              title="Import institutional curriculum syllabus from Excel or CSV"
+            >
+              <Upload size={16} /> Import Curriculum (.xlsx / .csv)
+            </button>
+
+            {isAllPrograms ? (
               <button
                 onClick={handleOpenAddSubjectModal}
                 className="btn btn-primary"
@@ -169,18 +384,24 @@ export const CurriculumModule: React.FC = () => {
               >
                 <Plus size={16} /> Add Subject to Catalog
               </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Department:</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                {selectedProgObj.department}
-              </span>
-              <span style={{ fontWeight: 800, color: 'var(--primary)', background: '#EFF6FF', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid #BFDBFE' }}>
-                Total Credits: {programTotalCredits} Units
-              </span>
-            </div>
-          )}
+            ) : (
+              <button
+                onClick={handleOpenAddSubjectModal}
+                className="btn btn-primary"
+                style={{
+                  height: '38px',
+                  padding: '0 0.85rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Plus size={15} /> Add to {curriculumProgramFilter}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -189,11 +410,12 @@ export const CurriculumModule: React.FC = () => {
         <div className="glass-card" style={{ padding: '1.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                Curriculum Subject Catalog ({filteredCatalogSubjects.length})
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Database size={18} color="var(--primary)" />
+                Supabase Curriculum Subject Catalog ({filteredCatalogSubjects.length})
               </h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Institutional course offerings, credit allocations & prerequisite configurations
+                Institutional course offerings, credit allocations & prerequisite configurations live from database
               </span>
             </div>
           </div>
@@ -234,9 +456,9 @@ export const CurriculumModule: React.FC = () => {
                         {yearText}, {semText}
                       </td>
                       <td>
-                        {s.prerequisites && s.prerequisites !== 'None' ? (
+                        {cleanPrerequisiteString(s.prerequisites) !== 'None' ? (
                           <span style={{ fontWeight: 700, color: 'var(--text-main)', background: 'var(--bg-main)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                            {s.prerequisites}
+                            {cleanPrerequisiteString(s.prerequisites)}
                           </span>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>None</span>
@@ -263,10 +485,7 @@ export const CurriculumModule: React.FC = () => {
                             <Pencil size={15} />
                           </button>
                           <button
-                            onClick={() => {
-                              setCurriculumSubjects(prev => prev.filter(item => item.id !== s.id));
-                              showToast(`Subject ${s.code} deleted from catalog`, 'info');
-                            }}
+                            onClick={() => handleDeleteSubject(s)}
                             style={{
                               background: '#FEF2F2',
                               border: '1px solid #FCA5A5',
@@ -290,8 +509,8 @@ export const CurriculumModule: React.FC = () => {
                 })}
                 {filteredCatalogSubjects.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                      No subjects found matching your search.
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      No subjects found matching your criteria. Click "Import Curriculum" to populate from Excel.
                     </td>
                   </tr>
                 )}
@@ -319,7 +538,7 @@ export const CurriculumModule: React.FC = () => {
             const yearTotalUnits = sem1Units + sem2Units;
             const yearName = year === 1 ? '1st Year' : year === 2 ? '2nd Year' : year === 3 ? '3rd Year' : '4th Year';
 
-            // Summer subjects (Mid-Year) — to be rendered as an independent container below 3rd Year, before 4th Year
+            // Summer subjects (Mid-Year)
             const summerSubjects = programSubjects.filter(s => {
               const isSummer = s.semester === 3 || s.semester === 0 || String(s.semester).toLowerCase().includes('summer');
               const matchesSearch = !searchLower || s.code.toLowerCase().includes(searchLower) || s.title.toLowerCase().includes(searchLower);
@@ -346,10 +565,10 @@ export const CurriculumModule: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Split Semester Columns (1st and 2nd Semester ONLY) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-                    {/* 1st Semester Column */}
-                    <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  {/* Stacked Semester Containers (1st Semester on top, 2nd Semester below) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* 1st Semester Container */}
+                    <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                           1st Semester
@@ -368,6 +587,7 @@ export const CurriculumModule: React.FC = () => {
                               <th>Lec/Lab Units</th>
                               <th>Total Units</th>
                               <th>Prerequisites</th>
+                              <th style={{ textAlign: 'center', width: '75px' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -383,20 +603,60 @@ export const CurriculumModule: React.FC = () => {
                                     {s.units} Units
                                   </span>
                                 </td>
-                                <td style={{ fontSize: '0.78rem', color: s.prerequisites && s.prerequisites !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                  {s.prerequisites && s.prerequisites !== 'None' ? (
+                                <td style={{ fontSize: '0.78rem', color: cleanPrerequisiteString(s.prerequisites) !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                  {cleanPrerequisiteString(s.prerequisites) !== 'None' ? (
                                     <span style={{ fontWeight: 700, color: 'var(--text-main)', background: 'var(--bg-main)', padding: '2px 5px', borderRadius: '4px' }}>
-                                      {s.prerequisites}
+                                      {cleanPrerequisiteString(s.prerequisites)}
                                     </span>
                                   ) : (
                                     'None'
                                   )}
                                 </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditSubjectModal(s)}
+                                      style={{
+                                        background: 'var(--bg-main)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: 'var(--primary)',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Edit ${s.code}`}
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubject(s)}
+                                      style={{
+                                        background: '#FEF2F2',
+                                        border: '1px solid #FCA5A5',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: '#DC2626',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Delete ${s.code}`}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
                             ))}
                             {sem1Subjects.length === 0 && (
                               <tr>
-                                <td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                   No subjects scheduled for 1st Semester.
                                 </td>
                               </tr>
@@ -406,8 +666,8 @@ export const CurriculumModule: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2nd Semester Column */}
-                    <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    {/* 2nd Semester Container */}
+                    <div style={{ background: '#F8FAFC', padding: '1.25rem', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                           2nd Semester
@@ -426,6 +686,7 @@ export const CurriculumModule: React.FC = () => {
                               <th>Lec/Lab Units</th>
                               <th>Total Units</th>
                               <th>Prerequisites</th>
+                              <th style={{ textAlign: 'center', width: '75px' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -441,20 +702,60 @@ export const CurriculumModule: React.FC = () => {
                                     {s.units} Units
                                   </span>
                                 </td>
-                                <td style={{ fontSize: '0.78rem', color: s.prerequisites && s.prerequisites !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                  {s.prerequisites && s.prerequisites !== 'None' ? (
+                                <td style={{ fontSize: '0.78rem', color: cleanPrerequisiteString(s.prerequisites) !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                  {cleanPrerequisiteString(s.prerequisites) !== 'None' ? (
                                     <span style={{ fontWeight: 700, color: 'var(--text-main)', background: 'var(--bg-main)', padding: '2px 5px', borderRadius: '4px' }}>
-                                      {s.prerequisites}
+                                      {cleanPrerequisiteString(s.prerequisites)}
                                     </span>
                                   ) : (
                                     'None'
                                   )}
                                 </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditSubjectModal(s)}
+                                      style={{
+                                        background: 'var(--bg-main)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: 'var(--primary)',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Edit ${s.code}`}
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubject(s)}
+                                      style={{
+                                        background: '#FEF2F2',
+                                        border: '1px solid #FCA5A5',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: '#DC2626',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Delete ${s.code}`}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
                             ))}
                             {sem2Subjects.length === 0 && (
                               <tr>
-                                <td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                   No subjects scheduled for 2nd Semester.
                                 </td>
                               </tr>
@@ -463,14 +764,12 @@ export const CurriculumModule: React.FC = () => {
                         </table>
                       </div>
                     </div>
-
                   </div>
                 </div>
 
-                {/* SUMMER TERM / MID-YEAR CONTAINER (SEPARATE CONTAINER BELOW 3RD YEAR, BEFORE 4TH YEAR) */}
+                {/* SUMMER TERM / MID-YEAR CONTAINER */}
                 {year === 3 && hasSummerInProgram && (
                   <div key="summer-container" className="glass-card" style={{ padding: '1.5rem', borderLeft: '4px solid #D97706', background: 'linear-gradient(180deg, #FFFDF8 0%, #FFFFFF 100%)' }}>
-                    {/* Summer Term Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <div style={{
@@ -499,7 +798,6 @@ export const CurriculumModule: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Summer Term Table */}
                     <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                       <div className="table-container">
                         <table className="custom-table" style={{ background: '#FFFFFF', fontSize: '0.85rem' }}>
@@ -510,6 +808,7 @@ export const CurriculumModule: React.FC = () => {
                               <th>Lec/Lab Units</th>
                               <th>Total Units</th>
                               <th>Prerequisites</th>
+                              <th style={{ textAlign: 'center', width: '75px' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -525,20 +824,60 @@ export const CurriculumModule: React.FC = () => {
                                     {s.units} Units
                                   </span>
                                 </td>
-                                <td style={{ fontSize: '0.78rem', color: s.prerequisites && s.prerequisites !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                  {s.prerequisites && s.prerequisites !== 'None' ? (
+                                <td style={{ fontSize: '0.78rem', color: cleanPrerequisiteString(s.prerequisites) !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                  {cleanPrerequisiteString(s.prerequisites) !== 'None' ? (
                                     <span style={{ fontWeight: 700, color: 'var(--text-main)', background: 'var(--bg-main)', padding: '2px 5px', borderRadius: '4px' }}>
-                                      {s.prerequisites}
+                                      {cleanPrerequisiteString(s.prerequisites)}
                                     </span>
                                   ) : (
                                     'None'
                                   )}
                                 </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditSubjectModal(s)}
+                                      style={{
+                                        background: 'var(--bg-main)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: '#D97706',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Edit ${s.code}`}
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubject(s)}
+                                      style={{
+                                        background: '#FEF2F2',
+                                        border: '1px solid #FCA5A5',
+                                        borderRadius: '6px',
+                                        padding: '0.3rem 0.5rem',
+                                        color: '#DC2626',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={`Delete ${s.code}`}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
                             ))}
                             {summerSubjects.length === 0 && (
                               <tr>
-                                <td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                   No subjects scheduled for Summer Term matching search filter.
                                 </td>
                               </tr>
@@ -555,7 +894,387 @@ export const CurriculumModule: React.FC = () => {
         </div>
       )}
 
-      {/* ADD / EDIT CURRICULUM SUBJECT MODAL */}
+      {/* ========================================================= */}
+      {/* MODAL 1: IMPORT CURRICULUM FILE MODAL                     */}
+      {/* ========================================================= */}
+      {showImportModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div className="glass-card" style={{
+            width: '100%',
+            maxWidth: '850px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--bg-main)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Upload size={18} color="#1D4ED8" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                    Import Institutional Curriculum
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Upload curriculum syllabus (.xlsx, .xls, .csv) to sync degree programs & prerequisites into Supabase
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!isCommittingImport) {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                    setParsedResult(null);
+                  }
+                }}
+                disabled={isCommittingImport}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: isCommittingImport ? 'not-allowed' : 'pointer',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+              {/* File Dropzone */}
+              {!parsedResult && (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: '2px dashed var(--border-color)',
+                    borderRadius: '14px',
+                    padding: '2.5rem 1.5rem',
+                    textAlign: 'center',
+                    background: 'var(--bg-main)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <FileSpreadsheet size={48} color="var(--primary)" style={{ margin: '0 auto 1rem', opacity: 0.8 }} />
+                  <h4 style={{ margin: '0 0 0.4rem', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    {isParsingFile ? 'Parsing Curriculum Syllabus...' : 'Click or Drag & Drop Curriculum File'}
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    Accepts official multi-sheet workbooks (e.g. <strong>GCT_Curriculum_All_Programs.xlsx</strong>) with individual program sheets or standard single-sheet CSV/XLSX files.
+                  </p>
+                  <div style={{ marginTop: '1.25rem' }}>
+                    <span className="btn btn-primary" style={{ fontSize: '0.82rem', pointerEvents: 'none' }}>
+                      {isParsingFile ? 'Reading & Validating...' : 'Select File (.xlsx / .csv)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed Summary & Fast Preview */}
+              {parsedResult && (
+                <div>
+                  {/* Selected File Details Banner */}
+                  {importFile && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.95rem',
+                      background: '#F8FAFC',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      marginBottom: '1rem',
+                      fontSize: '0.82rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <FileSpreadsheet size={16} color="var(--primary)" />
+                        <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{importFile.name}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>({(importFile.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <span style={{ color: '#16A34A', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle2 size={14} /> Ready for Sync
+                      </span>
+                    </div>
+                  )}
+
+                  {parsedResult.warnings.length > 0 && (
+                    <div style={{
+                      padding: '0.65rem 0.95rem',
+                      background: '#FEF2F2',
+                      borderRadius: '8px',
+                      border: '1px solid #FECACA',
+                      marginBottom: '1rem',
+                      fontSize: '0.8rem',
+                      color: '#DC2626',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <AlertCircle size={16} />
+                      <span>{parsedResult.warnings.join(', ')}</span>
+                    </div>
+                  )}
+
+                  {/* File Metadata & Quick Stats Bar */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '0.85rem',
+                    marginBottom: '1.25rem'
+                  }}>
+                    <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase' }}>
+                        Curriculum Subjects
+                      </div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#1E3A8A' }}>
+                        {parsedResult.subjects.length}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Total courses recognized</div>
+                    </div>
+
+                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase' }}>
+                        Degree Programs
+                      </div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#166534' }}>
+                        {parsedResult.programs.length}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>All departments detected</div>
+                    </div>
+
+                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#B45309', textTransform: 'uppercase' }}>
+                        Prerequisites
+                      </div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#92400E' }}>
+                        {parsedResult.prerequisiteCount}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Course dependency rules</div>
+                    </div>
+
+                    <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7E22CE', textTransform: 'uppercase' }}>
+                        Target Database
+                      </div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#6B21A8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Database size={16} /> Supabase
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>public.subjects & prerequisites</div>
+                    </div>
+                  </div>
+
+                  {/* Program Badges Breakdown */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                      Programs in File (Click chip to filter preview):
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setImportPreviewFilter('ALL')}
+                        style={{
+                          border: importPreviewFilter === 'ALL' ? '2px solid #2563EB' : '1px solid var(--border-color)',
+                          background: importPreviewFilter === 'ALL' ? '#EFF6FF' : 'var(--bg-main)',
+                          color: importPreviewFilter === 'ALL' ? '#1D4ED8' : 'var(--text-main)',
+                          padding: '3px 10px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        All ({parsedResult.subjects.length})
+                      </button>
+                      {parsedResult.programs.map(prog => (
+                        <button
+                          key={prog}
+                          type="button"
+                          onClick={() => setImportPreviewFilter(prog)}
+                          style={{
+                            border: importPreviewFilter === prog ? '2px solid #2563EB' : '1px solid var(--border-color)',
+                            background: importPreviewFilter === prog ? '#EFF6FF' : 'var(--bg-main)',
+                            color: importPreviewFilter === prog ? '#1D4ED8' : 'var(--text-main)',
+                            padding: '3px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {prog} ({parsedResult.programCounts[prog] || 0})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search within Preview */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', width: '240px' }}>
+                      <input
+                        type="text"
+                        placeholder="Search preview rows..."
+                        value={importPreviewSearch}
+                        onChange={e => setImportPreviewSearch(e.target.value)}
+                        className="form-input"
+                        style={{ paddingLeft: '2rem', height: '34px', fontSize: '0.8rem' }}
+                      />
+                      <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)' }} />
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Previewing <strong>{Math.min(previewSubjectsFiltered.length, 60)}</strong> of <strong>{previewSubjectsFiltered.length}</strong> items
+                    </span>
+                  </div>
+
+                  {/* Preview Table */}
+                  <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#FFFFFF' }}>
+                    <table className="custom-table" style={{ fontSize: '0.78rem', margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th>Program</th>
+                          <th>Yr & Term</th>
+                          <th>Subject Code</th>
+                          <th>Descriptive Title</th>
+                          <th>Lec / Lab</th>
+                          <th>Units</th>
+                          <th>Prerequisites</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewSubjectsFiltered.slice(0, 60).map((s, idx) => (
+                          <tr key={s.id || idx}>
+                            <td><span className={`badge badge-${s.program}`}>{s.program}</span></td>
+                            <td>{s.year_level}Y - {s.semester === 1 ? '1st' : s.semester === 2 ? '2nd' : 'Summer'}</td>
+                            <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{s.code}</td>
+                            <td style={{ fontWeight: 600 }}>{s.title}</td>
+                            <td>{s.lecUnits} / {s.labUnits}</td>
+                            <td style={{ fontWeight: 700 }}>{s.units}</td>
+                            <td style={{ color: cleanPrerequisiteString(s.prerequisites) !== 'None' ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                              {cleanPrerequisiteString(s.prerequisites)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--bg-main)'
+            }}>
+              <div>
+                {parsedResult && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportFile(null);
+                      setParsedResult(null);
+                    }}
+                    disabled={isCommittingImport}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.82rem' }}
+                  >
+                    Select Different File
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                    setParsedResult(null);
+                  }}
+                  disabled={isCommittingImport}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.82rem' }}
+                >
+                  Cancel
+                </button>
+
+                {parsedResult && (
+                  <button
+                    type="button"
+                    onClick={handleCommitImport}
+                    disabled={isCommittingImport || parsedResult.subjects.length === 0}
+                    className="btn btn-primary"
+                    style={{
+                      fontSize: '0.82rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem'
+                    }}
+                  >
+                    {isCommittingImport ? (
+                      <>Saving {parsedResult.subjects.length} Subjects to Supabase...</>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={16} />
+                        Commit & Sync {parsedResult.subjects.length} Subjects to Supabase
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: ADD / EDIT CURRICULUM SUBJECT MODAL              */}
+      {/* ========================================================= */}
       {showSubjectModal && (
         <div style={{
           position: 'fixed',
@@ -647,13 +1366,16 @@ export const CurriculumModule: React.FC = () => {
                   />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Total Units</label>
+                  <label className="form-label">Total Credit Units</label>
                   <input
-                    type="text"
-                    value={`${Number(subjFormLecUnits || 0) + Number(subjFormLabUnits || 0)} Units`}
-                    disabled
+                    type="number"
+                    value={subjFormUnits}
+                    onChange={e => setSubjFormUnits(e.target.value)}
                     className="form-input"
-                    style={{ background: '#F3F4F6', color: 'var(--primary)', fontWeight: 800 }}
+                    required
+                    min="1"
+                    max="12"
+                    style={{ fontWeight: 800, color: 'var(--primary)' }}
                   />
                 </div>
               </div>
@@ -666,8 +1388,9 @@ export const CurriculumModule: React.FC = () => {
                     onChange={e => setSubjFormProgram(e.target.value)}
                     className="form-select"
                   >
-                    <option value="BSIT">BSIT</option>
-                    <option value="BSCS">BSCS</option>
+                    {availablePrograms.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
@@ -712,15 +1435,17 @@ export const CurriculumModule: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowSubjectModal(false)}
+                  disabled={isSavingSubject}
                   className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  disabled={isSavingSubject}
                   className="btn btn-primary"
                 >
-                  {subjectModalMode === 'add' ? 'Add Subject' : 'Save Changes'}
+                  {isSavingSubject ? 'Saving...' : (subjectModalMode === 'add' ? 'Add Subject' : 'Save Changes')}
                 </button>
               </div>
             </form>

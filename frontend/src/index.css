@@ -208,6 +208,37 @@ a:hover {
   border: 1px solid #BFDBFE;
 }
 
+/* Degree Program Badges */
+.badge-BSIT, .badge-BSCS {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.badge-BSCE, .badge-BSEE, .badge-BSME {
+  background: #F0F9FF;
+  color: #0284C7;
+  border: 1px solid #BAE6FD;
+}
+
+.badge-BSBA, .badge-BSBA-FM, .badge-BSBA-HRM, .badge-BSBA-MM, .badge-BSBA-OM {
+  background: #ECFDF5;
+  color: #059669;
+  border: 1px solid #A7F3D0;
+}
+
+.badge-BSHM, .badge-BSOA {
+  background: #FFFBEB;
+  color: #D97706;
+  border: 1px solid #FDE68A;
+}
+
+.badge-BSA {
+  background: #F5F3FF;
+  color: #7C3AED;
+  border: 1px solid #DDD6FE;
+}
+
 /* Inputs & Form Controls */
 .form-group {
   display: flex;

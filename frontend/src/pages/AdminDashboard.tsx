@@ -59,6 +59,26 @@ export const AdminDashboardContent: React.FC<AdminDashboardProps> = ({ activeTab
     }
   }, [currentTab]);
 
+  // Reset scroll to top whenever the active view changes so the user never starts mid-page or at the bottom
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    const frameId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [currentTab]);
+
   const userInitials = 'SA';
 
   const isChatbotTab = currentTab === 'chatbot' || currentTab === 'ai_chatbot';

@@ -34,6 +34,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
 
   const isExpanded = isPinned || isHovered;
 
+  const handleTabClick = (tabId: string) => {
+    // Reset scroll to top immediately across window, body, and main container
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    setMobileOpen(false);
+    onTabChange?.(tabId);
+  };
+
   return (
     <>
       {/* Mobile Drawer Toggle */}
@@ -161,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
             {user.role !== 'student' && (
               <>
                 <button
-                  onClick={() => onTabChange?.('home')}
+                  onClick={() => handleTabClick('home')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -178,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
 
                 {/* AI CHATBOT DIRECTLY BELOW DASHBOARD FOR ADMIN & STAFF */}
                 <button
-                  onClick={() => onTabChange?.('chatbot')}
+                  onClick={() => handleTabClick('chatbot')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -196,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
 
                 {/* SUBJECT RECOMMENDATION DIRECTLY UNDER AI CHATBOT */}
                 <button
-                  onClick={() => onTabChange?.('recommendations')}
+                  onClick={() => handleTabClick('recommendations')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -212,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                 </button>
 
                 <button
-                  onClick={() => onTabChange?.('student_academic_records')}
+                  onClick={() => handleTabClick('student_academic_records')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -229,7 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                 </button>
 
                 <button
-                  onClick={() => onTabChange?.('curriculum')}
+                  onClick={() => handleTabClick('curriculum')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -248,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                 {user.role === 'registrar_admin' && (
                   <>
                     <button
-                      onClick={() => onTabChange?.('manage_accounts')}
+                      onClick={() => handleTabClick('manage_accounts')}
                       className="btn"
                       style={{
                         justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -267,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
 
                 {/* ABOUT US NAVIGATION ITEM (BELOW USER MANAGEMENT) */}
                 <button
-                  onClick={() => onTabChange?.('about_us')}
+                  onClick={() => handleTabClick('about_us')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -289,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
             {user.role === 'student' && (
               <>
                 <button
-                  onClick={() => onTabChange?.('home')}
+                  onClick={() => handleTabClick('home')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -305,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                 </button>
 
                 <button
-                  onClick={() => onTabChange?.('records')}
+                  onClick={() => handleTabClick('records')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',
@@ -321,7 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab = 'home', onTabChang
                 </button>
 
                 <button
-                  onClick={() => onTabChange?.('recommendations')}
+                  onClick={() => handleTabClick('recommendations')}
                   className="btn"
                   style={{
                     justifyContent: isExpanded ? 'flex-start' : 'center',

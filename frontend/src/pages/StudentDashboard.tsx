@@ -117,6 +117,26 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
     };
   }, [logout, confirmAction]);
 
+  // Reset scroll to top whenever switching views (e.g. between Curriculum and About Us)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    const frameId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [activeTab, localTab, isAboutUs]);
+
   // Auto-sync student year level whenever tab is focused or becomes visible
   useEffect(() => {
     const handleSync = async () => {
@@ -1123,14 +1143,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
         <button
           type="button"
           onClick={() => {
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
             if (isAboutUs) {
               setLocalTab('curriculum');
               if (onTabChange) onTabChange('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
               setLocalTab('about_us');
               if (onTabChange) onTabChange('about_us');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
             }
           }}
           style={{

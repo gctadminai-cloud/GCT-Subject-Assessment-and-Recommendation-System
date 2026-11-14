@@ -140,6 +140,15 @@ export const AboutUsModule: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Automatically scroll to top when About Us is opened
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+  }, []);
+
   // Scroll reveal observer: hide muna ang di abot, tapos unti-unti lang lalabas pag nag-scroll down/up
   useEffect(() => {
     const container = containerRef.current;

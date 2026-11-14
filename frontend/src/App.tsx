@@ -90,6 +90,26 @@ const MainAppLayout: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Reset scroll to top whenever switching navigation tabs so the user always sees the top of the selected view
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    const frameId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [activeTab]);
+
   if (!user) {
     return (
       <div style={{ minHeight: '100vh', position: 'relative' }}>

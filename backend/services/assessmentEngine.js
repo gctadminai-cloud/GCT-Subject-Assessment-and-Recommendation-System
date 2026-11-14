@@ -166,7 +166,9 @@ function evaluateStudent({
   studentInfo = null,
   passingThreshold = 75,
   maxFailedPrereqs = 3,
-  activeAcademicYear = '2026-2027'
+  activeAcademicYear = '2026-2027',
+  targetYearOverride = null,
+  targetSemesterOverride = null
 }) {
   const effectiveGrades = Array.isArray(grades) && grades.length > 0 ? grades : studentGrades;
   const threshold = Number(passingThreshold) || 75;
@@ -284,10 +286,12 @@ function evaluateStudent({
     anchorSem = latestSemRank === 3 ? 3 : (latestSemRank === 2 ? 2 : 1);
     const yrsInTerm = latestTermRecords
       .map(r => {
-        if (Number.isFinite(Number(r.year_level))) return Number(r.year_level);
         const sMatch = byId.get(String(r.subject_id || r.subjectId || '')) ||
-                       byNorm.get(normalizeSubjCode(r.code || r.subject || ''));
-        return sMatch ? Number(sMatch.year_level) : NaN;
+                       byNorm.get(normalizeSubjCode(r.code || r.subject || '')) ||
+                       byNorm.get(normalizeSubjCode(r.title || r.subject_title || ''));
+        if (sMatch && Number.isFinite(Number(sMatch.year_level))) return Number(sMatch.year_level);
+        if (Number.isFinite(Number(r.year_level))) return Number(r.year_level);
+        return NaN;
       })
       .filter(y => Number.isFinite(y) && y >= 1 && y <= 4);
     if (yrsInTerm.length > 0) {
@@ -413,6 +417,24 @@ function evaluateStudent({
       targetSemester = next.semester;
     } else {
       break;
+    }
+  }
+
+  // Target term overrides (e.g. from user query in chatbot like "for 2nd year 2nd sem")
+  if (targetYearOverride !== null && targetYearOverride !== undefined) {
+    const oY = Number(targetYearOverride);
+    if (Number.isFinite(oY) && oY >= 1 && oY <= 4) {
+      targetYear = oY;
+    }
+  }
+  if (targetSemesterOverride !== null && targetSemesterOverride !== undefined) {
+    const oSStr = String(targetSemesterOverride).toLowerCase().trim();
+    if (oSStr === 'summer' || oSStr === '3') {
+      targetSemester = 3;
+    } else if (oSStr === '2') {
+      targetSemester = 2;
+    } else if (oSStr === '1') {
+      targetSemester = 1;
     }
   }
 

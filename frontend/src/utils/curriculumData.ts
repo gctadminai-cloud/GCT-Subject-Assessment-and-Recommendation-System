@@ -673,11 +673,12 @@ export function generateCurriculumRecommendations(
     anchorSem = latestSemRank === 3 ? 3 : (latestSemRank === 2 ? 2 : 1);
     const yrsInTerm = latestTermRecords
       .map(r => {
+        const norm = normalizeSubjCode(r.code || r.title);
+        const matchDef = curriculumDefs.find(c => normalizeSubjCode(c.code) === norm || normalizeSubjCode(c.title) === norm);
+        if (matchDef && Number.isFinite(matchDef.yearLevel)) return matchDef.yearLevel;
         const yNum = Number(r.yearLevel || (r as any).year_level);
         if (Number.isFinite(yNum) && yNum >= 1 && yNum <= 4) return yNum;
-        const norm = normalizeSubjCode(r.code || r.title);
-        const matchDef = curriculumDefs.find(c => normalizeSubjCode(c.code) === norm);
-        return matchDef ? matchDef.yearLevel : NaN;
+        return NaN;
       })
       .filter(y => Number.isFinite(y) && y >= 1 && y <= 4);
     if (yrsInTerm.length > 0) {

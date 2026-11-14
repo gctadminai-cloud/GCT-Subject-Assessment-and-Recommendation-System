@@ -455,23 +455,16 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         deficiencyCount = liveCount;
       }
 
-      // If this is the currently active student and real grades have loaded, lock in 100% agreement with analysis
-      if (
-        (matchStudentId(st.student_id, selectedRecStudentId) || matchStudentId(st.id, selectedRecStudentId)) &&
-        !isGradesLoading &&
-        analysis
-      ) {
-        hasDeficiencies = displayedHasDeficiencies;
-        deficiencyCount = Math.max(analysis.activeDeficiencies.length, displayedBreakdown.retakeCount);
-      }
-
       let effectiveYear = Number(st.year || 1);
       let hasSummerYear3 = false;
+      let hasCompletedY3S2 = false;
 
       if (effectiveGrades.length > 0) {
         let maxTakenYear = 1;
         let sem2CountY1 = 0;
         let sem2CountY2 = 0;
+        let sem2CountY3 = 0;
+        let y3S2PassedCount = 0;
 
         effectiveGrades.forEach(g => {
           if (g.status === 'not_taken') return;
@@ -483,8 +476,28 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
           const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3' || Boolean(g.term && /summer/i.test(g.term));
           if (y === 1 && isSem2) sem2CountY1++;
           if (y === 2 && isSem2) sem2CountY2++;
+          if (y === 3 && isSem2) sem2CountY3++;
           if (y === 3 && isSummer) hasSummerYear3 = true;
+
+          const isDrop =
+            g.status === 'dropped' ||
+            g.isDropped === true ||
+            g.rawGrade === '9' ||
+            g.grade === 9 ||
+            String(g.rawGrade || '').toUpperCase() === 'DRP';
+          const num = Number(g.grade);
+          const isPass = !isDrop && !isNaN(num) && num > 0 && num <= 3.0;
+          if (isPass) {
+            const norm = normalizeSubjCode(g.code || g.title || (g as any).subjectId || (g as any).subject_code || '');
+            const bsitY3S2 = ['it15', 'it16', 'it17', 'it18', 'it19', 'ite1', 'socsci1'];
+            const bscsY3S2 = ['cs14', 'cs15', 'cs16', 'cs17', 'cs18', 'cse2', 'socsci1'];
+            if (bsitY3S2.includes(norm) || bscsY3S2.includes(norm)) {
+              y3S2PassedCount++;
+            }
+          }
         });
+
+        hasCompletedY3S2 = sem2CountY3 >= 3 || y3S2PassedCount >= 3;
 
         effectiveYear = maxTakenYear;
         // Year 1 -> 2: completing 2nd sem of Year 1
@@ -568,9 +581,14 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
           // Finished 1st sem -> upcoming term is 2nd sem of the current year level
           targetSemester = '2';
         } else if (latestSemRank === 2) {
-          if (effectiveYear === 3 && !hasSummerYear3) {
-            // Finished 3rd year 2nd sem and hasn't passed summer -> upcoming term is 3rd Year Summer!
-            targetSemester = 'summer';
+          if (effectiveYear === 3) {
+            // 🔒 A 3rd Year student ONLY targets Summer IF they have actually completed 3rd Year 2nd Sem!
+            // If they have not completed 3rd Year 2nd Sem, their upcoming term is 3rd Year 2nd Sem!
+            if (hasCompletedY3S2 && !hasSummerYear3) {
+              targetSemester = 'summer';
+            } else {
+              targetSemester = '2';
+            }
           } else if (effectiveYear < 4) {
             // Finished 1st or 2nd year 2nd sem -> upcoming term is 1st sem of next year
             targetSemester = '1';
@@ -584,6 +602,22 @@ export const RecommendationsModule: React.FC<RecommendationsModuleProps> = ({
         }
       } else {
         targetSemester = '1';
+      }
+
+      // If this is the currently active student and real grades have loaded, lock in 100% agreement with analysis
+      const isActiveStudent = Boolean(
+        (matchStudentId(st.student_id, selectedRecStudentId) || matchStudentId(st.id, selectedRecStudentId)) &&
+        !isGradesLoading &&
+        analysis
+      );
+
+      if (isActiveStudent && analysis) {
+        hasDeficiencies = displayedHasDeficiencies;
+        deficiencyCount = Math.max(analysis.activeDeficiencies.length, displayedBreakdown.retakeCount);
+        targetSemester = analysis.targetSemester === 3 ? 'summer' : (analysis.targetSemester === 2 ? '2' : '1');
+        if (Number.isFinite(analysis.targetYear) && analysis.targetYear >= 1 && analysis.targetYear <= 4) {
+          effectiveYear = analysis.targetYear;
+        }
       }
 
       // In the Subject Recommendation module, the active term is the TARGET term for recommendations

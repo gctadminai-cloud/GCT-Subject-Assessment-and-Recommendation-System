@@ -777,50 +777,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 0.5rem 0' }}>
               Select a Year Level to View Curriculum
             </h3>
-            <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: '540px', margin: '0 0 1.5rem 0', lineHeight: 1.5 }}>
-              Please click an academic year level above or choose one below to view your curriculum subjects and academic grades.
+            <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: '540px', margin: 0, lineHeight: 1.5 }}>
+              Please click an academic year level above to view your curriculum subjects and academic grades.
             </p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {[1, 2, 3, 4].map(yr => {
-                const yrName = yr === 1 ? '1st Year' : yr === 2 ? '2nd Year' : yr === 3 ? '3rd Year' : '4th Year';
-                const isCurrent = yr === studentYear;
-                return (
-                  <button
-                    key={yr}
-                    type="button"
-                    onClick={() => setSelectedYearTab(yr)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.65rem 1.25rem',
-                      borderRadius: '10px',
-                      fontSize: '0.88rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      background: isCurrent ? 'var(--primary)' : '#F8FAFC',
-                      color: isCurrent ? '#FFFFFF' : '#334155',
-                      border: isCurrent ? '1px solid var(--primary)' : '1px solid #CBD5E1',
-                      boxShadow: isCurrent ? '0 4px 12px rgba(37, 99, 235, 0.22)' : '0 1px 3px rgba(0,0,0,0.05)'
-                    }}
-                  >
-                    <BookOpen size={16} />
-                    <span>{yrName}</span>
-                    {isCurrent && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        background: 'rgba(255, 255, 255, 0.25)',
-                        padding: '1px 6px',
-                        borderRadius: '6px'
-                      }}>
-                        Current
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         ) : (
           <>

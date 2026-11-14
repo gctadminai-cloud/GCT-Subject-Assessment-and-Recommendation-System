@@ -1115,13 +1115,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
         color: '#64748B',
         marginTop: 'auto',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '0.75rem',
-        flexWrap: 'wrap'
+        gap: '0.45rem'
       }}>
-        <span>© 2026 Garcia College of Technology. All rights reserved.</span>
-        <span style={{ color: '#CBD5E1' }}>•</span>
         <button
           type="button"
           onClick={() => {
@@ -1140,18 +1138,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
             border: 'none',
             color: 'var(--primary)',
             fontWeight: 700,
-            fontSize: '0.78rem',
+            fontSize: '0.8rem',
             cursor: 'pointer',
             padding: 0,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.3rem',
+            gap: '0.35rem',
             textDecoration: 'underline'
           }}
         >
-          <Info size={13} />
+          <Info size={14} />
           <span>{isAboutUs ? 'Curriculum Grade Sheet' : 'About Us'}</span>
         </button>
+        <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+          © 2026 Garcia College of Technology. All rights reserved.
+        </span>
       </footer>
 
     </div>

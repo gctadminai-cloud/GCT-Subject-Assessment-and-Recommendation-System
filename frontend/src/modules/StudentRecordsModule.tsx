@@ -1359,8 +1359,19 @@ export const StudentRecordsModule: React.FC<StudentRecordsModuleProps> = ({ onOp
                     className="form-input"
                     style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem' }}
                   >
-                    <option value="BSIT">BSIT</option>
-                    <option value="BSCS">BSCS</option>
+                    <option value="BSIT">BSIT - Information Technology</option>
+                    <option value="BSCS">BSCS - Computer Science</option>
+                    <option value="BSA">BSA - Accountancy</option>
+                    <option value="BSBA">BSBA - Business Administration</option>
+                    <option value="BSBA-FM">BSBA-FM - Financial Management</option>
+                    <option value="BSBA-HRM">BSBA-HRM - Human Resource Management</option>
+                    <option value="BSBA-MM">BSBA-MM - Marketing Management</option>
+                    <option value="BSBA-OM">BSBA-OM - Operations Management</option>
+                    <option value="BSHM">BSHM - Hospitality Management</option>
+                    <option value="BSOA">BSOA - Office Administration</option>
+                    <option value="BSCE">BSCE - Civil Engineering</option>
+                    <option value="BSEE">BSEE - Electrical Engineering</option>
+                    <option value="BSME">BSME - Mechanical Engineering</option>
                   </select>
                 </div>
 

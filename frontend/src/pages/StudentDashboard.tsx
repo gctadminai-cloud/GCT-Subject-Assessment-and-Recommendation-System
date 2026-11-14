@@ -56,7 +56,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
   }, [targetStudentId, student, user, liveStudentData]);
 
   const studentYear = studentObj.year;
-  const [selectedYearTab, setSelectedYearTab] = useState<number>(studentYear);
+  const [selectedYearTab, setSelectedYearTab] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [rawDbGrades, setRawDbGrades] = useState<AcademicGrade[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -103,11 +103,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, [logout, confirmAction]);
-
-  // Sync default selected tab when student year is updated (including when admin edits year)
-  useEffect(() => {
-    setSelectedYearTab(studentYear);
-  }, [studentYear]);
 
   // Auto-sync student year level whenever tab is focused or becomes visible
   useEffect(() => {
@@ -315,6 +310,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
 
   // Group records for active year tab
   const activeYearRecords = useMemo(() => {
+    if (!selectedYearTab) return [];
     return filteredCurriculumGrades.filter(g => g.yearLevel === selectedYearTab);
   }, [filteredCurriculumGrades, selectedYearTab]);
 
@@ -343,7 +339,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
     setExpandedAttempts(prev => ({ ...prev, [recId]: !prev[recId] }));
   };
 
-  const yearLabel = selectedYearTab === 1 ? '1st Year' : selectedYearTab === 2 ? '2nd Year' : selectedYearTab === 3 ? '3rd Year' : '4th Year';
+  const yearLabel = selectedYearTab === 1 ? '1st Year' : selectedYearTab === 2 ? '2nd Year' : selectedYearTab === 3 ? '3rd Year' : selectedYearTab === 4 ? '4th Year' : '';
 
   return (
     <div style={{
@@ -734,39 +730,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
           </div>
         </div>
 
-        {/* SECTION TITLE */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem',
-          padding: '0 0.2rem',
-          flexWrap: 'wrap',
-          gap: '0.5rem'
-        }}>
-          <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <BookOpen size={16} color="var(--primary)" />
-              {yearLabel} Official Curriculum Grade Sheet
-            </h3>
-            <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0.15rem 0 0 0' }}>
-              Official GCT {studentObj.program} catalog subjects and student academic marks recorded in Supabase DB
-            </p>
-          </div>
-          <span style={{
-            fontWeight: 800,
-            color: 'var(--primary)',
-            background: '#EFF6FF',
-            padding: '4px 10px',
-            borderRadius: '8px',
-            fontSize: '0.78rem',
-            border: '1px solid #BFDBFE'
-          }}>
-            {activeYearRecords.length} {activeYearRecords.length === 1 ? 'Subject' : 'Subjects'} ({activeYearRecords.reduce((acc, g) => acc + g.units, 0)} Total Units)
-          </span>
-        </div>
-
-        {/* SEMESTER TABLES SECTION */}
+        {/* SEMESTER TABLES SECTION OR YEAR PROMPT */}
         {loading ? (
           <div style={{
             background: '#FFFFFF',
@@ -784,8 +748,115 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
             <Loader2 size={30} color="var(--primary)" style={{ animation: 'spin 1s linear infinite' }} />
             <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>Syncing official curriculum grades with Supabase database...</p>
           </div>
+        ) : selectedYearTab === null ? (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px dashed #CBD5E1',
+            padding: '3.5rem 1.5rem',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
+          }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: '#EFF6FF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1rem',
+              color: 'var(--primary)'
+            }}>
+              <Layers size={30} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 0.5rem 0' }}>
+              Select a Year Level to View Curriculum
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: '540px', margin: '0 0 1.5rem 0', lineHeight: 1.5 }}>
+              Please click an academic year level above or choose one below to view your curriculum subjects and academic grades.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {[1, 2, 3, 4].map(yr => {
+                const yrName = yr === 1 ? '1st Year' : yr === 2 ? '2nd Year' : yr === 3 ? '3rd Year' : '4th Year';
+                const isCurrent = yr === studentYear;
+                return (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => setSelectedYearTab(yr)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '10px',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      background: isCurrent ? 'var(--primary)' : '#F8FAFC',
+                      color: isCurrent ? '#FFFFFF' : '#334155',
+                      border: isCurrent ? '1px solid var(--primary)' : '1px solid #CBD5E1',
+                      boxShadow: isCurrent ? '0 4px 12px rgba(37, 99, 235, 0.22)' : '0 1px 3px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    <BookOpen size={16} />
+                    <span>{yrName}</span>
+                    {isCurrent && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        background: 'rgba(255, 255, 255, 0.25)',
+                        padding: '1px 6px',
+                        borderRadius: '6px'
+                      }}>
+                        Current
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <>
+            {/* SECTION TITLE */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1rem',
+              padding: '0 0.2rem',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <BookOpen size={16} color="var(--primary)" />
+                  {yearLabel} Official Curriculum Grade Sheet
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0.15rem 0 0 0' }}>
+                  Official GCT {studentObj.program} catalog subjects and student academic marks recorded in Supabase DB
+                </p>
+              </div>
+              <span style={{
+                fontWeight: 800,
+                color: 'var(--primary)',
+                background: '#EFF6FF',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                border: '1px solid #BFDBFE'
+              }}>
+                {activeYearRecords.length} {activeYearRecords.length === 1 ? 'Subject' : 'Subjects'} ({activeYearRecords.reduce((acc, g) => acc + g.units, 0)} Total Units)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
             {/* Render Semester Card Helper */}
             {[
@@ -969,7 +1040,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
                                 <tr>
                                   <td colSpan={6} style={{ background: '#F8FAFC', padding: '0.75rem 1rem', borderLeft: '3px solid var(--primary)' }}>
                                     <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
-                                      📜 Attempt History for {rec.code} - {rec.title}:
+                                      Attempt History for {rec.code} - {rec.title}:
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                       {rec.attempts.map((att: any, attIdx: number) => (
@@ -1022,6 +1093,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = () => {
             })}
 
           </div>
+          </>
         )}
 
       </main>

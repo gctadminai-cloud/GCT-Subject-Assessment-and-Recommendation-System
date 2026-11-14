@@ -607,19 +607,19 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   const roleTitle = isGuest
     ? 'GCT AI Assistant'
     : isStudent
-    ? 'GCT Student AI Advisor'
+    ? 'GCT STUDENT AI INQUIRY'
     : 'GCT Registrar AI Assistant';
 
   const roleSubtitle = isGuest
     ? 'Admissions, Enrollment & Portal Guide'
     : isStudent
-    ? 'Grounded in your student record'
+    ? 'Official Student Academic Advising & Inquiries'
     : 'Grounded in institutional database';
 
   const defaultWelcome = isGuest
     ? 'Welcome to Garcia College of Technology! I am your official GCT AI Assistant. Ask me how to register as a student, how enrollment works, or about our BSIT curriculum.\n\n*Note: Student records and grades require logging in.*'
     : isStudent
-    ? `Hello ${user?.full_name || 'Student'}! I am your official GCT Academic Advising Assistant. Ask me about your passed grades, subject prerequisites, current GWA, next semester recommendations, or request an academic advising opinion!`
+    ? `Hello ${user?.full_name || 'Student'}! I am your official GCT STUDENT AI INQUIRY assistant. Ask me about your passed grades, subject prerequisites, current GWA, next semester recommendations, or submit any academic inquiry!`
     : `Hello ${user?.full_name || 'Registrar Staff'}! I am your GCT Registrar Operations Assistant. Search any student record by Student ID or Name, request Excel/Word reports, check pending approvals, or evaluate curriculum rules!`;
 
   const userIdentifier = user?.id || user?.student_id || user?.username || null;
@@ -2113,8 +2113,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             setIsOpen(true);
           }}
           className="chatbot-floating-logo-btn"
-          aria-label="Open GCT AI Assistant"
-          title="Open GCT AI Assistant"
+          aria-label={isStudent ? "Open GCT STUDENT AI INQUIRY" : "Open GCT AI Assistant"}
+          title={isStudent ? "Open GCT STUDENT AI INQUIRY" : "Open GCT AI Assistant"}
         >
           <img
             src="/logo.png"
@@ -2124,7 +2124,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           <span className="chatbot-online-badge">
             <span className="chatbot-online-dot"></span>
           </span>
-          <span className="chatbot-floating-tooltip">Ask GCT AI</span>
+          <span className="chatbot-floating-tooltip">{isStudent ? "GCT STUDENT AI INQUIRY" : "Ask GCT AI"}</span>
         </button>
       )}
 

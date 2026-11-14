@@ -504,8 +504,9 @@ async function sendRegistrationOtpHandler(req, res) {
       return res.status(400).json({ error: 'Please enter a valid email address.' });
     }
 
-    if (!['BSIT', 'BSCS'].includes(cleanProgram)) {
-      return res.status(400).json({ error: "Invalid Program. Only 'BSIT' or 'BSCS' are accepted." });
+    const VALID_GCT_PROGRAMS = ['BSIT', 'BSCS', 'BSA', 'BSBA', 'BSBA-FM', 'BSBA-HRM', 'BSBA-MM', 'BSBA-OM', 'BSHM', 'BSOA', 'BSCE', 'BSEE', 'BSME'];
+    if (!VALID_GCT_PROGRAMS.includes(cleanProgram)) {
+      return res.status(400).json({ error: "Invalid Academic Program. Please select a valid GCT program (e.g. BSIT, BSCS, BSA, BSBA, BSHM, BSCE, etc.)." });
     }
 
     // Check if an active account already exists for this student_id
@@ -602,8 +603,9 @@ async function registerStudent(req, res) {
       return res.status(400).json({ error: 'Student ID, Name (Last Name & First Name), Email, and 6-digit OTP verification code are required.' });
     }
 
-    if (!['BSIT', 'BSCS'].includes(cleanProgram)) {
-      return res.status(400).json({ error: "Invalid Program. Only 'BSIT' or 'BSCS' are accepted." });
+    const VALID_GCT_PROGRAMS = ['BSIT', 'BSCS', 'BSA', 'BSBA', 'BSBA-FM', 'BSBA-HRM', 'BSBA-MM', 'BSBA-OM', 'BSHM', 'BSOA', 'BSCE', 'BSEE', 'BSME'];
+    if (!VALID_GCT_PROGRAMS.includes(cleanProgram)) {
+      return res.status(400).json({ error: "Invalid Academic Program. Please select a valid GCT program (e.g. BSIT, BSCS, BSA, BSBA, BSHM, BSCE, etc.)." });
     }
 
     // 2. Verify OTP

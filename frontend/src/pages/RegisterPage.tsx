@@ -549,6 +549,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onGoToLogin }) => {
               >
                 <option value="BSIT">BSIT - Bachelor of Science in Information Technology</option>
                 <option value="BSCS">BSCS - Bachelor of Science in Computer Science</option>
+                <option value="BSA">BSA - Bachelor of Science in Accountancy</option>
+                <option value="BSBA">BSBA - Bachelor of Science in Business Administration</option>
+                <option value="BSBA-FM">BSBA-FM - Financial Management</option>
+                <option value="BSBA-HRM">BSBA-HRM - Human Resource Management</option>
+                <option value="BSBA-MM">BSBA-MM - Marketing Management</option>
+                <option value="BSBA-OM">BSBA-OM - Operations Management</option>
+                <option value="BSHM">BSHM - Bachelor of Science in Hospitality Management</option>
+                <option value="BSOA">BSOA - Bachelor of Science in Office Administration</option>
+                <option value="BSCE">BSCE - Bachelor of Science in Civil Engineering</option>
+                <option value="BSEE">BSEE - Bachelor of Science in Electrical Engineering</option>
+                <option value="BSME">BSME - Bachelor of Science in Mechanical Engineering</option>
               </select>
             </div>
 

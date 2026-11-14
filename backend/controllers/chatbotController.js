@@ -2085,12 +2085,12 @@ async function queryChatbot(req, res, customSupabase = null) {
           const q = query.toLowerCase();
           if (q.includes('register') || q.includes('create') || q.includes('sign up') || q.includes('apply')) {
             assistantResponse = userIsTagalog
-              ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang enrollment form ng iyong Buong Pangalan, GCT Student ID Number, Program (BSIT o BSCS), Year Level, at Class Schedule.\n3. I-submit ang registration. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!`
-              : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the enrollment form with your Full Name, GCT Student ID Number, Program (BSIT or BSCS), Year Level, and Class Schedule.\n3. Submit your registration. Once Registrar Staff verifies your credentials, your account will be activated!`;
+              ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang form ng iyong GCT Student ID Number, Pangalan, Kurso (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, atbp.), at Gmail address.\n3. I-verify ang 6-digit OTP code na ipapadala sa iyong Gmail at i-submit.\n4. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!`
+              : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the form with your GCT Student ID Number, Full Name, Academic Program (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, etc.), and Gmail address.\n3. Verify the 6-digit OTP code sent to your Gmail and submit.\n4. Once Registrar Staff verifies your credentials, your account will be activated!`;
           } else if (q.includes('program') || q.includes('course') || q.includes('offer') || q.includes('bsit') || q.includes('curriculum')) {
             assistantResponse = userIsTagalog
-              ? `Ang Garcia College of Technology ay nag-aalok ng Bachelor of Science in Information Technology (BSIT) at Computer Science (BSCS) programs na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*`
-              : `Garcia College of Technology offers Bachelor of Science in Information Technology (BSIT) and Computer Science (BSCS) programs with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*`;
+              ? `Ang Garcia College of Technology ay nag-aalok ng mga kursong BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), at BSME (Mechanical Engineering) na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*`
+              : `Garcia College of Technology offers degree programs including BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), and BSME (Mechanical Engineering) with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*`;
           } else if (q.includes('pending') || q.includes('approval') || q.includes('wait')) {
             assistantResponse = userIsTagalog
               ? `Kung ang iyong account registration ay kasalukuyang pending approval, bineberipika pa ng Registrar Staff ang iyong student records. Pinoproseso ang mga accounts tuwing office hours (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM).`
@@ -2320,7 +2320,7 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             userIsTagalog
           );
 
-          systemPrompt = `You are the official GCT AI Academic Advising Assistant for Garcia College of Technology.
+          systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
 Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
 Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
 Cumulative GWA: ${gwa}
@@ -2381,7 +2381,7 @@ ${opinionSection}
             assistantResponse = userIsTagalog
               ? `Hello po, **${userName}**! Kumusta ka?
 
-Ako ang iyong opisyal na **GCT Academic Advising Assistant**. Narito ang mabilisang buod ng iyong academic standing:
+Ako ang iyong opisyal na **GCT STUDENT AI INQUIRY** assistant. Narito ang mabilisang buod ng iyong academic standing:
 • **Student ID:** \`${studentInfo.student_id}\`
 • **Program:** ${studentInfo.program} (Year ${studentInfo.year_level || 1})
 • **Cumulative GWA:** **${gwa}**
@@ -2390,7 +2390,7 @@ ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '•
 Maaari mo akong tanungin tungkol sa iyong mga marka, susunod na subjects na dapat kunin, opinyon sa iyong schedule at standing, o mag-download ng iyong record sa **Excel (.csv)**, **Word (.doc)**, o **Text (.txt)** gamit ang buttons sa ibaba!`
               : `Hello, **${userName}**! How can I assist your academic advising today?
 
-I am your official **GCT Academic Advising Assistant**. Here is a quick summary of your academic standing:
+I am your official **GCT STUDENT AI INQUIRY** assistant. Here is a quick summary of your academic standing:
 • **Student ID:** \`${studentInfo.student_id}\`
 • **Program:** ${studentInfo.program} (Year ${studentInfo.year_level || 1})
 • **Cumulative GWA:** **${gwa}**

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Database
+  Database,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useRegistrarData } from './RegistrarDataContext';
 import { fetchApi } from '../config/api';
@@ -30,6 +32,16 @@ export const CurriculumModule: React.FC = () => {
 
   const [curriculumSearch, setCurriculumSearch] = useState('');
   const [curriculumProgramFilter, setCurriculumProgramFilter] = useState('ALL');
+
+  // Pagination for All Programs Catalog (100 subjects per page to ensure fast, lag-free rendering)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 100;
+  const catalogContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset pagination to Page 1 whenever search query or program filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [curriculumSearch, curriculumProgramFilter]);
 
   // Add / Edit Subject Modal State
   const [showSubjectModal, setShowSubjectModal] = useState(false);
@@ -264,6 +276,15 @@ export const CurriculumModule: React.FC = () => {
     return matchesSearch && matchesProg;
   });
 
+  // Calculate 100-item page slice for lag-free All Programs rendering
+  const totalPages = Math.max(1, Math.ceil(filteredCatalogSubjects.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedCatalogSubjects = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredCatalogSubjects.slice(startIndex, startIndex + pageSize);
+  }, [filteredCatalogSubjects, safeCurrentPage, pageSize]);
+
   const isAllPrograms = curriculumProgramFilter === 'ALL';
   const selectedProgObj = useMemo(() => {
     return PROGRAM_CATALOG.find((p: any) => p.code === curriculumProgramFilter) || {
@@ -407,8 +428,8 @@ export const CurriculumModule: React.FC = () => {
 
       {/* VIEW MODE 1: ALL PROGRAMS — SUBJECT CATALOG TABLE WITH ACTIONS */}
       {isAllPrograms && (
-        <div className="glass-card" style={{ padding: '1.35rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div ref={catalogContainerRef} className="glass-card" style={{ padding: '1.35rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Database size={18} color="var(--primary)" />
@@ -418,6 +439,19 @@ export const CurriculumModule: React.FC = () => {
                 Institutional course offerings, credit allocations & prerequisite configurations live from database
               </span>
             </div>
+            {filteredCatalogSubjects.length > 0 && (
+              <span style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: 'var(--primary)',
+                background: '#EFF6FF',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                border: '1px solid #BFDBFE'
+              }}>
+                Showing {(safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredCatalogSubjects.length)} of {filteredCatalogSubjects.length} (Page {safeCurrentPage} of {totalPages})
+              </span>
+            )}
           </div>
 
           <div className="table-container">
@@ -435,7 +469,7 @@ export const CurriculumModule: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredCatalogSubjects.map(s => {
+                {paginatedCatalogSubjects.map(s => {
                   const semText = s.semester === 1 ? '1st Sem' : s.semester === 2 ? '2nd Sem' : 'Summer';
                   const yearText = s.year_level === 1 ? '1st Year' : s.year_level === 2 ? '2nd Year' : s.year_level === 3 ? '3rd Year' : '4th Year';
 
@@ -517,6 +551,104 @@ export const CurriculumModule: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls for 100-item slices */}
+          {filteredCatalogSubjects.length > pageSize && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: '1rem',
+              marginTop: '1rem',
+              borderTop: '1px solid var(--border-color)',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Showing <strong>{(safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredCatalogSubjects.length)}</strong> of <strong>{filteredCatalogSubjects.length}</strong> subjects • Page <strong>{safeCurrentPage}</strong> of <strong>{totalPages}</strong>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage === 1}
+                  onClick={() => {
+                    setCurrentPage(prev => Math.max(1, prev - 1));
+                    catalogContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.8rem',
+                    opacity: safeCurrentPage === 1 ? 0.5 : 1,
+                    cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                  <span>Previous</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 2)
+                  .map((p, idx, arr) => {
+                    const prevP = arr[idx - 1];
+                    const showEllipsis = prevP && p - prevP > 1;
+                    return (
+                      <React.Fragment key={p}>
+                        {showEllipsis && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0 0.2rem' }}>...</span>}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrentPage(p);
+                            catalogContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          style={{
+                            minWidth: '32px',
+                            height: '32px',
+                            padding: '0 0.5rem',
+                            fontSize: '0.8rem',
+                            borderRadius: '6px',
+                            border: p === safeCurrentPage ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                            background: p === safeCurrentPage ? 'var(--primary)' : '#FFFFFF',
+                            color: p === safeCurrentPage ? '#FFFFFF' : 'var(--text-main)',
+                            fontWeight: p === safeCurrentPage ? 800 : 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {p}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => {
+                    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                    catalogContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.8rem',
+                    opacity: safeCurrentPage >= totalPages ? 0.5 : 1,
+                    cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <span>Next</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

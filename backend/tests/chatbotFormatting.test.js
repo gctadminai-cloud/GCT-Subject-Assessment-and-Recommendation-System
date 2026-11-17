@@ -9,7 +9,10 @@ const {
   formatTargetTermText,
   generateStudentCsv,
   ensureFollowUpQuestion,
-  generateFollowUpQuestions
+  generateFollowUpQuestions,
+  isStudentGreetingQuery,
+  buildStudentGreetingResponse,
+  queryChatbot
 } = require('../controllers/chatbotController');
 
 describe('Chatbot Table Formatting & Anti-Memorandum Sanitizer', () => {
@@ -88,6 +91,61 @@ Satisfactory standing.`;
     expect(classifyStudentQueryIntent('can you evaluate student records?')).toBe('comprehensive');
     expect(classifyStudentQueryIntent('pagsusuri sa rekord ng estudyante')).toBe('comprehensive');
     expect(classifyStudentQueryIntent('Comprehensive assessment of student 12310')).toBe('comprehensive');
+    expect(classifyStudentQueryIntent('hi')).toBe('greeting');
+    expect(classifyStudentQueryIntent('hello')).toBe('greeting');
+    expect(classifyStudentQueryIntent('kumusta po')).toBe('greeting');
+    expect(classifyStudentQueryIntent('good morning')).toBe('greeting');
+  });
+
+  it('correctly identifies student greetings vs substantive queries', () => {
+    // Pure greetings
+    expect(isStudentGreetingQuery('hi')).toBe(true);
+    expect(isStudentGreetingQuery('hello')).toBe(true);
+    expect(isStudentGreetingQuery('hey')).toBe(true);
+    expect(isStudentGreetingQuery('hi po')).toBe(true);
+    expect(isStudentGreetingQuery('hello po!')).toBe(true);
+    expect(isStudentGreetingQuery('good morning')).toBe(true);
+    expect(isStudentGreetingQuery('good afternoon')).toBe(true);
+    expect(isStudentGreetingQuery('good evening')).toBe(true);
+    expect(isStudentGreetingQuery('kumusta')).toBe(true);
+    expect(isStudentGreetingQuery('kamusta')).toBe(true);
+    expect(isStudentGreetingQuery('kumusta po')).toBe(true);
+    expect(isStudentGreetingQuery('magandang araw po')).toBe(true);
+    expect(isStudentGreetingQuery('magandang umaga')).toBe(true);
+    expect(isStudentGreetingQuery('hi chatbot')).toBe(true);
+    expect(isStudentGreetingQuery('hello how are you')).toBe(true);
+
+    // Queries with academic or transactional requests must NOT be classified as greetings
+    expect(isStudentGreetingQuery('hi what is my gwa')).toBe(false);
+    expect(isStudentGreetingQuery('hello pakita mo grades ko')).toBe(false);
+    expect(isStudentGreetingQuery('recommend subjects for next sem')).toBe(false);
+    expect(isStudentGreetingQuery('pwede na ba ako mag-enroll?')).toBe(false);
+    expect(isStudentGreetingQuery('download my record in excel')).toBe(false);
+    expect(isStudentGreetingQuery('1st Sem')).toBe(false);
+    expect(isStudentGreetingQuery('What is my GWA and standing?')).toBe(false);
+  });
+
+  it('builds conversational greeting without dumping tables or academic assessment', () => {
+    const greetingEn = buildStudentGreetingResponse('hi', 'Mark Lester Arevalo', false);
+    expect(greetingEn).toContain('Hello, **Mark Lester Arevalo**!');
+    expect(greetingEn).toContain('GCT Student AI Assistant');
+    expect(greetingEn).not.toContain('| Subject Code | Description |');
+    expect(greetingEn).not.toContain('Cumulative GWA:');
+    expect(greetingEn).not.toContain('Passed Units:');
+    expect(greetingEn.endsWith('?')).toBe(true);
+    // Strict zero emojis check
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(greetingEn)).toBe(false);
+
+    const greetingTl = buildStudentGreetingResponse('kumusta po', 'Mark Lester Arevalo', true);
+    expect(greetingTl).toContain('Mark Lester Arevalo');
+    expect(greetingTl).toContain('GCT Student AI Assistant');
+    expect(greetingTl).not.toContain('| Subject Code | Description |');
+    expect(greetingTl).not.toContain('Cumulative GWA:');
+    expect(greetingTl.endsWith('?')).toBe(true);
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(greetingTl)).toBe(false);
+
+    const morningEn = buildStudentGreetingResponse('good morning', 'Mark', false);
+    expect(morningEn).toContain('Good morning, **Mark**!');
   });
 
   it('formats target terms properly', () => {
@@ -195,6 +253,102 @@ Satisfactory standing.`;
     const guestFollowUps = generateFollowUpQuestions({ role: 'guest', userIsTagalog: false });
     expect(Array.isArray(guestFollowUps)).toBe(true);
     expect(guestFollowUps.some(q => q.includes('Admission requirements'))).toBe(true);
+  });
+
+  it('Student role: queryChatbot returns friendly greeting without dumping assessment or grades tables when student says "hi"', async () => {
+    const mockSupabase = {
+      from: (table) => ({
+        select: () => ({
+          or: () => ({
+            limit: () => ({
+              data: [{ id: '10526', student_id: '10526', full_name: 'CHIN-CHIN ABAYON', name: 'CHIN-CHIN ABAYON', program: 'BSIT', year_level: 2 }]
+            })
+          }),
+          eq: () => ({
+            limit: () => ({ data: [] }),
+            order: () => ({ data: [] }),
+            in: () => ({ data: [] })
+          }),
+          in: () => ({ data: [] }),
+          limit: () => ({ data: [] }),
+          order: () => ({ data: [] })
+        }),
+        insert: () => ({ data: [] })
+      })
+    };
+
+    let jsonResponse = null;
+    const req = {
+      body: { query: 'hi' },
+      user: { id: '10526', student_id: '10526', role: 'student', full_name: 'CHIN-CHIN ABAYON' }
+    };
+    const res = {
+      status() { return this; },
+      json(data) { jsonResponse = data; return this; }
+    };
+
+    await queryChatbot(req, res, mockSupabase);
+
+    expect(jsonResponse).not.toBeNull();
+    // Must contain greeting addressed to student
+    expect(jsonResponse.response).toContain('CHIN-CHIN ABAYON');
+    expect(jsonResponse.response).toContain('GCT Student AI Assistant');
+    // Must NOT contain assessment tables or grades tables!
+    expect(jsonResponse.response).not.toContain('| Subject Code | Description |');
+    expect(jsonResponse.response).not.toContain('Cumulative GWA:');
+    // Must NOT attach an automatic file export on a greeting
+    expect(jsonResponse.file_export).toBeNull();
+    // Follow-up question chips should be available
+    expect(Array.isArray(jsonResponse.follow_up_questions)).toBe(true);
+    expect(jsonResponse.follow_up_questions.length).toBeGreaterThanOrEqual(2);
+    // Strict zero emojis
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+  });
+
+  it('Student role: queryChatbot returns friendly Tagalog greeting when student greets in Tagalog', async () => {
+    const mockSupabase = {
+      from: (table) => ({
+        select: () => ({
+          or: () => ({
+            limit: () => ({
+              data: [{ id: '10526', student_id: '10526', full_name: 'CHIN-CHIN ABAYON', name: 'CHIN-CHIN ABAYON', program: 'BSIT', year_level: 2 }]
+            })
+          }),
+          eq: () => ({
+            limit: () => ({ data: [] }),
+            order: () => ({ data: [] }),
+            in: () => ({ data: [] })
+          }),
+          in: () => ({ data: [] }),
+          limit: () => ({ data: [] }),
+          order: () => ({ data: [] })
+        }),
+        insert: () => ({ data: [] })
+      })
+    };
+
+    let jsonResponse = null;
+    const req = {
+      body: { query: 'kumusta po' },
+      user: { id: '10526', student_id: '10526', role: 'student', full_name: 'CHIN-CHIN ABAYON' }
+    };
+    const res = {
+      status() { return this; },
+      json(data) { jsonResponse = data; return this; }
+    };
+
+    await queryChatbot(req, res, mockSupabase);
+
+    expect(jsonResponse).not.toBeNull();
+    expect(jsonResponse.response).toContain('CHIN-CHIN ABAYON');
+    expect(jsonResponse.response).toContain('GCT Student AI Assistant');
+    expect(jsonResponse.response).toContain('Paano kita matutulungan');
+    expect(jsonResponse.response).not.toContain('| Subject Code | Description |');
+    expect(jsonResponse.response).not.toContain('Cumulative GWA:');
+    expect(jsonResponse.file_export).toBeNull();
+    expect(Array.isArray(jsonResponse.follow_up_questions)).toBe(true);
+    expect(jsonResponse.follow_up_questions[0]).toContain('Ano ang aking cumulative GWA');
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
   });
 });
 

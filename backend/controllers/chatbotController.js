@@ -279,6 +279,73 @@ Would you like assistance with your student records, upcoming subject recommenda
 }
 
 /**
+ * Detects whether a student query is a pure conversational greeting or courtesy
+ * without substantive academic lookup or transaction requests.
+ */
+function isStudentGreetingQuery(query) {
+  if (!query || typeof query !== 'string') return false;
+  const q = query.trim().toLowerCase();
+  const cleanQ = q.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleanQ) return false;
+
+  // Substantive academic, administrative, or action keywords that indicate a real request
+  const hasAcademicSubject = /\b(grade|grades|marka|score|rating|transcript|talaan|gwa|record|records|passed|pasa|failed|bagsak|deficienc|retake|retakes|recommend|recommendation|rekomendasyon|subject|subjects|course|courses|kukunin|curriculum|advising|load|enroll|enrollment|mag[-\s]?enroll|assess|assessment|evaluat|pagsusuri|prereq|prerequisite|standing|download|excel|csv|word|pdf|text|file|document|status|units|schedule|section|tuition|fee|fees|balance|clearance|drop|dropped|shift|shiftee|transferee|opinion|opinyon|advice|payo)\b/i.test(cleanQ);
+
+  if (hasAcademicSubject) return false;
+
+  // Exact or common greeting starters
+  const greetingPattern = /^(?:hi|hello|hey|hoy|yo|sup|kumusta|kamusta|musta|mabuhay|good\s*(?:morning|afternoon|evening|day)|magandang\s*(?:araw|umaga|hapon|gabi)|greetings|how\s*are\s*you|ano\s*balita)\b/i;
+  if (greetingPattern.test(cleanQ)) {
+    const words = cleanQ.split(' ');
+    if (words.length <= 6) return true;
+  }
+  return false;
+}
+
+/**
+ * Generates a clean, friendly, conversational greeting response for students
+ * Strictly zero emojis, no memorandum format, and no unsolicited evaluation tables or GWA dumps.
+ */
+function buildStudentGreetingResponse(query, userName, isTagalog) {
+  const q = (query || '').toLowerCase();
+
+  let greetingSalutation = '';
+  if (/\b(?:good\s*morning|magandang\s*umaga)\b/i.test(q)) {
+    greetingSalutation = isTagalog ? `Magandang umaga po, **${userName}**!` : `Good morning, **${userName}**!`;
+  } else if (/\b(?:good\s*afternoon|magandang\s*hapon)\b/i.test(q)) {
+    greetingSalutation = isTagalog ? `Magandang hapon po, **${userName}**!` : `Good afternoon, **${userName}**!`;
+  } else if (/\b(?:good\s*evening|magandang\s*gabi)\b/i.test(q)) {
+    greetingSalutation = isTagalog ? `Magandang gabi po, **${userName}**!` : `Good evening, **${userName}**!`;
+  } else if (/\b(?:kumusta|kamusta)\b/i.test(q)) {
+    greetingSalutation = isTagalog ? `Hello po, **${userName}**! Mabuti naman po ako, kumusta ka?` : `Hello, **${userName}**! I am doing well, how are you?`;
+  } else {
+    greetingSalutation = isTagalog ? `Hello po, **${userName}**!` : `Hello, **${userName}**!`;
+  }
+
+  if (isTagalog) {
+    return `${greetingSalutation} Ako ang iyong opisyal na **GCT Student AI Assistant**.
+
+Paano kita matutulungan sa iyong pag-aaral ngayon? Maaari kang magtanong tungkol sa:
+- Iyong mga **marka** at **cumulative GWA**
+- Mga **inirerekomendang asignatura** para sa susunod na semestre
+- Pagsusuri sa iyong **prerequisites** at **active deficiencies**
+- Pag-download ng iyong opisyal na academic record sa **Excel**, **Word**, o **Text**
+
+Nais mo bang suriin ang iyong mga marka, tingnan ang inirerekomendang subjects para sa susunod na semestre, o kalkulahin ang iyong cumulative GWA?`;
+  }
+
+  return `${greetingSalutation} I am your official **GCT Student AI Assistant**.
+
+How can I help you with your academic inquiries today? You can ask me to:
+- Review your **grades** and **cumulative GWA**
+- Check your **recommended subjects** for the upcoming semester
+- Evaluate your **prerequisite standing** and active deficiencies
+- Export your official academic record in **Excel**, **Word**, or **Text**
+
+Would you like to review your latest grades, check your recommended subjects for next semester, or check your cumulative GWA?`;
+}
+
+/**
  * Check if the user is requesting an academic opinion or advice
  */
 function isAskingOpinionQuery(query) {
@@ -517,6 +584,7 @@ function formatTargetTermText(yearLevel, semester) {
  * Classifies whether user is asking for subject recommendations, grades, or comprehensive assessment
  */
 function classifyStudentQueryIntent(query) {
+  if (isStudentGreetingQuery(query)) return 'greeting';
   const q = (query || '').toLowerCase();
   const isAssessment = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(q);
   if (isAssessment) return 'comprehensive';
@@ -2332,7 +2400,36 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             schedule: 'Schedule 1'
           };
 
-          const { records, recommendations } = await getStudentRecordsAndRecs(studentInfo, db);
+          if (isStudentGreetingQuery(query)) {
+            studentIntent = 'greeting';
+            fileExport = null;
+            studentAction = {
+              student_id: studentInfo.student_id,
+              student_name: userName,
+              program: studentInfo.program,
+              intent: 'greeting'
+            };
+            assistantResponse = buildStudentGreetingResponse(query, userName, userIsTagalog);
+            systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
+Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
+Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
+
+CRITICAL GREETING DIRECTIVES (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY DO NOT OUTPUT ANY EVALUATION TABLES, GRADES, GWA, ACTIVE DEFICIENCIES, OR SUBJECT RECOMMENDATIONS.
+2. The student sent a conversational greeting: "${query}".
+3. Reply warmly, politely, and conversationally in kind (e.g. if they greeted in the morning, greet them good morning; if they said hello/hi, say hello). Address the student by name (${userName}).
+4. Keep the response concise, friendly, and welcoming (1 to 2 short paragraphs).
+5. State clearly that you are their official GCT Student AI Assistant ready to assist them with:
+   - Reviewing their course grades and cumulative GWA
+   - Checking upcoming subject recommendations and eligible curriculum load
+   - Verifying prerequisite standing and active deficiencies
+   - Generating downloadable academic records (Excel, Word, or Text)
+6. STRICT ZERO EMOJIS: Do NOT use any emojis or decorative smiley symbols under any circumstance.
+7. ABSOLUTELY NO MEMORANDUM FORMAT: Never output "MEMORANDUM", "TO:", "FROM:", "DATE:", or institutional memo headers.
+8. PRIMARY LANGUAGE DIRECTIVE: Reply in ${userIsTagalog ? 'Tagalog / Taglish' : 'English'}.
+9. MANDATORY FOLLOW-UP QUESTION: Conclude with a helpful question asking how you can assist their academic inquiries today.`;
+          } else {
+            const { records, recommendations } = await getStudentRecordsAndRecs(studentInfo, db);
           const activeTerm = await getActiveAcademicTerm(db);
           const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
 
@@ -2425,9 +2522,10 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             : (studentRecSubjects.length > 0 ? studentRecsTableMarkdown : 'Pending Registrar review & approval.');
 
           // Classify student intent
-          const isStudentAssessmentQuery = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
-          const isStudentRecQuery = (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isStudentAssessmentQuery;
-          const isStudentGradesOnlyQuery = isStudentGradesQuery && !isStudentRecQuery && !isStudentAssessmentQuery;
+          const isStudentGreeting = isStudentGreetingQuery(query);
+          const isStudentAssessmentQuery = !isStudentGreeting && /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
+          const isStudentRecQuery = !isStudentGreeting && (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isStudentAssessmentQuery;
+          const isStudentGradesOnlyQuery = !isStudentGreeting && isStudentGradesQuery && !isStudentRecQuery && !isStudentAssessmentQuery;
 
           const lastBotTurn = Array.isArray(history) && history.length > 0
             ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-1)[0]
@@ -2441,7 +2539,7 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-3)
             : [];
 
-          const isStudentFollowUpToGradesPrompt = !isStudentAssessmentQuery && (
+          const isStudentFollowUpToGradesPrompt = !isStudentGreeting && !isStudentAssessmentQuery && (
             lastBotTurn?.pending_action === 'clarify_grades_term' ||
             recentBotTurns.some(b =>
               b.pending_action === 'clarify_grades_term' ||
@@ -2451,9 +2549,11 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText))
           );
 
-          const effectiveStudentGradesQuery = !isStudentAssessmentQuery && (isStudentGradesOnlyQuery || (isStudentFollowUpToGradesPrompt && !isStudentRecQuery));
+          const effectiveStudentGradesQuery = !isStudentGreeting && !isStudentAssessmentQuery && (isStudentGradesOnlyQuery || (isStudentFollowUpToGradesPrompt && !isStudentRecQuery));
           let studentIntent = 'comprehensive';
-          if (isStudentAssessmentQuery) {
+          if (isStudentGreeting) {
+            studentIntent = 'greeting';
+          } else if (isStudentAssessmentQuery) {
             studentIntent = 'comprehensive';
           } else if (isStudentRecQuery) {
             studentIntent = 'recommendation';
@@ -2477,27 +2577,31 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             termLabel: termAnalysis.target_term || (isFilteredByTerm ? termLabelClean : 'All Encoded Terms')
           };
 
-          if (requestedFormat === 'word') {
-            fileData = generateStudentWord(studentInfo, displayRecords, gwa, fileOptions);
-            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.doc`;
-            fileLabel = `Download My Academic Record${fileTermLabel} (Word Document)`;
-          } else if (requestedFormat === 'text') {
-            fileData = generateStudentText(studentInfo, displayRecords, gwa, fileOptions);
-            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.txt`;
-            fileLabel = `Download My Academic Record${fileTermLabel} (Text File)`;
-          } else {
-            fileData = generateStudentCsv(studentInfo, displayRecords, gwa, fileOptions);
-            filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.csv`;
-            fileLabel = `Download My Academic Record${fileTermLabel} (Excel Spreadsheet)`;
-          }
+          if (studentIntent !== 'greeting') {
+            if (requestedFormat === 'word') {
+              fileData = generateStudentWord(studentInfo, displayRecords, gwa, fileOptions);
+              filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.doc`;
+              fileLabel = `Download My Academic Record${fileTermLabel} (Word Document)`;
+            } else if (requestedFormat === 'text') {
+              fileData = generateStudentText(studentInfo, displayRecords, gwa, fileOptions);
+              filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.txt`;
+              fileLabel = `Download My Academic Record${fileTermLabel} (Text File)`;
+            } else {
+              fileData = generateStudentCsv(studentInfo, displayRecords, gwa, fileOptions);
+              filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.csv`;
+              fileLabel = `Download My Academic Record${fileTermLabel} (Excel Spreadsheet)`;
+            }
 
-          fileExport = {
-            filename,
-            format: requestedFormat,
-            csv_data: fileData,
-            data: fileData,
-            label: fileLabel
-          };
+            fileExport = {
+              filename,
+              format: requestedFormat,
+              csv_data: fileData,
+              data: fileData,
+              label: fileLabel
+            };
+          } else {
+            fileExport = null;
+          }
 
           studentAction = {
             student_id: studentInfo.student_id,
@@ -2517,7 +2621,26 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             userIsTagalog
           );
 
-          if (studentIntent === 'grades') {
+          if (studentIntent === 'greeting') {
+            systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
+Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
+Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
+
+CRITICAL GREETING DIRECTIVES (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY DO NOT OUTPUT ANY EVALUATION TABLES, GRADES, GWA, ACTIVE DEFICIENCIES, OR SUBJECT RECOMMENDATIONS.
+2. The student sent a conversational greeting: "${query}".
+3. Reply warmly, politely, and conversationally in kind (e.g. if they greeted in the morning, greet them good morning; if they said hello/hi, say hello). Address the student by name (${userName}).
+4. Keep the response concise, friendly, and welcoming (1 to 2 short paragraphs).
+5. State clearly that you are their official GCT Student AI Assistant ready to assist them with:
+   - Reviewing their course grades and cumulative GWA
+   - Checking upcoming subject recommendations and eligible curriculum load
+   - Verifying prerequisite standing and active deficiencies
+   - Generating downloadable academic records (Excel, Word, or Text)
+6. STRICT ZERO EMOJIS: Do NOT use any emojis or decorative smiley symbols under any circumstance.
+7. ABSOLUTELY NO MEMORANDUM FORMAT: Never output "MEMORANDUM", "TO:", "FROM:", "DATE:", or institutional memo headers.
+8. PRIMARY LANGUAGE DIRECTIVE: Reply in ${userIsTagalog ? 'Tagalog / Taglish' : 'English'}.
+9. MANDATORY FOLLOW-UP QUESTION: Conclude with a helpful question asking how you can assist their academic inquiries today.`;
+          } else if (studentIntent === 'grades') {
             systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
 Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
 Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
@@ -2625,30 +2748,8 @@ ${opinionSection}
 *Use the buttons below to download your complete academic record or consult your full advising matrix.*
 
 Would you like me to generate your recommended subjects for next semester based on this evaluation, or download your official advising record?`;
-          } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening)\b/i.test(query)) {
-            assistantResponse = userIsTagalog
-              ? `Hello po, **${userName}**! Kumusta ka?
-
-Ako ang iyong opisyal na **GCT STUDENT AI INQUIRY** assistant. Narito ang mabilisang buod ng iyong academic standing:
-• **Student ID:** \`${studentInfo.student_id}\`
-• **Program:** ${studentInfo.program} (Year ${studentInfo.year_level || 1})
-• **Cumulative GWA:** **${gwa}**
-• **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)
-${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
-Maaari mo akong tanungin tungkol sa iyong mga marka, susunod na subjects na dapat kunin, opinyon sa iyong schedule at standing, o mag-download ng iyong record sa **Excel (.csv)**, **Word (.doc)**, o **Text (.txt)** gamit ang buttons sa ibaba!
-
-Nais mo bang tingnan ang iyong pinakahuling marka, alamin ang inirerekomendang subjects para sa susunod na semestre, o kalkulahin ang iyong cumulative GWA?`
-              : `Hello, **${userName}**! How can I assist your academic advising today?
-
-I am your official **GCT STUDENT AI INQUIRY** assistant. Here is a quick summary of your academic standing:
-• **Student ID:** \`${studentInfo.student_id}\`
-• **Program:** ${studentInfo.program} (Year ${studentInfo.year_level || 1})
-• **Cumulative GWA:** **${gwa}**
-• **Passed Units:** **${passedUnits}** units (${passedCount} subjects)
-${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
-You can ask me about your grades, upcoming subject recommendations, evaluation opinions, or download your complete academic record in **Excel (.csv)**, **Word (.doc)**, or **Text (.txt)** using the buttons below!
-
-Would you like to review your latest grades, check your recommended subjects for next semester, or calculate your cumulative GWA?`;
+          } else if (studentIntent === 'greeting') {
+            assistantResponse = buildStudentGreetingResponse(query, userName, userIsTagalog);
           } else {
             if (studentIntent === 'recommendation') {
               assistantResponse = userIsTagalog
@@ -2715,6 +2816,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
           if (enrollmentEligibilityResponse) {
             assistantResponse = enrollmentEligibilityResponse;
             systemPrompt = '';
+          }
           }
         }
       }
@@ -3612,5 +3714,7 @@ module.exports = {
   getDistinctTermsList,
   generateStudentCsv,
   ensureFollowUpQuestion,
-  generateFollowUpQuestions
+  generateFollowUpQuestions,
+  isStudentGreetingQuery,
+  buildStudentGreetingResponse
 };

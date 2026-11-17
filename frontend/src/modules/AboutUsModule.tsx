@@ -15,6 +15,7 @@ import markPhoto from '../assets/team/mark-lester-arevalo.jpg';
 import myckoPhoto from '../assets/team/mycko-lawrence-zapansa.jpg';
 import gctCampusImg from '../assets/campus/gct-campus.jpg';
 import bytemeLogo from '../assets/byteme/byteme-logo.png';
+import bytemeTeamPhoto from '../assets/byteme/byteme-team.jpg';
 import gctLogo from '../assets/campus/gct-logo.png';
 
 export interface DeveloperMember {
@@ -374,20 +375,35 @@ export const AboutUsModule: React.FC = () => {
       <div className="byteme-card-container scroll-reveal">
         {/* LEFTSIDE: BYTEME SENTENCES & STORY (50% WIDTH) */}
         <div className="byteme-text-side scroll-reveal-left">
-          {/* Main Title */}
+          {/* Main Title with ByteMe Logo */}
           <div>
-            <h3 style={{
-              fontSize: '1.75rem',
-              fontWeight: 900,
-              color: '#0F172A',
-              margin: '0 0 0.25rem 0',
-              lineHeight: 1.25,
-              letterSpacing: '-0.02em'
-            }}>
-              We are ByteMe
-            </h3>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)' }}>
-              GCT AI-Based Subject Assessment & Recommendation System
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.35rem' }}>
+              <img
+                src={bytemeLogo}
+                alt="ByteMe Official Logo"
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  minWidth: '54px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 4px 10px rgba(37, 99, 235, 0.2))'
+                }}
+              />
+              <div>
+                <h3 style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  margin: 0,
+                  lineHeight: 1.2,
+                  letterSpacing: '-0.02em'
+                }}>
+                  We are ByteMe
+                </h3>
+                <div style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--primary)', marginTop: '0.2rem' }}>
+                  GCT AI-Based Subject Assessment & Recommendation System
+                </div>
+              </div>
             </div>
           </div>
 
@@ -434,11 +450,11 @@ export const AboutUsModule: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHTSIDE: BYTEME LARGE IMAGE (50% WIDTH / KALAHATI ANG IMAGE TULAD SA MODAL) */}
+        {/* RIGHTSIDE: OFFICIAL BYTEME TEAM PHOTO */}
         <div className="byteme-image-side scroll-reveal-right">
           <img
-            src={bytemeLogo}
-            alt="ByteMe Official Logo"
+            src={bytemeTeamPhoto}
+            alt="ByteMe Official Capstone Team"
           />
         </div>
       </div>

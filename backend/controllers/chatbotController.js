@@ -36,8 +36,8 @@ const GCT_OFFICIAL_FAQS = [
       /freshm[ae]n\s+requirements?/i,
       /new\s+(?:college\s+)?student\s+requirements?/i
     ],
-    answerEn: `**Admission Requirements for New College Students:**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate`,
-    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate`
+    answerEn: `**Admission Requirements for New College Students:**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate\n\nWould you like information on the enrollment procedure, or the requirements for old students or transferees?`,
+    answerTl: `**Mga Kinakailangan sa Admission para sa Bagong Estudyante (New College Students):**\n- Senior High School Report Card (Form 138)\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate\n\nNais mo ba ng impormasyon ukol sa proseso ng enrollment, o ang mga kinakailangan para sa mga dating estudyante o transferees?`
   },
   {
     id: 2,
@@ -49,8 +49,8 @@ const GCT_OFFICIAL_FAQS = [
       /requirements?\s+ng\s+(?:mga\s+)?dating\s+estudyante/i,
       /continuing\s+students?\s+requirements?/i
     ],
-    answerEn: `**Requirements for Old Students:**\n- Clearance from the previous semester\n- School ID\n- Grades from the previous semester`,
-    answerTl: `**Mga Kinakailangan para sa Dating Estudyante (Old Students):**\n- Clearance mula sa nakaraang semestre\n- School ID\n- Mga Marka (Grades) mula sa nakaraang semestre`
+    answerEn: `**Requirements for Old Students:**\n- Clearance from the previous semester\n- School ID\n- Grades from the previous semester\n\nWould you like to know how to process your clearance, or check your eligible subjects for the upcoming semester?`,
+    answerTl: `**Mga Kinakailangan para sa Dating Estudyante (Old Students):**\n- Clearance mula sa nakaraang semestre\n- School ID\n- Mga Marka (Grades) mula sa nakaraang semestre\n\nNais mo bang malaman kung paano mag-asikaso ng clearance, o tingnan ang mga kwalipikadong asignatura para sa susunod na semestre?`
   },
   {
     id: 3,
@@ -62,8 +62,8 @@ const GCT_OFFICIAL_FAQS = [
       /requirements?\s+ng\s+(?:mga\s+)?transferee/i,
       /requirements?\s+kapag\s+lumipat/i
     ],
-    answerEn: `**Requirements for Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy of college subjects taken\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate`,
-    answerTl: `**Mga Kinakailangan para sa Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy ng mga nakuhang college subjects\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate`
+    answerEn: `**Requirements for Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy of college subjects taken\n- Certificate of Good Moral Character\n- One (1) recent 1×1 ID picture\n- Photocopy of PSA Birth Certificate\n\nWould you like to know how transferees can apply for subject crediting and accreditation?`,
+    answerTl: `**Mga Kinakailangan para sa Transferees:**\n- Transfer Credentials / Honorable Dismissal\n- Certified copy ng mga nakuhang college subjects\n- Certificate of Good Moral Character\n- Isa (1) na pirasong 1×1 ID picture\n- Photocopy ng PSA Birth Certificate\n\nNais mo bang malaman kung paano mag-apply ang mga transferee para sa accreditation at pag-credit ng mga nakaraang asignatura?`
   },
   {
     id: 4,
@@ -76,8 +76,8 @@ const GCT_OFFICIAL_FAQS = [
       /ma-?credit\s+(?:ba\s+)?(?:ang\s+)?(?:dating\s+)?subjects?/i,
       /accreditation\s+of\s+subjects?/i
     ],
-    answerEn: `**Accreditation of Subjects for Transferees:**\nYes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.`,
-    answerTl: `**Pag-credit ng mga Nakaraang Subjects para sa Transferees:**\nOpo. Maaaring mag-apply ang mga transferee para sa accreditation ng kanilang mga subjects sa pamamagitan ng Office of the Registrar, batay sa pagsusuri at pag-apruba ng College Dean.`
+    answerEn: `**Accreditation of Subjects for Transferees:**\nYes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\nWould you like the contact details of the Office of the Registrar to start your subject accreditation inquiry?`,
+    answerTl: `**Pag-credit ng mga Nakaraang Subjects para sa Transferees:**\nOpo. Maaaring mag-apply ang mga transferee para sa accreditation ng kanilang mga subjects sa pamamagitan ng Office of the Registrar, batay sa pagsusuri at pag-apruba ng College Dean.\n\nNais mo ba ang mga detalye ng pakikipag-ugnayan sa Office of the Registrar upang magtanong ukol sa subject evaluation?`
   },
   {
     id: 5,
@@ -90,8 +90,8 @@ const GCT_OFFICIAL_FAQS = [
       /tawag\s+sa\s+registrar/i,
       /gctregistrar\.collegedept2021/i
     ],
-    answerEn: `**GCT College Registrar Contact Information:**\nThe College Registrar can be contacted at:\n- **Phone:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Office Hours:** Monday to Friday, 8:00 AM – 5:00 PM`,
-    answerTl: `**Impormasyon sa Pakikipag-ugnayan sa GCT College Registrar:**\nMaaaring makontak ang College Registrar sa:\n- **Telepono:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Oras ng Tanggapan:** Lunes hanggang Biyernes, 8:00 AM – 5:00 PM`
+    answerEn: `**GCT College Registrar Contact Information:**\nThe College Registrar can be contacted at:\n- **Phone:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Office Hours:** Monday to Friday, 8:00 AM – 5:00 PM\n\nWould you like assistance with admissions, enrollment schedules, or campus location details?`,
+    answerTl: `**Impormasyon sa Pakikipag-ugnayan sa GCT College Registrar:**\nMaaaring makontak ang College Registrar sa:\n- **Telepono:** (036) 262-8621\n- **Email:** gctregistrar.collegedept2021@gmail.com\n- **Oras ng Tanggapan:** Lunes hanggang Biyernes, 8:00 AM – 5:00 PM\n\nKailangan mo ba ng tulong ukol sa admissions, iskedyul ng enrollment, o direksyon sa lokasyon ng campus?`
   },
   {
     id: 6,
@@ -103,8 +103,8 @@ const GCT_OFFICIAL_FAQS = [
       /misyon\s+ng\s+gct/i,
       /what\s+is\s+gct\s+mission/i
     ],
-    answerEn: `**GCT's Mission:**\nGCT aims to provide quality education and develop the full potential and capabilities of individuals.`,
-    answerTl: `**Misyon ng GCT:**\nLayunin ng GCT na magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.`
+    answerEn: `**GCT's Mission:**\nGCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\nWould you like to learn more about our academic degree programs or admission guidelines?`,
+    answerTl: `**Misyon ng GCT:**\nLayunin ng GCT na magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\nNais mo bang magkaroon ng karagdagang impormasyon ukol sa mga degree programs o patakaran sa admission?`
   },
   {
     id: 7,
@@ -116,8 +116,8 @@ const GCT_OFFICIAL_FAQS = [
       /year\s+(?:established|founded)/i,
       /established\s+in\s+1968/i
     ],
-    answerEn: `**Establishment of Garcia College of Technology:**\nGarcia College of Technology (GCT) was established in **1968**.`,
-    answerTl: `**Pagtatatag ng Garcia College of Technology:**\nAng Garcia College of Technology (GCT) ay naitatag noong taong **1968**.`
+    answerEn: `**Establishment of Garcia College of Technology:**\nGarcia College of Technology (GCT) was established in **1968**.\n\nWould you like to know more about GCT's degree programs, mission, or campus location?`,
+    answerTl: `**Pagtatatag ng Garcia College of Technology:**\nAng Garcia College of Technology (GCT) ay naitatag noong taong **1968**.\n\nNais mo bang malaman ang higit pa tungkol sa mga programa, misyon, o lokasyon ng campus ng GCT?`
   },
   {
     id: 8,
@@ -130,8 +130,8 @@ const GCT_OFFICIAL_FAQS = [
       /saan\s+ang\s+(?:gct|garcia)/i,
       /campus\s+(?:address|location)/i
     ],
-    answerEn: `**Garcia College of Technology Location:**\nGCT is located on **Osmeña Avenue, Estancia, Kalibo, Aklan**.`,
-    answerTl: `**Lokasyon ng Garcia College of Technology:**\nAng GCT ay matatagpuan sa **Osmeña Avenue, Estancia, Kalibo, Aklan**.`
+    answerEn: `**Garcia College of Technology Location:**\nGCT is located on **Osmeña Avenue, Estancia, Kalibo, Aklan**.\n\nWould you like to know the Registrar's Office hours or the admission requirements for enrolling at GCT?`,
+    answerTl: `**Lokasyon ng Garcia College of Technology:**\nAng GCT ay matatagpuan sa **Osmeña Avenue, Estancia, Kalibo, Aklan**.\n\nNais mo bang malaman ang mga oras ng tanggapan ng Registrar o ang mga kinakailangan para sa enrollment sa GCT?`
   }
 ];
 
@@ -173,8 +173,8 @@ function matchGctFaq(query, isTagalog = false) {
   // If user asked general "faq", "faqs", or "frequently asked questions"
   if (/^(?:faqs?|frequently\s+asked\s+questions?|listahan\s+ng\s+faqs?)$/i.test(q.replace(/[^\w\s]/g, '').trim())) {
     return isTagalog
-      ? `### Garcia College of Technology — Mga Madalas Itanong (FAQs)\n\n1. **Admission Requirements (New College Students):**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n2. **Requirements para sa Dating Estudyante (Old Students):**\n   - Clearance mula sa nakaraang semestre\n   - School ID\n   - Grades mula sa nakaraang semestre\n\n3. **Requirements para sa Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy ng subjects taken\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n4. **Pag-credit ng Subjects para sa Transferees:**\n   - Opo. Maaaring mag-apply para sa accreditation sa Office of the Registrar, subject to approval ng College Dean.\n\n5. **Pakikipag-ugnayan sa Registrar:**\n   - Telepono: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **Misyon ng GCT:**\n   - Magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\n7. **Kailan Naitatag:**\n   - Naitatag noong taong 1968.\n\n8. **Lokasyon:**\n   - Osmeña Avenue, Estancia, Kalibo, Aklan.`
-      : `### Garcia College of Technology — Frequently Asked Questions (FAQs)\n\n1. **Admission Requirements for New College Students:**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n2. **Requirements for Old Students:**\n   - Clearance from the previous semester\n   - School ID\n   - Grades from the previous semester\n\n3. **Requirements for Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy of college subjects taken\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n4. **Can transferees have previous subjects credited?**\n   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\n5. **How to contact the GCT College Registrar:**\n   - Phone: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **GCT's Mission:**\n   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\n7. **When Established:**\n   - GCT was established in 1968.\n\n8. **Campus Location:**\n   - GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.`;
+      ? `### Garcia College of Technology — Mga Madalas Itanong (FAQs)\n\n1. **Admission Requirements (New College Students):**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n2. **Requirements para sa Dating Estudyante (Old Students):**\n   - Clearance mula sa nakaraang semestre\n   - School ID\n   - Grades mula sa nakaraang semestre\n\n3. **Requirements para sa Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy ng subjects taken\n   - Certificate of Good Moral Character\n   - Isa (1) na pirasong 1×1 ID picture\n   - Photocopy ng PSA Birth Certificate\n\n4. **Pag-credit ng Subjects para sa Transferees:**\n   - Opo. Maaaring mag-apply para sa accreditation sa Office of the Registrar, subject to approval ng College Dean.\n\n5. **Pakikipag-ugnayan sa Registrar:**\n   - Telepono: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **Misyon ng GCT:**\n   - Magbigay ng de-kalidad na edukasyon at paunlarin ang buong potensyal at kakayahan ng bawat indibidwal.\n\n7. **Kailan Naitatag:**\n   - Naitatag noong taong 1968.\n\n8. **Lokasyon:**\n   - Osmeña Avenue, Estancia, Kalibo, Aklan.\n\nAlin sa mga paksang ito ang nais mong suriin nang mas detalyado, o nais mo ba ng gabay sa pagpaparehistro ng student account?`
+      : `### Garcia College of Technology — Frequently Asked Questions (FAQs)\n\n1. **Admission Requirements for New College Students:**\n   - Senior High School Report Card (Form 138)\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n2. **Requirements for Old Students:**\n   - Clearance from the previous semester\n   - School ID\n   - Grades from the previous semester\n\n3. **Requirements for Transferees:**\n   - Transfer Credentials / Honorable Dismissal\n   - Certified copy of college subjects taken\n   - Certificate of Good Moral Character\n   - One (1) recent 1×1 ID picture\n   - Photocopy of PSA Birth Certificate\n\n4. **Can transferees have previous subjects credited?**\n   - Yes. Transferees can apply for accreditation of subjects through the Office of the Registrar, subject to approval by the College Dean.\n\n5. **How to contact the GCT College Registrar:**\n   - Phone: (036) 262-8621 | Email: gctregistrar.collegedept2021@gmail.com\n\n6. **GCT's Mission:**\n   - GCT aims to provide quality education and develop the full potential and capabilities of individuals.\n\n7. **When Established:**\n   - GCT was established in 1968.\n\n8. **Campus Location:**\n   - GCT is located on Osmeña Avenue, Estancia, Kalibo, Aklan.\n\nWhich of these topics would you like to explore further, or would you like guidance on creating a student account?`;
   }
 
   for (const item of GCT_OFFICIAL_FAQS) {
@@ -263,7 +263,7 @@ Ang aking sakop ay nakatuon lamang sa:
 - Subject recommendations at advising slips para sa susunod na semestre
 - Enrollment at registration assistance sa GCT Portal
 
-Maaari mo akong tanungin tungkol sa iyong mga subjects, grades, curriculum, o academic advising.`;
+Nais mo bang magtanong ukol sa iyong mga marka, subject recommendations, o gabay sa enrollment sa GCT?`;
   }
 
   return `I apologize, but that topic is outside my scope. I am an AI assistant specifically dedicated to the Garcia College of Technology (GCT) Subject Assessment and Recommendation System.
@@ -275,7 +275,7 @@ My capabilities are strictly focused on:
 - Automated subject recommendations and advising slips
 - Portal registration and enrollment inquiries
 
-Please let me know if you need assistance with GCT academic records, subject evaluation, or enrollment guidance.`;
+Would you like assistance with your student records, upcoming subject recommendations, or enrollment at GCT?`;
 }
 
 /**
@@ -1515,21 +1515,21 @@ function buildEnrollmentEligibilityResponse(query, student, records, activeTerm,
 
   if (isTagalog) {
     if (!activeTerm) {
-      return `Hindi ko pa makukumpirma kung maaari ka nang mag-enroll sa Year ${nextYear} dahil walang ma-verify na kasalukuyang academic year at semester sa system settings. Pakikumpirma muna ito sa Registrar.`;
+      return `Hindi ko pa makukumpirma kung maaari ka nang mag-enroll sa Year ${nextYear} dahil walang ma-verify na kasalukuyang academic year at semester sa system settings. Pakikumpirma muna ito sa Registrar.\n\nNais mo bang suriin muna ang iyong kasalukuyang mga marka o talaan ng mga naipasang kurso?`;
     }
     if (!hasActiveTermGrades) {
-      return `Hindi pa makukumpirma kung maaari ka nang mag-enroll sa Year ${nextYear}. Nasa Year ${currentYear} ka ayon sa kasalukuyang student record. Ang active term ay ${activeYear} ${semesterLabel}, pero wala pang grade record para rito${latestTerm ? `; ang pinakahuling nasa system ay ${latestTerm}` : ''}. Hindi sapat ang bilang ng mga naipasang subject o units para ideklarang tapos na ang kasalukuyang taon. Hintayin munang ma-release at ma-encode ang grades ng active semester, saka ipa-check sa Registrar ang lahat ng required subjects at prerequisites bago mag-enroll sa susunod na taon.`;
+      return `Hindi pa makukumpirma kung maaari ka nang mag-enroll sa Year ${nextYear}. Nasa Year ${currentYear} ka ayon sa kasalukuyang student record. Ang active term ay ${activeYear} ${semesterLabel}, pero wala pang grade record para rito${latestTerm ? `; ang pinakahuling nasa system ay ${latestTerm}` : ''}. Hindi sapat ang bilang ng mga naipasang subject o units para ideklarang tapos na ang kasalukuyang taon. Hintayin munang ma-release at ma-encode ang grades ng active semester, saka ipa-check sa Registrar ang lahat ng required subjects at prerequisites bago mag-enroll sa susunod na taon.\n\nNais mo bang tingnan ang iyong mga inirerekomendang asignatura para sa kasalukuyang termino o suriin ang iyong cumulative GWA?`;
     }
-    return `May grade record na para sa active term na ${activeYear} ${semesterLabel}, pero hindi pa rin sapat ang kabuuang passed subjects o units para tiyaking maaari ka nang mag-enroll sa Year ${nextYear}. Kailangan munang makumpirma na kumpleto at pasado ang lahat ng required subjects para sa Year ${currentYear} at natugunan ang prerequisites. Ipa-verify ang final eligibility at advising slip sa Registrar.`;
+    return `May grade record na para sa active term na ${activeYear} ${semesterLabel}, pero hindi pa rin sapat ang kabuuang passed subjects o units para tiyaking maaari ka nang mag-enroll sa Year ${nextYear}. Kailangan munang makumpirma na kumpleto at pasado ang lahat ng required subjects para sa Year ${currentYear} at natugunan ang prerequisites. Ipa-verify ang final eligibility at advising slip sa Registrar.\n\nNais mo bang suriin natin ang iyong prerequisite completion o tingnan ang inirerekomendang subjects para sa susunod na semestre?`;
   }
 
   if (!activeTerm) {
-    return `I cannot confirm Year ${nextYear} enrollment eligibility because the active academic year and semester are not available in system settings. Please verify the current term with the Registrar.`;
+    return `I cannot confirm Year ${nextYear} enrollment eligibility because the active academic year and semester are not available in system settings. Please verify the current term with the Registrar.\n\nWould you like to review your current grades or completed subjects in the meantime?`;
   }
   if (!hasActiveTermGrades) {
-    return `I cannot confirm Year ${nextYear} enrollment eligibility yet. Your student record lists you as Year ${currentYear}. The active term is ${activeYear} ${semesterLabel}, but no grade records are available for that term${latestTerm ? `; the latest recorded term is ${latestTerm}` : ''}. A cumulative passed-subject or unit count alone does not establish that the current year is complete. Wait for the active-semester grades to be released and encoded, then ask the Registrar to verify all required subjects and prerequisites before enrolling in the next year.`;
+    return `I cannot confirm Year ${nextYear} enrollment eligibility yet. Your student record lists you as Year ${currentYear}. The active term is ${activeYear} ${semesterLabel}, but no grade records are available for that term${latestTerm ? `; the latest recorded term is ${latestTerm}` : ''}. A cumulative passed-subject or unit count alone does not establish that the current year is complete. Wait for the active-semester grades to be released and encoded, then ask the Registrar to verify all required subjects and prerequisites before enrolling in the next year.\n\nWould you like to see your recommended subjects for the current term or check your cumulative GWA?`;
   }
-  return `There are grade records for the active term (${activeYear} ${semesterLabel}), but a total passed-subject or unit count alone cannot confirm Year ${nextYear} enrollment eligibility. The Registrar must verify that all required Year ${currentYear} subjects are complete and that prerequisites are satisfied before confirming your next-year enrollment and advising slip.`;
+  return `There are grade records for the active term (${activeYear} ${semesterLabel}), but a total passed-subject or unit count alone cannot confirm Year ${nextYear} enrollment eligibility. The Registrar must verify that all required Year ${currentYear} subjects are complete and that prerequisites are satisfied before confirming your next-year enrollment and advising slip.\n\nWould you like to review your prerequisite completion or view your recommended subjects for next semester?`;
 }
 
 async function getActiveAcademicTerm(supabaseClient) {
@@ -2017,6 +2017,194 @@ async function getStudentRecordsAndRecs(student, supabase) {
   return { records, recommendations: recsData || [] };
 }
 
+/**
+ * Ensures that any generated response terminates with a relevant follow-up question.
+ * If the response does not end with a question mark (?), this helper appends a contextually
+ * appropriate follow-up question based on role, intent, language, and student info.
+ */
+function ensureFollowUpQuestion(text, context = {}) {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim();
+
+  // Check if the response already ends with a question mark (allowing trailing markdown/quotes/whitespace)
+  const endsWithQuestion = /\?\s*(\*{1,2}|_{1,2}|`|"|'|\))*$/m.test(trimmed);
+  // Also check if the last 180 characters contain a question mark
+  const lastChunk = trimmed.slice(-180);
+  const hasRecentQuestion = /\?[^.!?\n]*$/m.test(lastChunk);
+
+  if (endsWithQuestion || hasRecentQuestion) {
+    return trimmed;
+  }
+
+  const { role, intent, userIsTagalog, studentId } = context;
+
+  let followUp = '';
+
+  if (role === 'guest') {
+    followUp = userIsTagalog
+      ? 'Nais mo ba ng karagdagang impormasyon ukol sa admission requirements, mga programa, o paano gumawa ng student account?'
+      : 'Would you like more details regarding admission requirements, degree programs, or how to create a student account?';
+  } else if (role === 'student') {
+    if (intent === 'grades') {
+      followUp = userIsTagalog
+        ? 'Nais mo bang suriin natin ang iyong overall standing at kalkulahin ang iyong mga inirerekomendang asignatura para sa susunod na semestre?'
+        : 'Would you like me to evaluate your overall standing and show your recommended subjects for next semester?';
+    } else if (intent === 'recommendation') {
+      followUp = userIsTagalog
+        ? 'Nais mo bang suriin ang mga prerequisite para sa mga inirerekomendang asignaturang ito, o tingnan ang iyong active deficiencies?'
+        : 'Would you like to review the specific prerequisite requirements for these recommended subjects, or check your active deficiencies?';
+    } else if (intent === 'comprehensive') {
+      followUp = userIsTagalog
+        ? 'Nais mo bang suriin ang mga prerequisite para sa mga darating na asignatura, o i-download ang iyong opisyal na ulat sa Excel?'
+        : 'Would you like to explore specific prerequisite dependencies for these upcoming subjects, or download your complete academic evaluation in Excel?';
+    } else {
+      followUp = userIsTagalog
+        ? 'Nais mo bang tingnan ang iyong pinakahuling marka, alamin ang inirerekomendang subjects para sa susunod na semestre, o kalkulahin ang iyong cumulative GWA?'
+        : 'Would you like to review your latest grades, check your recommended subjects for next semester, or calculate your cumulative GWA?';
+    }
+  } else {
+    // Registrar admin / staff
+    const idLabel = studentId ? `para kay ${studentId}` : '';
+    const idLabelEn = studentId ? `for ${studentId}` : '';
+
+    if (intent === 'grades') {
+      followUp = userIsTagalog
+        ? `Nais mo bang kalkulahin ang mga inirerekomendang asignatura ${idLabel} para sa susunod na termino, o suriin ang graduation eligibility?`
+        : `Would you like me to compute recommended subjects ${idLabelEn} for the upcoming term, or evaluate graduation prerequisite standing?`;
+    } else if (intent === 'recommendation') {
+      followUp = userIsTagalog
+        ? `Nais mo bang suriin ang buong talaan ng nakaraang marka ${idLabel}, o buksan ang profile sa Subject Recommendations?`
+        : `Would you like to inspect this student's full historical grade sheet ${idLabelEn}, or open their profile in Subject Recommendations?`;
+    } else if (intent === 'comprehensive') {
+      followUp = userIsTagalog
+        ? `Nais mo bang suriin ang prerequisite progression nang detalyado, i-download ang ulat sa Excel, o buksan ang profile sa Academic Records?`
+        : `Would you like to review their prerequisite progression in detail, download this evaluation in Excel, or open their profile in Academic Records?`;
+    } else {
+      followUp = userIsTagalog
+        ? 'Aling Student ID o katanungang pang-operasyon ang nais mong simulan natin ngayon?'
+        : 'Which student ID or operational inquiry would you like to begin with today?';
+    }
+  }
+
+  return `${trimmed}\n\n${followUp}`;
+}
+
+/**
+ * Returns a list of 2-4 contextual follow-up questions for the UI quick action chips
+ */
+function generateFollowUpQuestions(options = {}) {
+  const { role, intent, userIsTagalog, studentId, cleanId } = options;
+  const sId = cleanId || studentId;
+
+  if (role === 'guest') {
+    return userIsTagalog
+      ? [
+          'Ano ang admission requirements para sa bagong estudyante?',
+          'Maaari bang ma-credit ang nakaraang subjects ng transferees?',
+          'Paano makikipag-ugnayan sa GCT College Registrar?',
+          'Paano gumawa ng student account?'
+        ]
+      : [
+          'Admission requirements for new students',
+          'Can transferees have previous subjects credited?',
+          'How can I contact the GCT College Registrar?',
+          'How do I create a student account?'
+        ];
+  }
+
+  if (role === 'student') {
+    if (intent === 'grades') {
+      return userIsTagalog
+        ? [
+            'Anong mga asignatura ang pwede kong kunin sa susunod na semestre?',
+            'Ano ang aking cumulative GWA at academic standing?',
+            'I-download ang aking academic record sa Excel'
+          ]
+        : [
+            'What subjects am I eligible for next semester?',
+            'What is my cumulative GWA and standing?',
+            'Download my official academic record'
+          ];
+    }
+    if (intent === 'recommendation') {
+      return userIsTagalog
+        ? [
+            'Ipakita ang aking buong talaan ng marka',
+            'Ano ang aking mga bagsak o active deficiencies?',
+            'I-download ang aking advising slip'
+          ]
+        : [
+            'Show my complete grade sheet across all terms',
+            'What are my active prerequisite deficiencies?',
+            'Download my official academic record'
+          ];
+    }
+    return userIsTagalog
+      ? [
+          'Ano ang aking cumulative GWA at academic standing?',
+          'Anong mga asignatura ang pwede kong kunin sa susunod na semestre?',
+          'I-download ang aking academic record sa Excel'
+        ]
+      : [
+          'What is my cumulative GWA and standing?',
+          'What subjects am I eligible for next semester?',
+          'Download my official academic record'
+        ];
+  }
+
+  // Registrar / Staff
+  if (sId) {
+    if (intent === 'grades') {
+      return userIsTagalog
+        ? [
+            `Ano ang recommended subjects para kay ${sId}?`,
+            `Pagsusuri sa buong academic standing ni ${sId}`,
+            `I-download ang grade sheet ni ${sId} sa Excel`
+          ]
+        : [
+            `What are the recommended subjects for ${sId}?`,
+            `Evaluate complete academic assessment for ${sId}`,
+            `Download grade sheet for ${sId} in Excel`
+          ];
+    }
+    if (intent === 'recommendation') {
+      return userIsTagalog
+        ? [
+            `Ipakita ang buong talaan ng marka ni ${sId}`,
+            `Mayroon bang active deficiencies si ${sId}?`,
+            `Pagsusuri sa buong academic standing ni ${sId}`
+          ]
+        : [
+            `Show complete grade sheet for ${sId}`,
+            `Does ${sId} have any active prerequisite deficiencies?`,
+            `Evaluate complete academic assessment for ${sId}`
+          ];
+    }
+    return userIsTagalog
+      ? [
+          `Ano ang recommended subjects para kay ${sId}?`,
+          `Ipakita ang talaan ng marka ni ${sId}`,
+          `I-download ang evaluation report ni ${sId}`
+        ]
+      : [
+          `What are the recommended subjects for ${sId}?`,
+          `Show complete grade sheet for ${sId}`,
+          `Download evaluation report for ${sId}`
+        ];
+  }
+
+  return userIsTagalog
+    ? [
+        'Ipakita ang listahan ng mga nakatalang estudyante',
+        'Ano ang passing grade threshold at prerequisite rules?',
+        'Ilan ang pending student account approvals?'
+      ]
+    : [
+        'Show list of registered students',
+        'What is the passing grade threshold and prerequisite rules?',
+        'How many student registrations are pending?'
+      ];
+}
 
 async function queryChatbot(req, res, customSupabase = null) {
   // When Express invokes this route handler, the 3rd argument is `next` (a middleware function).
@@ -2054,7 +2242,8 @@ async function queryChatbot(req, res, customSupabase = null) {
         role: userRole,
         timestamp: new Date().toISOString(),
         file_export: null,
-        student_action: null
+        student_action: null,
+        follow_up_questions: generateFollowUpQuestions({ role: userRole, userIsTagalog })
       });
     }
 
@@ -2082,30 +2271,30 @@ async function queryChatbot(req, res, customSupabase = null) {
         if (isConfidentialStudentQuery && !isRegistrationOrPublic) {
           assistantResponse = userIsTagalog
             ? `**Limitadong Akses — Kailangang Mag-login**\n\nAng academic records, grades, curriculum evaluations, at subject recommendations ng mga mag-aaral ay mahigpit na kumpidensyal.\n\n**Hindi maaaring tingnan ang impormasyon ng estudyante nang hindi naka-login.**\n\nPakisuyong **mag-log in** gamit ang inyong opisyal na GCT account (Estudyante, Registrar Staff, o Administrator) upang tingnan ang academic records.\n\n*Kung wala ka pang account, i-click ang "Create Student Account" sa login screen upang magparehistro.*`
-            : `**Access Restricted — Login Required**\n\nStudent academic records, grades, curriculum evaluations, and subject recommendations are strictly confidential.\n\n**No student information can be accessed without logging in.**\n\nPlease **log in** with your official GCT account (Student, Registrar Staff, or Administrator) to view academic records.\n\n*If you do not have an account yet, click "Create Student Account" on the login screen to register.*`;
+            : `**Access Restricted — Login Required**\n\nStudent academic records, grades, curriculum evaluations, and subject recommendations are strictly confidential.\n\n**No student information can be accessed without logging in.**\n\nPlease **log in** with your official GCT account (Student, Registrar Staff, or Administrator) to view academic records.\n\n*If you do not have an account yet, click "Create Student Account" on the login screen to register.*\n\nWould you like guidance on creating your student account, or information on general admission requirements?`;
           systemPrompt = '';
         } else {
           const q = query.toLowerCase();
           if (q.includes('register') || q.includes('create') || q.includes('sign up') || q.includes('apply')) {
             assistantResponse = userIsTagalog
-              ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang form ng iyong GCT Student ID Number, Pangalan, Kurso (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, atbp.), at Gmail address.\n3. I-verify ang 6-digit OTP code na ipapadala sa iyong Gmail at i-submit.\n4. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!`
-              : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the form with your GCT Student ID Number, Full Name, Academic Program (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, etc.), and Gmail address.\n3. Verify the 6-digit OTP code sent to your Gmail and submit.\n4. Once Registrar Staff verifies your credentials, your account will be activated!`;
+              ? `Upang magparehistro para sa GCT Student Portal account:\n1. I-click ang "**Create Student Account**" sa login page.\n2. Punan ang form ng iyong GCT Student ID Number, Pangalan, Kurso (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, atbp.), at Gmail address.\n3. I-verify ang 6-digit OTP code na ipapadala sa iyong Gmail at i-submit.\n4. Kapag na-verify na ng Registrar Staff ang iyong credentials, ia-activate ang iyong account!\n\nNais mo bang malaman ang mga kinakailangang dokumento para sa admission bago magparehistro?`
+              : `To register for a GCT Student Portal account:\n1. Click "**Create Student Account**" on the login page.\n2. Complete the form with your GCT Student ID Number, Full Name, Academic Program (BSIT, BSCS, BSA, BSBA, BSHM, BSCE, etc.), and Gmail address.\n3. Verify the 6-digit OTP code sent to your Gmail and submit.\n4. Once Registrar Staff verifies your credentials, your account will be activated!\n\nWould you like guidance on the required admission credentials needed before registration?`;
           } else if (q.includes('program') || q.includes('course') || q.includes('offer') || q.includes('bsit') || q.includes('curriculum')) {
             assistantResponse = userIsTagalog
-              ? `Ang Garcia College of Technology ay nag-aalok ng mga kursong BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), at BSME (Mechanical Engineering) na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*`
-              : `Garcia College of Technology offers degree programs including BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), and BSME (Mechanical Engineering) with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*`;
+              ? `Ang Garcia College of Technology ay nag-aalok ng mga kursong BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), at BSME (Mechanical Engineering) na may automated prerequisite tracking at AI-based subject advising.\n\n*Upang makita ang sariling curriculum matrices at grade sheets, pakisuyong mag-log in muna.*\n\nNais mo bang makita ang admission requirements para sa alinman sa mga programang ito?`
+              : `Garcia College of Technology offers degree programs including BSIT (Information Technology), BSCS (Computer Science), BSA (Accountancy), BSBA (Business Administration), BSHM (Hospitality Management), BSOA (Office Administration), BSCE (Civil Engineering), BSEE (Electrical Engineering), and BSME (Mechanical Engineering) with automated prerequisite tracking and AI-based subject advising.\n\n*To view individual curriculum matrices and grade sheets, please log in.*\n\nWould you like to see the admission requirements for any of these degree programs?`;
           } else if (q.includes('pending') || q.includes('approval') || q.includes('wait')) {
             assistantResponse = userIsTagalog
-              ? `Kung ang iyong account registration ay kasalukuyang pending approval, bineberipika pa ng Registrar Staff ang iyong student records. Pinoproseso ang mga accounts tuwing office hours (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM).`
-              : `If your account registration is pending approval, Registrar Staff are currently verifying your student records. Accounts are processed during office hours (Mon–Fri, 8:00 AM – 5:00 PM).`;
+              ? `Kung ang iyong account registration ay kasalukuyang pending approval, bineberipika pa ng Registrar Staff ang iyong student records. Pinoproseso ang mga accounts tuwing office hours (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM).\n\nNais mo ba ang mga detalye sa pakikipag-ugnayan sa Registrar's Office upang masundan ang katayuan ng iyong account?`
+              : `If your account registration is pending approval, Registrar Staff are currently verifying your student records. Accounts are processed during office hours (Mon–Fri, 8:00 AM – 5:00 PM).\n\nWould you like the contact information of the Registrar's Office to follow up on your account status?`;
           } else if (q.includes('contact') || q.includes('office') || q.includes('location') || q.includes('help')) {
             assistantResponse = userIsTagalog
-              ? `Maaari mong bisitahin ang GCT Registrar's Office sa campus (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM) para sa direktang tulong sa enrollment at student ID verification.`
-              : `You can visit the GCT Registrar's Office on campus (Monday to Friday, 8:00 AM – 5:00 PM) for direct enrollment assistance and student ID verification.`;
+              ? `Maaari mong bisitahin ang GCT Registrar's Office sa campus (Lunes hanggang Biyernes, 8:00 AM – 5:00 PM) para sa direktang tulong sa enrollment at student ID verification.\n\nNais mo ba ng impormasyon ukol sa mga kinakailangan sa admission o mga iniaalok na programa sa GCT?`
+              : `You can visit the GCT Registrar's Office on campus (Monday to Friday, 8:00 AM – 5:00 PM) for direct enrollment assistance and student ID verification.\n\nWould you like information on admission requirements or degree programs offered at GCT?`;
           } else {
             assistantResponse = userIsTagalog
-              ? `Maligayang pagdating sa Garcia College of Technology!\n\nAko ang iyong GCT AI Assistant. Bilang bisita, masasagot ko ang mga pangkalahatang katanungan ukol sa pagpaparehistro ng estudyante, degree programs, at mga hakbang sa enrollment.\n\n*Tandaan: Para sa mga rekord ng estudyante, marka, at subject recommendations, pakisuyong mag-log in muna.*`
-              : `Welcome to Garcia College of Technology!\n\nI am your GCT AI Assistant. As an unauthenticated visitor, I can answer general questions about student registration, degree programs, and enrollment steps.\n\n*Note: For student records, grades, and subject recommendations, please log in first.*`;
+              ? `Maligayang pagdating sa Garcia College of Technology!\n\nAko ang iyong GCT AI Assistant. Bilang bisita, masasagot ko ang mga pangkalahatang katanungan ukol sa pagpaparehistro ng estudyante, degree programs, at mga hakbang sa enrollment.\n\n*Tandaan: Para sa mga rekord ng estudyante, marka, at subject recommendations, pakisuyong mag-log in muna.*\n\nAno ang nais mong malaman ngayon tungkol sa mga programa, enrollment, o admissions ng GCT?`
+              : `Welcome to Garcia College of Technology!\n\nI am your GCT AI Assistant. As an unauthenticated visitor, I can answer general questions about student registration, degree programs, and enrollment steps.\n\n*Note: For student records, grades, and subject recommendations, please log in first.*\n\nWhat would you like to know today regarding GCT programs, enrollment, or admission requirements?`;
           }
 
           systemPrompt = `You are the GCT AI Admissions & Inquiries Assistant for Garcia College of Technology.
@@ -2123,6 +2312,11 @@ PRIMARY LANGUAGE DIRECTIVE:
 - STRICT ZERO EMOJIS RULE: Under no circumstances should you include emojis or decorative smiley symbols. Keep the reply clean and elegant.
 - SCOPE RESTRICTION: You are STRICTLY an assistant for GCT admissions, programs, and registration. If the user asks about anything unrelated (such as weather, sports, general trivia, cooking, or general news), politely apologize and state that it is outside your scope because you are solely for the GCT Subject Assessment and Recommendation System.
 
+MANDATORY FOLLOW-UP QUESTION DIRECTIVE:
+- Every answer to a user message, question, or inquiry MUST conclude with a relevant, proactive follow-up question.
+- Guide the user to the next logical step (e.g. asking if they want admission requirements, instructions on registering an account, or contact details for the Registrar).
+- NEVER end your reply without a follow-up question.
+
 RECENT CONVERSATION HISTORY (FOR MULTI-TURN RECALL & CONTINUITY):
 ${formattedHistory || 'No previous messages in this session.'}
 
@@ -2134,7 +2328,7 @@ USER MESSAGE: "${query}"
 Instructions:
 - Directly, politely, and helpfully reply to the user's message.
 - Answer in the same language as the user (English default; Tagalog/Taglish if user spoke Tagalog).
-- Be conversational and answer whatever question they asked about GCT.`;
+- Conclude with an engaging, helpful follow-up question.`;
         }
       }
     }
@@ -2224,7 +2418,8 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
                   program: studentInfo.program,
                   pending_action: 'clarify_grades_term',
                   available_terms: distinctTerms.map(t => t.term)
-                }
+                },
+                follow_up_questions: distinctTerms.map(t => t.displayLabel).concat(userIsTagalog ? ['Lahat ng Termino'] : ['All Terms'])
               });
             }
           }
@@ -2409,7 +2604,8 @@ USER MESSAGE: "${query}"
 Instructions:
 - Directly, politely, and conversationally reply to the student's exact message or question.
 - DO NOT generate or output any recommended subjects table.
-- If they asked to generate a file (Word, Excel, CSV, or Text), confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below!`;
+- If they asked to generate a file (Word, Excel, CSV, or Text), confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below!
+- MANDATORY FOLLOW-UP QUESTION RULE: Conclude your answer with a relevant follow-up question (e.g. asking if they want to evaluate their overall standing, view recommended subjects for next semester, or check active deficiencies).`;
           } else {
             systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
 Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
@@ -2444,6 +2640,11 @@ PRIMARY LANGUAGE DIRECTIVE:
 - MANDATORY EXCEPTION: If the user communicates in Tagalog (or Taglish/Filipino), you MUST reply in fluent, natural, and encouraging Tagalog/Taglish.
 - SCOPE RESTRICTION: You are STRICTLY an academic assistant for Garcia College of Technology (GCT) Subject Assessment and Recommendation System.
 
+MANDATORY FOLLOW-UP QUESTION DIRECTIVE:
+- Conclude your reply with a relevant, proactive follow-up question.
+- Guide the student to the next logical step (e.g. asking if they want to review prerequisite requirements, check active deficiencies, or download their record).
+- NEVER end your reply without an engaging follow-up question.
+
 USER MESSAGE: "${query}"
 
 Instructions:
@@ -2452,12 +2653,13 @@ Instructions:
 - If they ask about their grades, GWA, prerequisites, or advice, explain clearly using the verified facts above.
 - Format course grades and recommended subjects into Markdown tables.
 - Do not infer year promotion or enrollment eligibility from cumulative passed-subject counts alone. Confirm active-term grades and required curriculum/prerequisite completion first.
-- Language Rule: Reply in English by default; reply in Tagalog if the student wrote in Tagalog.`;
+- Language Rule: Reply in English by default; reply in Tagalog if the student wrote in Tagalog.
+- Always conclude with an engaging follow-up question.`;
           }
 
           if (isAskingOpinion) {
             assistantResponse = userIsTagalog
-              ? `Hello po, **${userName}**! Narito ang aking opisyal na academic advising opinion at pagsusuri sa iyong academic standing:\n\n${opinionSection}\n\n**Kasalukuyang Buod ng Academic Standing:**\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n\n*Gamitin ang mga pindutan sa ibaba upang i-download ang iyong academic record o konsultahin ang iyong advising slip.*`
+              ? `Hello po, **${userName}**! Narito ang aking opisyal na academic advising opinion at pagsusuri sa iyong academic standing:\n\n${opinionSection}\n\n**Kasalukuyang Buod ng Academic Standing:**\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n\n*Gamitin ang mga pindutan sa ibaba upang i-download ang iyong academic record o konsultahin ang iyong advising slip.*\n\nNais mo bang makita ang iyong mga inirerekomendang asignatura para sa susunod na semestre batay sa pagsusuring ito?`
               : `Hello **${userName}**! Here is my academic advising opinion regarding your standing:
 
 ${opinionSection}
@@ -2468,7 +2670,9 @@ ${opinionSection}
 - **Passed Units:** **${passedUnits}** units (${passedCount} subjects)
 - **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**
 
-*Use the buttons below to download your complete academic record or consult your full advising matrix.*`;
+*Use the buttons below to download your complete academic record or consult your full advising matrix.*
+
+Would you like me to generate your recommended subjects for next semester based on this evaluation, or download your official advising record?`;
           } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening)\b/i.test(query)) {
             assistantResponse = userIsTagalog
               ? `Hello po, **${userName}**! Kumusta ka?
@@ -2479,7 +2683,9 @@ Ako ang iyong opisyal na **GCT STUDENT AI INQUIRY** assistant. Narito ang mabili
 • **Cumulative GWA:** **${gwa}**
 • **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)
 ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
-Maaari mo akong tanungin tungkol sa iyong mga marka, susunod na subjects na dapat kunin, opinyon sa iyong schedule at standing, o mag-download ng iyong record sa **Excel (.csv)**, **Word (.doc)**, o **Text (.txt)** gamit ang buttons sa ibaba!`
+Maaari mo akong tanungin tungkol sa iyong mga marka, susunod na subjects na dapat kunin, opinyon sa iyong schedule at standing, o mag-download ng iyong record sa **Excel (.csv)**, **Word (.doc)**, o **Text (.txt)** gamit ang buttons sa ibaba!
+
+Nais mo bang tingnan ang iyong pinakahuling marka, alamin ang inirerekomendang subjects para sa susunod na semestre, o kalkulahin ang iyong cumulative GWA?`
               : `Hello, **${userName}**! How can I assist your academic advising today?
 
 I am your official **GCT STUDENT AI INQUIRY** assistant. Here is a quick summary of your academic standing:
@@ -2488,11 +2694,13 @@ I am your official **GCT STUDENT AI INQUIRY** assistant. Here is a quick summary
 • **Cumulative GWA:** **${gwa}**
 • **Passed Units:** **${passedUnits}** units (${passedCount} subjects)
 ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
-You can ask me about your grades, upcoming subject recommendations, evaluation opinions, or download your complete academic record in **Excel (.csv)**, **Word (.doc)**, or **Text (.txt)** using the buttons below!`;
+You can ask me about your grades, upcoming subject recommendations, evaluation opinions, or download your complete academic record in **Excel (.csv)**, **Word (.doc)**, or **Text (.txt)** using the buttons below!
+
+Would you like to review your latest grades, check your recommended subjects for next semester, or calculate your cumulative GWA?`;
           } else {
             if (studentIntent === 'recommendation') {
               assistantResponse = userIsTagalog
-                ? `Hello po, **${userName}**! Narito ang iyong inirerekomendang mga asignatura para sa **${studentTargetTermText}**:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Target Term:** **${studentTargetTermText}**\n\n#### Mga Inirerekomendang Asignatura:\n${studentRecsTableMarkdown}\n\n${evalData?.activeDeficiencies?.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${studentDeficienciesTable}\n\n` : ''}*Maaari mong i-download ang iyong advising record gamit ang buttons sa ibaba.*`
+                ? `Hello po, **${userName}**! Narito ang iyong inirerekomendang mga asignatura para sa **${studentTargetTermText}**:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Target Term:** **${studentTargetTermText}**\n\n#### Mga Inirerekomendang Asignatura:\n${studentRecsTableMarkdown}\n\n${evalData?.activeDeficiencies?.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${studentDeficienciesTable}\n\n` : ''}*Maaari mong i-download ang iyong advising record gamit ang buttons sa ibaba.*\n\nNais mo bang suriin ang mga prerequisite para sa mga inirerekomendang asignaturang ito, o tingnan ang iyong active deficiencies?`
                 : `Hello **${userName}**! Here are your recommended subjects for **${studentTargetTermText}**:
 
 - **Student ID:** \`${studentInfo.student_id}\`
@@ -2503,10 +2711,12 @@ You can ask me about your grades, upcoming subject recommendations, evaluation o
 #### Recommended Subjects for Upcoming Term:
 ${studentRecsTableMarkdown}
 
-${evalData?.activeDeficiencies?.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${studentDeficienciesTable}\n\n` : ''}*You can download your advising slip and academic record using the buttons below.*`;
+${evalData?.activeDeficiencies?.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${studentDeficienciesTable}\n\n` : ''}*You can download your advising slip and academic record using the buttons below.*
+
+Would you like to review the specific prerequisite requirements for these recommended subjects, or check your active deficiencies?`;
             } else if (studentIntent === 'grades') {
               assistantResponse = userIsTagalog
-                ? `Hello po, **${userName}**! Narito ang iyong opisyal na talaan ng mga marka:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n\n#### Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${studentGradesTableMarkdown}\n\n${evalData?.activeDeficiencies?.length > 0 ? `#### Mga Aktibong Deficiency:\n${studentDeficienciesTable}\n\n` : ''}*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*`
+                ? `Hello po, **${userName}**! Narito ang iyong opisyal na talaan ng mga marka:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n\n#### Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${studentGradesTableMarkdown}\n\n${evalData?.activeDeficiencies?.length > 0 ? `#### Mga Aktibong Deficiency:\n${studentDeficienciesTable}\n\n` : ''}*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*\n\nNais mo bang suriin natin ang iyong overall standing at kalkulahin ang iyong mga inirerekomendang asignatura para sa susunod na semestre?`
                 : `Hello **${userName}**! Here is your official grade sheet:
 
 - **Student ID:** \`${studentInfo.student_id}\`
@@ -2517,10 +2727,12 @@ ${evalData?.activeDeficiencies?.length > 0 ? `#### Active Deficiencies (Retakes 
 #### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Terms'}):
 ${studentGradesTableMarkdown}
 
-${evalData?.activeDeficiencies?.length > 0 ? `#### Active Deficiencies:\n${studentDeficienciesTable}\n\n` : ''}*You can download your complete record as a ${requestedFormat.toUpperCase()} file below.*`;
+${evalData?.activeDeficiencies?.length > 0 ? `#### Active Deficiencies:\n${studentDeficienciesTable}\n\n` : ''}*You can download your complete record as a ${requestedFormat.toUpperCase()} file below.*
+
+Would you like me to evaluate your overall standing and compute your recommended subjects for the upcoming semester?`;
             } else {
               assistantResponse = userIsTagalog
-                ? `Hello po, **${userName}**! Narito ang iyong verified academic standing at buod ng rekord:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** ${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}\n\n#### Mga Inirerekomendang Asignatura (${studentTargetTermText}):\n${studentRecsTableMarkdown}\n\n#### Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${studentGradesTableMarkdown}\n\n*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*`
+                ? `Hello po, **${userName}**! Narito ang iyong verified academic standing at buod ng rekord:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** ${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}\n\n#### Mga Inirerekomendang Asignatura (${studentTargetTermText}):\n${studentRecsTableMarkdown}\n\n#### Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${studentGradesTableMarkdown}\n\n*Maaari mong i-download ang iyong kumpletong rekord bilang ${requestedFormat.toUpperCase()} file sa ibaba.*\n\nNais mo bang suriin ang mga prerequisite para sa mga darating na asignatura, o i-download ang iyong opisyal na ulat sa Excel?`
                 : `Hello **${userName}**! Here is your verified academic standing and course summary:
 
 - **Student ID:** \`${studentInfo.student_id}\`
@@ -2535,7 +2747,9 @@ ${studentRecsTableMarkdown}
 #### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Terms'}):
 ${studentGradesTableMarkdown}
 
-*You can download your complete academic record as a ${requestedFormat.toUpperCase()} file below.*`;
+*You can download your complete academic record as a ${requestedFormat.toUpperCase()} file below.*
+
+Would you like to explore specific prerequisite dependencies for these upcoming subjects, or download your complete academic evaluation in Excel?`;
             }
           }
 
@@ -2662,8 +2876,8 @@ ${studentGradesTableMarkdown}
           : `### Multi-Student Academic Records & Evaluation Report (${multiStudents.length} Students)\nHere is the evaluated breakdown for the requested students:\n\n`;
 
         const downloadNotice = userIsTagalog
-          ? `\n*Maaari mong i-download ang buong pinagsamang rekord ng lahat ng estudyante bilang **Excel Spreadsheet** gamit ang download button sa ibaba.*`
-          : `\n*You can download the complete combined records of all students as an **Excel Spreadsheet** using the download button below.*`;
+          ? `\n*Maaari mong i-download ang buong pinagsamang rekord ng lahat ng estudyante bilang **Excel Spreadsheet** gamit ang download button sa ibaba.*\n\nNais mo bang suriin nang mas detalyado ang rekord ng isa sa mga estudyanteng ito, o i-filter ang mga may bagsak na asignatura?`
+          : `\n*You can download the complete combined records of all students as an **Excel Spreadsheet** using the download button below.*\n\nWould you like to drill down into a specific student's record, or filter these students by active deficiencies?`;
 
         assistantResponse = introHeader + studentSections.join('\n---\n\n') + downloadNotice;
       }
@@ -2744,7 +2958,11 @@ ${studentGradesTableMarkdown}
                   program: targetStudent.program,
                   pending_action: 'recommendation_offer',
                   available_terms: ['Subject Recommendations']
-                }
+                },
+                follow_up_questions: [
+                  `Subject recommendations for ${cleanId}`,
+                  `Academic Records for ${cleanId}`
+                ]
               });
             }
 
@@ -2774,7 +2992,8 @@ ${studentGradesTableMarkdown}
                 program: targetStudent.program,
                 pending_action: 'clarify_grades_term',
                 available_terms: distinctTerms.map(t => t.term)
-              }
+              },
+              follow_up_questions: distinctTerms.map(t => t.displayLabel).concat(userIsTagalog ? ['Lahat ng Termino'] : ['All Terms'])
             });
           }
 
@@ -2795,9 +3014,9 @@ ${studentGradesTableMarkdown}
               const availableTerms = Array.from(new Set(records.map(r => r.term).filter(Boolean))).join(', ');
               const noTermMsg = userIsTagalog
                 ? `Walang natagpuang rekord o marka para kay **${targetStudent.name || targetStudent.full_name}** (${cleanId}) para sa **${termAnalysis.target_term || 'hiniling na termino'}** sa opisyal na database.\n\n` +
-                (availableTerms ? `Mga nakatalang termino sa database para sa estudyanteng ito: **${availableTerms}**.\n\n*Gamitin ang action button sa ibaba upang buksan ang buong Academic Records ng estudyante.*` : '')
+                (availableTerms ? `Mga nakatalang termino sa database para sa estudyanteng ito: **${availableTerms}**.\n\n*Gamitin ang action button sa ibaba upang buksan ang buong Academic Records ng estudyante.*\n\nNais mo bang tingnan ang kanyang mga marka sa isa sa mga nakatalang termino sa itaas, o kalkulahin ang kanyang subject recommendations para sa susunod na semestre?` : `Nais mo bang kalkulahin ang kanyang mga inirerekomendang asignatura para sa susunod na termino?`)
                 : `No recorded grades found for **${targetStudent.name || targetStudent.full_name}** (${cleanId}) for **${termAnalysis.target_term || 'the requested term'}** in the official database.\n\n` +
-                (availableTerms ? `Recorded terms available on file: **${availableTerms}**.\n\n*Use the action button below to open the student's full Academic Records.*` : '');
+                (availableTerms ? `Recorded terms available on file: **${availableTerms}**.\n\n*Use the action button below to open the student's full Academic Records.*\n\nWould you like to view their grades for one of the available terms above, or compute their subject recommendations for the upcoming semester?` : `Would you like to compute their subject recommendations for the upcoming semester?`);
 
               return res.json({
                 id: 'chat-' + Date.now(),
@@ -2813,7 +3032,11 @@ ${studentGradesTableMarkdown}
                   target_term: termAnalysis.target_term || undefined,
                   semester: termAnalysis.semester || undefined,
                   year_level: termAnalysis.year || undefined
-                }
+                },
+                follow_up_questions: [
+                  `Subject recommendations for ${cleanId}`,
+                  `Academic Records for ${cleanId}`
+                ]
               });
             }
           }
@@ -2983,7 +3206,8 @@ Instructions:
 - Directly, professionally, and accurately present ONLY the requested official grade sheet / academic records for this student.
 - DO NOT generate or output any recommended subjects table.
 - Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
-- Note that interactive buttons below can open this student's profile directly in Academic Records.`;
+- Note that interactive buttons below can open this student's profile directly in Academic Records.
+- MANDATORY FOLLOW-UP QUESTION RULE: Always conclude with an engaging follow-up question (e.g. asking if they want to calculate subject recommendations for next term, review prerequisites, or check graduation standing).`;
           } else if (queryIntent === 'recommendation') {
             systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
 User: ${userName} (Registrar Operations)
@@ -3028,7 +3252,8 @@ USER MESSAGE: "${query}"
 Instructions:
 - Directly, professionally, and accurately reply with the official subject recommendations for ${targetTermText}.
 - Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
-- Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.`;
+- Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.
+- MANDATORY FOLLOW-UP QUESTION RULE: Always conclude with an engaging follow-up question (e.g. asking if they want to view the student's complete grade sheet, check active deficiencies, or evaluate graduation eligibility).`;
           } else {
             // Comprehensive / default (only when user explicitly asked for both or general evaluation)
             systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
@@ -3080,22 +3305,23 @@ Instructions:
 - The user requested an assessment of the student. You MUST present BOTH the Official Grade Sheet Table (displaying all encoded grades on file across all terms) AND the Official Recommended Subjects Table for the upcoming advising term (${targetTermText}).
 - Accompany the tables with active deficiencies (if any) and a comprehensive advising evaluation narrative.
 - Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
-- Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.`;
+- Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.
+- MANDATORY FOLLOW-UP QUESTION RULE: Always conclude with an engaging follow-up question (e.g. asking if they want to review prerequisite progression in detail, download in Excel, or verify graduation clearance).`;
           }
 
           if (queryIntent === 'recommendation') {
             assistantResponse = userIsTagalog
-              ? `### Rekomendasyon sa Asignatura at Pagsusuri: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o buksan ang profile sa Academic Records o Subject Recommendations.*`
-              : `### Subject Recommendations & Academic Evaluation: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Passed Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Total Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Recommended Subjects for ${targetTermText} (${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Subject Deficiencies (Retake Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Evaluation & Advising Explanation:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the official record (${requestedFormat.toUpperCase()}) or open this profile in Academic Records / Subject Recommendations.*`;
+              ? `### Rekomendasyon sa Asignatura at Pagsusuri: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o buksan ang profile sa Academic Records o Subject Recommendations.*\n\nNais mo bang suriin ang buong talaan ng nakaraang marka ng estudyanteng ito, o buksan ang profile sa Subject Recommendations?`
+              : `### Subject Recommendations & Academic Evaluation: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Passed Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Total Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Recommended Subjects for ${targetTermText} (${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Subject Deficiencies (Retake Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Evaluation & Advising Explanation:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the official record (${requestedFormat.toUpperCase()}) or open this profile in Academic Records / Subject Recommendations.*\n\nWould you like to inspect this student's full historical grade sheet, or open their profile directly in Subject Recommendations?`;
           } else if (queryIntent === 'grades') {
             assistantResponse = userIsTagalog
-              ? `### Opisyal na Talaan ng Marka${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n\n#### Talaan ng mga Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${deficienciesTableMarkdown}\n\n` : ''}#### Pagsusuri sa Academic Standing:\n${narrativeExplanation}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o buksan ang profile sa Academic Records.*`
-              : `### Official Academic Record & Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Completed Units:** **${passedUnits}** units (${passedCount} passed)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Standing)'}**\n\n#### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Performance Evaluation & Explanation:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download this record as a ${requestedFormat.toUpperCase()} file, or view the student in Academic Records.*`;
+              ? `### Opisyal na Talaan ng Marka${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n\n#### Talaan ng mga Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${deficienciesTableMarkdown}\n\n` : ''}#### Pagsusuri sa Academic Standing:\n${narrativeExplanation}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o buksan ang profile sa Academic Records.*\n\nNais mo bang kalkulahin ang kanyang mga inirerekomendang asignatura para sa susunod na termino, o suriin ang graduation eligibility?`
+              : `### Official Academic Record & Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Completed Units:** **${passedUnits}** units (${passedCount} passed)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Standing)'}**\n\n#### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Performance Evaluation & Explanation:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download this record as a ${requestedFormat.toUpperCase()} file, or view the student in Academic Records.*\n\nWould you like me to compute their subject recommendations for the upcoming term, or evaluate their graduation prerequisite standing?`;
           } else {
             // Comprehensive / assessment
             assistantResponse = userIsTagalog
-              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Buong Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*`
-              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Academic Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*`;
+              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Buong Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*\n\nNais mo bang suriin ang kanyang prerequisite progression nang detalyado, i-download ang ulat na ito sa Excel, o buksan ang profile sa Academic Records?`
+              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Academic Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*\n\nWould you like to review their prerequisite progression in detail, download this evaluation in Excel, or open their profile in Academic Records?`;
           }
         }
         // General institutional inquiry
@@ -3198,7 +3424,9 @@ Which student record or operational report would you like to review today?`;
    - Sabihin lang: *"Generate in Excel"*, *"Export in Word"*, o *"Download as Text"* para makakuha ng official printable copy.
 3. **Enrollment & Rules Oversight:**
    - Itanong: *"How many student registrations are pending?"*
-   - Itanong: *"What are the academic threshold rules?"*`
+   - Itanong: *"What are the academic threshold rules?"*
+
+Aling rekord ng estudyante o operational report ang nais mong suriin ngayon?`
               : `Here are the core operations available for Registrar and Staff:
 
 1. **Student Academic Lookups & Evaluations:**
@@ -3209,45 +3437,63 @@ Which student record or operational report would you like to review today?`;
    - Simply ask: *"Generate in Excel"*, *"Export in Word"*, or *"Download as Text"* for printable official archives.
 3. **Institutional Governance & Rules:**
    - Ask: *"How many student registrations are pending?"*
-   - Ask: *"What are the academic threshold rules?"*`;
+   - Ask: *"What are the academic threshold rules?"*
+
+Which student record or operational report would you like to review today?`;
           } else if (/\b(magkano|presyo|pricing|cost|bayad|api\s*key|gemini\s*cost)\b/i.test(q)) {
             assistantResponse = userIsTagalog
               ? `Tungkol sa Google Gemini API:
 - Ang Google AI Studio ay may **Free Tier** (libreng gamitin para sa trial at development).
 - Para sa production gamit ang **Pay-as-you-go (Blended Rate)**, ang Gemini Flash ay napakamura: humigit-kumulang **$0.075 bawat 1 milyong input tokens** (nasa ilang sentimo lamang sa libo-libong chat queries).
-- Kung naabot ang daily limit ng free key, awtomatikong gumagana ang built-in GCT database rule engine upang hindi maantala ang serbisyo!`
+- Kung naabot ang daily limit ng free key, awtomatikong gumagana ang built-in GCT database rule engine upang hindi maantala ang serbisyo!
+
+Nais mo ba ng higit pang teknikal na detalye ukol sa system settings o token usage?`
               : `About the Google Gemini API:
 - Google AI Studio provides a generous **Free Tier** suitable for development and operational evaluation.
 - For production under **Pay-as-you-go rates**, Gemini Flash is economical at approximately **$0.075 per 1 million input tokens**.
-- If quota limits are reached, the system automatically engages the built-in GCT database rule engine to maintain uninterrupted service.`;
+- If quota limits are reached, the system automatically engages the built-in GCT database rule engine to maintain uninterrupted service.
+
+Would you like more technical details on system settings or token usage?`;
           } else if (q.includes('pending') || q.includes('approval') || q.includes('signup')) {
             assistantResponse = userIsTagalog
               ? `### Student Registration Approval Queue
 - **Pending Approvals:** **${pendingStudentsCount}** bagong student account ang naghihintay ng verification.
-- **Office Governance:** Maaari mong suriin ang mga ID photo, kumpirmahin ang mga detalye, at i-approve o i-reject ang registration sa **User & Account Governance** tab.`
+- **Office Governance:** Maaari mong suriin ang mga ID photo, kumpirmahin ang mga detalye, at i-approve o i-reject ang registration sa **User & Account Governance** tab.
+
+Nais mo ba ng gabay patungo sa User & Account Governance tab, o suriin ang isang partikular na aplikante?`
               : `### Student Registration Approval Queue
 - **Pending Approvals:** **${pendingStudentsCount}** new student accounts awaiting verification.
-- **Office Governance:** You can inspect submitted ID photos, verify student credentials, and approve or reject submissions in the **User & Account Governance** tab.`;
+- **Office Governance:** You can inspect submitted ID photos, verify student credentials, and approve or reject submissions in the **User & Account Governance** tab.
+
+Would you like guidance on navigating the User & Account Governance tab, or to check a specific pending registration?`;
           } else if (q.includes('threshold') || q.includes('prereq') || q.includes('rule') || q.includes('setting')) {
             assistantResponse = userIsTagalog
               ? `### Institutional Academic Rules & Thresholds
 - **Minimum Passing Grade Threshold:** **${passingThreshold}%** (katumbas ng Grade 3.00)
 - **Maximum Allowed Failed Prerequisites:** **${maxFailedPrereqs}** subjects bago masuspinde ang enrollment
 - **Active Academic Year:** 2025–2026 (Semester 1)
-*Maaaring baguhin ang mga pamantayan sa System Settings.*`
+*Maaaring baguhin ang mga pamantayan sa System Settings.*
+
+Nais mo bang suriin ang mga estudyanteng lumampas sa limitasyon ng bagsak na prerequisites, o baguhin ang system settings?`
               : `### Institutional Academic Rules & Thresholds
 - **Minimum Passing Grade Threshold:** **${passingThreshold}%** (Grade 3.00 equivalent)
 - **Maximum Allowed Failed Prerequisites:** **${maxFailedPrereqs}** subjects before enrollment suspension
 - **Active Academic Year:** 2025–2026 (Semester 1)
-*Rules can be configured under System Settings.*`;
+*Rules can be configured under System Settings.*
+
+Would you like to review the list of students exceeding the prerequisite failure threshold, or adjust system settings?`;
           } else if (q.includes('queue') || q.includes('recommend') || q.includes('review')) {
             assistantResponse = userIsTagalog
               ? `### Subject Recommendations & Advising
 - **Status:** Direktang gumagana ang automated prerequisite evaluation para sa mga estudyante.
-- Hindi na kinakailangan ng manual approval queue dahil real-time na kinakalkula ang recommended subjects at retakes batay sa kanilang naipasang prerequisites.`
+- Hindi na kinakailangan ng manual approval queue dahil real-time na kinakalkula ang recommended subjects at retakes batay sa kanilang naipasang prerequisites.
+
+Nais mo bang maghanap ng partikular na estudyante upang masuri ang kanyang prerequisite recommendations?`
               : `### Subject Recommendations & Advising
 - **Status:** Automated prerequisite evaluation is directly active for students.
-- Manual approval review is no longer required as recommended subjects, eligible unlocks, and retakes are computed dynamically in real-time.`;
+- Manual approval review is no longer required as recommended subjects, eligible unlocks, and retakes are computed dynamically in real-time.
+
+Would you like to search for an individual student to inspect their automated prerequisite recommendations?`;
           } else {
             assistantResponse = userIsTagalog
               ? `Kumusta, **${userName}** (Registrar Operations)!
@@ -3255,13 +3501,17 @@ Which student record or operational report would you like to review today?`;
 Ako ang inyong GCT Registrar Operations Assistant na may direktang koneksyon sa database. Maaari mong itanong:
 1. **Paghahanap ng record at academic evaluation:** I-type ang Student ID (halimbawa: \`2024-0001\`, \`12718\`) o pangalan ng estudyante upang makita ang buong grado, GWA, advising opinions, at downloadable file.
 2. **Direktang pagbubukas ng student profile:** May mabilisang links patungo sa **Academic Records** o **Subject Recommendations**.
-3. **Institutional analytics at opisyal na payo:** Magtanong ukol sa pending approvals, failure trends, curriculum compliance, at iba pa.`
+3. **Institutional analytics at opisyal na payo:** Magtanong ukol sa pending approvals, failure trends, curriculum compliance, at iba pa.
+
+Aling Student ID o katanungang pang-operasyon ang nais mong simulan natin ngayon?`
               : `Hello **${userName}** (Registrar Operations)!
 
 I am your GCT Registrar Operations Assistant with direct database access. You can ask me to:
 1. **Search any student record & evaluation:** Enter a Student ID (e.g. \`2024-0001\`, \`12718\`) or name to review course grades, GWA, advising opinions, and downloadable reports.
 2. **Open student records:** Use direct action shortcuts to open their profile in **Academic Records** or **Subject Recommendations**.
-3. **Institutional analytics & advice:** Inquire about pending student approvals, curriculum compliance, or request formal advising guidance.`;
+3. **Institutional analytics & advice:** Inquire about pending student approvals, curriculum compliance, or request formal advising guidance.
+
+Which student ID or operational inquiry would you like to begin with today?`;
           }
 
           // Set prompt for Gemini to answer the user's specific query directly
@@ -3285,13 +3535,19 @@ CRITICAL FORMATTING INSTRUCTIONS:
 4. SCOPE RESTRICTION: You are STRICTLY an assistant for the Garcia College of Technology (GCT) Subject Assessment and Recommendation System. If the user asks about anything unrelated (such as weather, sports, general trivia, cooking, or general news), politely apologize and state that it is outside your scope because you are exclusively for the GCT Subject Assessment and Recommendation System.
 5. REGISTRAR ADVISING OPINIONS: When the registrar or administrator asks for your opinion, advice, or evaluation, provide a professional, structured, and insightful academic evaluation with clear explanations and tables.
 
+MANDATORY FOLLOW-UP QUESTION DIRECTIVE:
+- Every answer to a user message, question, or inquiry MUST conclude with a relevant, proactive follow-up question.
+- Guide the user to the next logical operational step (e.g. asking which student record to view, whether to export a file, or review prerequisites).
+- NEVER end your reply without a follow-up question.
+
 USER MESSAGE: "${query}"
 
 Instructions:
 - Directly, specifically, and conversationally reply to what the Registrar messaged or asked.
 - Provide accurate operational guidance regarding GCT Registrar tasks, student evaluations, curriculum rules, or reports.
 - If they asked to export or download, note that the ${requestedFormat.toUpperCase()} file is ready below.
-- Reply in Tagalog if the user used Tagalog; otherwise reply in English as the main language.`;
+- Reply in Tagalog if the user used Tagalog; otherwise reply in English as the main language.
+- Always conclude with an engaging, helpful follow-up question.`;
         }
       }
     }
@@ -3332,6 +3588,23 @@ Instructions:
     // Strictly enforce zero emojis and zero memorandum formatting on final response
     assistantResponse = stripEmojis(cleanMemorandumFormatting(assistantResponse));
 
+    // MANDATORY FOLLOW-UP QUESTION ENFORCEMENT:
+    // Guarantee that every question or response ends with a relevant, proactive follow-up question
+    const effectiveIntent = studentAction?.intent || (typeof queryIntent !== 'undefined' ? queryIntent : 'general');
+    assistantResponse = ensureFollowUpQuestion(assistantResponse, {
+      role: userRole,
+      intent: effectiveIntent,
+      userIsTagalog,
+      studentId: studentAction?.student_id
+    });
+
+    const followUpQuestions = generateFollowUpQuestions({
+      role: userRole,
+      intent: effectiveIntent,
+      userIsTagalog,
+      studentId: studentAction?.student_id
+    });
+
     // Log chat entry in Supabase chat_logs table
     const chatId = 'chat-' + Date.now();
     const now = new Date().toISOString();
@@ -3355,7 +3628,8 @@ Instructions:
       role: userRole,
       timestamp: now,
       file_export: fileExport || null,
-      student_action: studentAction || null
+      student_action: studentAction || null,
+      follow_up_questions: followUpQuestions
     });
   } catch (error) {
     console.error('Chatbot Query Error:', error);
@@ -3384,5 +3658,7 @@ module.exports = {
   generateMultiStudentCsv,
   getStudentEnrollmentStatus,
   getDistinctTermsList,
-  generateStudentCsv
+  generateStudentCsv,
+  ensureFollowUpQuestion,
+  generateFollowUpQuestions
 };

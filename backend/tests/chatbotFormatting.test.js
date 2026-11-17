@@ -7,7 +7,9 @@ const {
   buildStudentsTableMarkdown,
   classifyStudentQueryIntent,
   formatTargetTermText,
-  generateStudentCsv
+  generateStudentCsv,
+  ensureFollowUpQuestion,
+  generateFollowUpQuestions
 } = require('../controllers/chatbotController');
 
 describe('Chatbot Table Formatting & Anti-Memorandum Sanitizer', () => {
@@ -141,6 +143,52 @@ Satisfactory standing.`;
     expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"CC 101","Intro to Computing",3,"1.75","passed","2025-2026 1st Sem"');
     expect(csv).not.toContain('RECOMMENDED SUBJECTS');
     expect(csv).not.toContain('CC 102');
+  });
+
+  it('guarantees all question answers end with a follow-up question via ensureFollowUpQuestion', () => {
+    // When text does NOT end with a question mark
+    const staticStudentText = 'Here is your official grade sheet for 1st Year 1st Sem.';
+    const ensuredStudent = ensureFollowUpQuestion(staticStudentText, { role: 'student', intent: 'grades', userIsTagalog: false });
+    expect(ensuredStudent.trim().endsWith('?')).toBe(true);
+    expect(ensuredStudent).toContain('Would you like me to evaluate your overall standing and show your recommended subjects for next semester?');
+
+    // When text in Tagalog does NOT end with a question mark
+    const staticTagalogText = 'Narito ang iyong opisyal na grado.';
+    const ensuredTagalog = ensureFollowUpQuestion(staticTagalogText, { role: 'student', intent: 'grades', userIsTagalog: true });
+    expect(ensuredTagalog.trim().endsWith('?')).toBe(true);
+    expect(ensuredTagalog).toContain('Nais mo bang suriin natin ang iyong overall standing');
+
+    // When text for Registrar does not end with a question mark
+    const staticRegistrarText = 'Evaluated records for student 12310.';
+    const ensuredRegistrar = ensureFollowUpQuestion(staticRegistrarText, { role: 'registrar_admin', intent: 'grades', studentId: '12310', userIsTagalog: false });
+    expect(ensuredRegistrar.trim().endsWith('?')).toBe(true);
+    expect(ensuredRegistrar).toContain('Would you like me to compute recommended subjects for 12310');
+
+    // When text for Guest does not end with a question mark
+    const staticGuestText = 'Welcome to GCT.';
+    const ensuredGuest = ensureFollowUpQuestion(staticGuestText, { role: 'guest', userIsTagalog: false });
+    expect(ensuredGuest.trim().endsWith('?')).toBe(true);
+    expect(ensuredGuest).toContain('Would you like more details regarding admission requirements');
+
+    // When text ALREADY ends with a question mark, preserve it without duplicate
+    const alreadyQuestion = 'Which academic term would you like to view?';
+    const preserved = ensureFollowUpQuestion(alreadyQuestion, { role: 'student', intent: 'grades', userIsTagalog: false });
+    expect(preserved).toBe('Which academic term would you like to view?');
+  });
+
+  it('generates non-empty contextual follow-up questions for UI chips', () => {
+    const studentFollowUps = generateFollowUpQuestions({ role: 'student', intent: 'grades', userIsTagalog: false });
+    expect(Array.isArray(studentFollowUps)).toBe(true);
+    expect(studentFollowUps.length).toBeGreaterThanOrEqual(2);
+    expect(studentFollowUps.some(q => q.includes('eligible for next semester'))).toBe(true);
+
+    const registrarFollowUps = generateFollowUpQuestions({ role: 'registrar_admin', intent: 'grades', studentId: '12310', userIsTagalog: false });
+    expect(Array.isArray(registrarFollowUps)).toBe(true);
+    expect(registrarFollowUps.some(q => q.includes('12310'))).toBe(true);
+
+    const guestFollowUps = generateFollowUpQuestions({ role: 'guest', userIsTagalog: false });
+    expect(Array.isArray(guestFollowUps)).toBe(true);
+    expect(guestFollowUps.some(q => q.includes('Admission requirements'))).toBe(true);
   });
 });
 

@@ -13,7 +13,8 @@ import {
   Download,
   FileSpreadsheet,
   BookOpen,
-  Sparkles
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 interface ChatAttachment {
@@ -56,6 +57,7 @@ interface ChatMessage {
   attachments?: ChatAttachment[];
   fileExport?: FileExport;
   studentAction?: StudentAction;
+  followUpQuestions?: string[];
 }
 
 interface ChatbotWidgetProps {
@@ -739,7 +741,13 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
     prevClearTriggerRef.current = clearTrigger;
   }, [clearTrigger]);
 
-  const quickPrompts = isGuest
+  // Use the last bot message's follow-up questions as quick suggestions if available
+  const lastBotMsg = [...messages].reverse().find(m => m.sender === 'bot');
+  const dynamicFollowUps = lastBotMsg?.followUpQuestions;
+
+  const quickPrompts = (dynamicFollowUps && dynamicFollowUps.length > 0)
+    ? dynamicFollowUps
+    : isGuest
     ? [
         'Admission requirements for new students',
         'Requirements for old students',
@@ -758,7 +766,11 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         'What subjects am I eligible for next semester?',
         'Download my official academic record'
       ]
-    : [];
+    : [
+        'Show list of registered students',
+        'What is the passing grade threshold and prerequisite rules?',
+        'How many student registrations are pending?'
+      ];
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -1052,7 +1064,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         text: botResponseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         fileExport: res.file_export || undefined,
-        studentAction: finalAction
+        studentAction: finalAction,
+        followUpQuestions: (res.follow_up_questions && Array.isArray(res.follow_up_questions) && res.follow_up_questions.length > 0) ? res.follow_up_questions : undefined
       };
       setMessages(prev => [...prev, botMsg]);
     } catch (err: any) {
@@ -1830,6 +1843,53 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                     </div>
                   );
                 })()}
+
+                {/* Suggested Follow-up Questions */}
+                {msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed #CBD5E1' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: '0.4rem', letterSpacing: '0.3px' }}>
+                      Suggested follow-up:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {msg.followUpQuestions.map((fq, fqIdx) => (
+                        <button
+                          key={fqIdx}
+                          type="button"
+                          onClick={() => handleSend(fq)}
+                          style={{
+                            textAlign: 'left',
+                            background: '#F8FAFC',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '8px',
+                            padding: '0.4rem 0.65rem',
+                            color: '#1E293B',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.4rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = '#EFF6FF';
+                            e.currentTarget.style.borderColor = '#93C5FD';
+                            e.currentTarget.style.color = '#1D4ED8';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = '#F8FAFC';
+                            e.currentTarget.style.borderColor = '#CBD5E1';
+                            e.currentTarget.style.color = '#1E293B';
+                          }}
+                        >
+                          <span>{fq}</span>
+                          <ChevronRight size={13} style={{ opacity: 0.65, flexShrink: 0 }} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <span style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.3rem', fontWeight: 500 }}>
                 {msg.timestamp}
@@ -2540,6 +2600,53 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                       </div>
                     );
                   })()}
+
+                  {/* Suggested Follow-up Questions */}
+                  {msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                    <div style={{ marginTop: '0.65rem', paddingTop: '0.55rem', borderTop: '1px dashed #CBD5E1' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', marginBottom: '0.35rem', letterSpacing: '0.3px' }}>
+                        Suggested follow-up:
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {msg.followUpQuestions.map((fq, fqIdx) => (
+                          <button
+                            key={fqIdx}
+                            type="button"
+                            onClick={() => handleSend(fq)}
+                            style={{
+                              textAlign: 'left',
+                              background: '#F8FAFC',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '6px',
+                              padding: '0.35rem 0.55rem',
+                              color: '#1E293B',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.4rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = '#EFF6FF';
+                              e.currentTarget.style.borderColor = '#93C5FD';
+                              e.currentTarget.style.color = '#1D4ED8';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = '#F8FAFC';
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              e.currentTarget.style.color = '#1E293B';
+                            }}
+                          >
+                            <span>{fq}</span>
+                            <ChevronRight size={12} style={{ opacity: 0.65, flexShrink: 0 }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <span style={{ fontSize: '0.65rem', color: '#64748B', marginTop: '0.2rem', fontWeight: 500 }}>
                   {msg.timestamp}

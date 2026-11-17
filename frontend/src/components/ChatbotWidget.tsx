@@ -1389,13 +1389,26 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
               flexShrink: 0
             }}
           >
-            <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2 }}>
-                {roleTitle}
-              </h3>
-              <span style={{ fontSize: '0.78rem', color: '#DBEAFE', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem', fontWeight: 500 }}>
-                {roleSubtitle}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <img
+                src="/gct-logo.png"
+                alt="Garcia College of Technology Logo"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  minWidth: '38px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))'
+                }}
+              />
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2 }}>
+                  {roleTitle}
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: '#DBEAFE', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem', fontWeight: 500 }}>
+                  {roleSubtitle}
+                </span>
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1506,9 +1519,21 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                 {/* Bot Message Header */}
                 {msg.sender === 'bot' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.55rem', paddingBottom: '0.35rem', borderBottom: '1px solid #F1F5F9' }}>
-                    <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#1E3A8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Sparkles size={11} color="#FFFFFF" />
-                    </div>
+                    <img
+                      src="/gct-logo.png"
+                      alt="GCT Logo"
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        minWidth: '20px',
+                        objectFit: 'contain',
+                        borderRadius: '50%',
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        padding: '1px',
+                        flexShrink: 0
+                      }}
+                    />
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', letterSpacing: '0.2px' }}>
                       {roleTitle}
                     </span>
@@ -2174,6 +2199,17 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             flexShrink: 0
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <img
+                src="/gct-logo.png"
+                alt="GCT Logo"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  minWidth: '32px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.25))'
+                }}
+              />
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2 }}>
@@ -2267,9 +2303,21 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                   {/* Bot Message Header */}
                   {msg.sender === 'bot' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem', paddingBottom: '0.3rem', borderBottom: '1px solid #F1F5F9' }}>
-                      <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: '#1E3A8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Sparkles size={9} color="#FFFFFF" />
-                      </div>
+                      <img
+                        src="/gct-logo.png"
+                        alt="GCT Logo"
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          minWidth: '18px',
+                          objectFit: 'contain',
+                          borderRadius: '50%',
+                          background: '#FFFFFF',
+                          border: '1px solid #CBD5E1',
+                          padding: '1px',
+                          flexShrink: 0
+                        }}
+                      />
                       <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#334155', letterSpacing: '0.2px' }}>
                         {roleTitle}
                       </span>

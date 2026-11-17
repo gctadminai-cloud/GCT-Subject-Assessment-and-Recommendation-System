@@ -169,13 +169,26 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
       }}>
         {isChatbotTab ? (
           <>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
-                GCT Registrar AI Assistant
-              </h2>
-              <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
-                Grounded in institutional database
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <img
+                src="/gct-logo.png"
+                alt="Garcia College of Technology Logo"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  minWidth: '42px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))'
+                }}
+              />
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1.2, textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+                  GCT Registrar AI Assistant
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: '#DBEAFE', margin: 0, marginTop: '0.15rem', fontWeight: 500 }}>
+                  Grounded in institutional database
+                </p>
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>

@@ -13,7 +13,10 @@ const {
   isStudentGreetingQuery,
   buildStudentGreetingResponse,
   queryChatbot,
-  parseCohortFilter
+  parseCohortFilter,
+  isCohortDetailsComplete,
+  generateCurriculumRecsCsv,
+  generateCohortGradesCsv
 } = require('../controllers/chatbotController');
 
 describe('Chatbot Table Formatting & Anti-Memorandum Sanitizer', () => {
@@ -594,6 +597,183 @@ Satisfactory standing.`;
       expect(jsonResponse.file_export.csv_data).not.toContain('10003');
 
       // Strict zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('isCohortDetailsComplete identifies complete vs incomplete queries', () => {
+      // Directory is always complete
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'directory', program: 'BSIT', yearLevel: null })).toBe(true);
+
+      // Grades: requires both program and year level
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'grades', program: 'BSIT', yearLevel: 2 })).toBe(true);
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'grades', program: 'BSIT', yearLevel: null })).toBe(false);
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'grades', program: null, yearLevel: 2 })).toBe(false);
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'grades', program: null, yearLevel: null })).toBe(false);
+
+      // Recommendation: requires both program and year level
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'recommendation', program: 'BSIT', yearLevel: 1 })).toBe(true);
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'recommendation', program: 'BSIT', yearLevel: null })).toBe(false);
+      expect(isCohortDetailsComplete({ isCohortQuery: true, cohortType: 'recommendation', program: null, yearLevel: 1 })).toBe(false);
+    });
+
+    it('Admin/Staff: returns clarifying follow-up question when asking for grades without year level', async () => {
+      const mockSupabase = {
+        from: () => ({
+          select: () => ({
+            data: [],
+            order: () => ({ data: [] }),
+            limit: () => ({ data: [] }),
+            or: () => ({ limit: () => ({ data: [] }) }),
+            ilike: () => ({ limit: () => ({ data: [] }) }),
+            eq: () => ({ limit: () => ({ data: [] }), order: () => ({ data: [] }) })
+          }),
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: { query: 'records ng grades ng BSIT' },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Must ask clarifying question about year level
+      expect(jsonResponse.response).toContain('BSIT');
+      expect(jsonResponse.response).toContain('year level');
+      expect(jsonResponse.response).toContain('1st Year');
+      expect(jsonResponse.response).toContain('2nd Year');
+      // No file export until detail is complete
+      expect(jsonResponse.file_export).toBeNull();
+      // student_action must record pending_action: clarify_cohort_details
+      expect(jsonResponse.student_action).not.toBeNull();
+      expect(jsonResponse.student_action.pending_action).toBe('clarify_cohort_details');
+      expect(jsonResponse.student_action.program).toBe('BSIT');
+      // Zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('Admin/Staff: continues across turns when user answers follow-up with "2nd year"', async () => {
+      const mockGradeRecords = [
+        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT201', units: 3, grade: 1.5, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' },
+        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT202', units: 3, grade: 1.75, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: table === 'grade_records' ? mockGradeRecords : [],
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => builder
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: {
+          query: '2nd year',
+          history: [
+            { sender: 'user', role: 'user', content: 'records ng grades ng BSIT' },
+            {
+              sender: 'bot',
+              role: 'assistant',
+              content: 'Para sa programang BSIT, aling year level ang nais ninyong makita ang talaan ng mga marka?',
+              student_action: {
+                pending_action: 'clarify_cohort_details',
+                cohort_type: 'grades',
+                program: 'BSIT'
+              }
+            }
+          ]
+        },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Should now produce grade records report for BSIT 2nd Year
+      expect(jsonResponse.response).toContain('BSIT');
+      expect(jsonResponse.response).toContain('2nd Year');
+      expect(jsonResponse.response).toContain('Reyes, John');
+      // Excel export must be present
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.filename).toContain('BSIT_2nd_Year');
+      expect(jsonResponse.file_export.csv_data).toContain('10002');
+      expect(jsonResponse.file_export.csv_data).toContain('IT201');
+      // Zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('Admin/Staff: returns subject recommendations with Excel file when querying "subject recommendation ng 1st year BSIT"', async () => {
+      const mockSubjectsList = [
+        { id: 'sub-1', code: 'IT101', title: 'Introduction to Computing', units: 3, lec_units: 2, lab_units: 1, year_level: 1, semester: 1, program: 'BSIT', prerequisites_text: 'None' },
+        { id: 'sub-2', code: 'IT102', title: 'Computer Programming 1', units: 3, lec_units: 2, lab_units: 1, year_level: 1, semester: 1, program: 'BSIT', prerequisites_text: 'None' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: table === 'subjects' ? mockSubjectsList : [],
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => builder
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: { query: 'subject recommendation ng 1st year BSIT tapos may excel din' },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      expect(jsonResponse.response).toContain('Subject Recommendations');
+      expect(jsonResponse.response).toContain('BSIT');
+      expect(jsonResponse.response).toContain('IT101');
+      expect(jsonResponse.response).toContain('Introduction to Computing');
+      expect(jsonResponse.response).toContain('IT102');
+
+      // Excel export must be present
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.filename).toContain('Subject_Recommendations_BSIT_1st_Year');
+      expect(jsonResponse.file_export.csv_data).toContain('IT101');
+      expect(jsonResponse.file_export.csv_data).toContain('Introduction to Computing');
+
+      // Zero emojis
       expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
     });
   });

@@ -350,5 +350,56 @@ Satisfactory standing.`;
     expect(jsonResponse.follow_up_questions[0]).toContain('Ano ang aking cumulative GWA');
     expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
   });
+
+  it('Admin/Staff role: queryChatbot returns "No student record found" when querying non-existent student 1111 without hallucinating fictitious student', async () => {
+    const mockSupabase = {
+      from: (table) => ({
+        select: () => ({
+          or: () => ({
+            limit: () => ({ data: [] })
+          }),
+          ilike: () => ({
+            limit: () => ({ data: [] })
+          }),
+          eq: () => ({
+            limit: () => ({ data: [] }),
+            order: () => ({ data: [] }),
+            in: () => ({ data: [] })
+          }),
+          in: () => ({ data: [] }),
+          limit: () => ({ data: [] }),
+          order: () => ({ data: [] })
+        }),
+        insert: () => ({ data: [] })
+      })
+    };
+
+    let jsonResponse = null;
+    const req = {
+      body: { query: 'show me the record of student 1111' },
+      user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+    };
+    const res = {
+      status() { return this; },
+      json(data) { jsonResponse = data; return this; }
+    };
+
+    await queryChatbot(req, res, mockSupabase);
+
+    expect(jsonResponse).not.toBeNull();
+    // Must explicitly state no student record was found
+    expect(jsonResponse.response).toContain('No student record found');
+    expect(jsonResponse.response).toContain('show me the record of student 1111');
+    // Must NOT contain fictitious hallucinated student "Dela Cruz, Juan Miguel"
+    expect(jsonResponse.response).not.toContain('Dela Cruz');
+    expect(jsonResponse.response).not.toContain('Juan Miguel');
+    // Must NOT contain hallucinated student record table
+    expect(jsonResponse.response).not.toContain('Data Field');
+    expect(jsonResponse.response).not.toContain('Student Detail');
+    // File export must be null
+    expect(jsonResponse.file_export).toBeNull();
+    // Strict zero emojis
+    expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+  });
 });
 

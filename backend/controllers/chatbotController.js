@@ -3434,7 +3434,14 @@ Instructions:
             assistantResponse = userIsTagalog
               ? `### Direktoryo ng mga Estudyante ng GCT\nKasalukuyang may **${studentCount}** na rehistradong estudyante sa database.\n\n**Listahan ng mga Estudyante (Unang 15 talaan):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... at ${allStudents.length - 15} pang mga estudyante sa database.*` : ''}\n\n*Maaari mong i-download ang buong listahan bilang ${requestedFormat.toUpperCase()} file gamit ang button sa ibaba, o maghanap ng partikular na Student ID.*`
               : `### GCT Student Directory Report\nThe system currently manages **${studentCount}** registered students.\n\n**Directory Roster (First 15 records):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... and ${allStudents.length - 15} more students in the database.*` : ''}\n\n*You can download the complete student list as a ${requestedFormat.toUpperCase()} file using the button below, or query an individual student ID.*`;
-          } else if (/\b\d{4,6}\b/.test(query) || /\b(student|record|grades?|profile|evaluation|transcript|show\s+record|search|find|grades\s+of)\b/i.test(query)) {
+            systemPrompt = '';
+          } else if (
+            /\b\d{4}-\d{4,5}\b/.test(query) ||
+            /\b\d{4,6}\b/.test(query) ||
+            /\bGCT-\d+\b/i.test(query) ||
+            /\b(student|records?|grades?|profile|evaluation|transcript|show\s+record|search|find|grades\s+of|assess|assessment)\b/i.test(query) ||
+            /\b(?:student\s*id|id\s*number|id\s*#?)\b/i.test(query)
+          ) {
             assistantResponse = userIsTagalog
               ? `**Walang nahanap na student record** para sa: **"${query.trim()}"**.
 
@@ -3448,6 +3455,7 @@ Instructions:
 1. **Student ID:** Verify the ID number (e.g., \`2024-0001\` or \`12718\`).
 2. **Name:** Double check the spelling of the surname or first name.
 3. **Master Directory:** Open the **Student Academic Records** tab to view the complete roster of ${studentCount} registered students.`;
+            systemPrompt = '';
           } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening|mabuhay)\b/i.test(q)) {
             assistantResponse = userIsTagalog
               ? `Hello po, **${userName}**! Kumusta po kayo?
@@ -3466,6 +3474,7 @@ I am your **GCT Registrar Operations Assistant**. I am ready to assist with:
 • **Registrar Governance & Advising:** Monitor pending registrations, recommendation evaluations, curriculum rules, or request formal advising opinions.
 
 Which student record or operational report would you like to review today?`;
+            systemPrompt = '';
           } else if (/\b(ano kaya mo|ano magagawa mo|paano|help|tulong|guide|features?|capabilities)\b/i.test(q)) {
             assistantResponse = userIsTagalog
               ? `Narito ang mga pangunahing magagawa ko para sa Registrar Operations:
@@ -3494,6 +3503,7 @@ Aling rekord ng estudyante o operational report ang nais mong suriin ngayon?`
    - Ask: *"What are the academic threshold rules?"*
 
 Which student record or operational report would you like to review today?`;
+            systemPrompt = '';
           } else if (/\b(magkano|presyo|pricing|cost|bayad|api\s*key|gemini\s*cost)\b/i.test(q)) {
             assistantResponse = userIsTagalog
               ? `Tungkol sa Google Gemini API:
@@ -3508,6 +3518,7 @@ Nais mo ba ng higit pang teknikal na detalye ukol sa system settings o token usa
 - If quota limits are reached, the system automatically engages the built-in GCT database rule engine to maintain uninterrupted service.
 
 Would you like more technical details on system settings or token usage?`;
+            systemPrompt = '';
           } else if (q.includes('pending') || q.includes('approval') || q.includes('signup')) {
             assistantResponse = userIsTagalog
               ? `### Student Registration Approval Queue
@@ -3520,6 +3531,7 @@ Nais mo ba ng gabay patungo sa User & Account Governance tab, o suriin ang isang
 - **Office Governance:** You can inspect submitted ID photos, verify student credentials, and approve or reject submissions in the **User & Account Governance** tab.
 
 Would you like guidance on navigating the User & Account Governance tab, or to check a specific pending registration?`;
+            systemPrompt = '';
           } else if (q.includes('threshold') || q.includes('prereq') || q.includes('rule') || q.includes('setting')) {
             assistantResponse = userIsTagalog
               ? `### Institutional Academic Rules & Thresholds
@@ -3536,6 +3548,7 @@ Nais mo bang suriin ang mga estudyanteng lumampas sa limitasyon ng bagsak na pre
 *Rules can be configured under System Settings.*
 
 Would you like to review the list of students exceeding the prerequisite failure threshold, or adjust system settings?`;
+            systemPrompt = '';
           } else if (q.includes('queue') || q.includes('recommend') || q.includes('review')) {
             assistantResponse = userIsTagalog
               ? `### Subject Recommendations & Advising
@@ -3548,6 +3561,7 @@ Nais mo bang maghanap ng partikular na estudyante upang masuri ang kanyang prere
 - Manual approval review is no longer required as recommended subjects, eligible unlocks, and retakes are computed dynamically in real-time.
 
 Would you like to search for an individual student to inspect their automated prerequisite recommendations?`;
+            systemPrompt = '';
           } else {
             assistantResponse = userIsTagalog
               ? `Kumusta, **${userName}** (Registrar Operations)!
@@ -3566,10 +3580,9 @@ I am your GCT Registrar Operations Assistant with direct database access. You ca
 3. **Institutional analytics & advice:** Inquire about pending student approvals, curriculum compliance, or request formal advising guidance.
 
 Which student ID or operational inquiry would you like to begin with today?`;
-          }
 
-          // Set prompt for Gemini to answer the user's specific query directly
-          systemPrompt = `You are the GCT Registrar Operations AI Assistant for Garcia College of Technology.
+            // Set prompt for Gemini to answer the user's specific query directly
+            systemPrompt = `You are the GCT Registrar Operations AI Assistant for Garcia College of Technology.
 User: ${userName} (Registrar Administrator / Staff).
 Database Status:
 - Registered Students: ${studentCount}
@@ -3577,6 +3590,13 @@ Database Status:
 - Minimum Passing Threshold: ${passingThreshold}%
 - Maximum Allowed Failed Prerequisites: ${maxFailedPrereqs} subjects
 - Subject Advising: Directly automated in real-time (no manual recommendation approval queue required).
+
+CRITICAL ANTI-HALLUCINATION & FACTUAL SAFEGUARDS (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY DO NOT INVENT, SIMULATE, OR HALLUCINATE ANY STUDENT PROFILES, GRADES, NAMES, OR IDS.
+   - If the user asks for a specific student's record, grades, standing, or evaluation and no official student evaluation table is provided in this prompt, you MUST state that no student record was found in the official database.
+   - NEVER create fictitious student names (such as 'Juan Dela Cruz', 'Dela Cruz, Juan Miguel', 'John Doe', or any placeholder names).
+   - NEVER invent fake student IDs, fictional grades, or simulated academic standings.
+   - Ground all factual answers strictly in the official GCT data provided.
 
 PRIMARY LANGUAGE DIRECTIVE:
 Your main and default communication language is English.
@@ -3602,6 +3622,7 @@ Instructions:
 - If they asked to export or download, note that the ${requestedFormat.toUpperCase()} file is ready below.
 - Reply in Tagalog if the user used Tagalog; otherwise reply in English as the main language.
 - Always conclude with an engaging, helpful follow-up question.`;
+          }
         }
       }
     }

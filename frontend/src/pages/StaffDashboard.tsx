@@ -45,6 +45,7 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
   // so returning to Academic Records or Recommendations opens normally without stuck modals!
   useEffect(() => {
     if (prevTabRef.current !== currentTab) {
+      setChatbotClearSignal(0);
       if (isChatbotDirectNavRef.current) {
         // Arrived at the chatbot's intended tab destination
         isChatbotDirectNavRef.current = false;
@@ -290,6 +291,7 @@ export const StaffDashboardContent: React.FC<StaffDashboardProps> = ({ activeTab
             isFullScreen={true}
             hideHeader={true}
             clearTrigger={chatbotClearSignal}
+            onClearTriggerHandled={() => setChatbotClearSignal(0)}
             onNavigateTab={handleChatbotNavigate}
           />
         )}

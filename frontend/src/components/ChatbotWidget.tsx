@@ -64,6 +64,7 @@ interface ChatbotWidgetProps {
   isFullScreen?: boolean;
   hideHeader?: boolean;
   clearTrigger?: number;
+  onClearTriggerHandled?: () => void;
   onNavigateTab?: (tab: string, studentId?: string, targetTerm?: string, semester?: '1' | '2' | 'summer') => void;
 }
 
@@ -563,6 +564,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   isFullScreen = false,
   hideHeader = false,
   clearTrigger = 0,
+  onClearTriggerHandled,
   onNavigateTab
 }) => {
   const { user } = useAuth();
@@ -700,9 +702,15 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
+  const prevClearTriggerRef = useRef(clearTrigger);
 
   const handleRequestClearHistory = () => {
     setShowClearConfirmModal(true);
+  };
+
+  const handleCancelClearHistory = () => {
+    setShowClearConfirmModal(false);
+    onClearTriggerHandled?.();
   };
 
   const handleConfirmClearHistory = () => {
@@ -717,13 +725,17 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
     setMessages(createFreshWelcome());
     setAttachments([]);
     setShowClearConfirmModal(false);
+    onClearTriggerHandled?.();
   };
 
   // Handle external clear trigger from parent header (Staff/Admin Dashboard)
   useEffect(() => {
-    if (clearTrigger > 0) {
+    // Only trigger if clearTrigger has strictly incremented above 0 and changed from previous
+    if (clearTrigger > 0 && clearTrigger !== prevClearTriggerRef.current) {
       setShowClearConfirmModal(true);
+      onClearTriggerHandled?.();
     }
+    prevClearTriggerRef.current = clearTrigger;
   }, [clearTrigger]);
 
   const quickPrompts = isGuest
@@ -1242,7 +1254,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           padding: '1rem',
           animation: 'fadeIn 0.15s ease-out'
         }}
-        onClick={() => setShowClearConfirmModal(false)}
+        onClick={handleCancelClearHistory}
       >
         <div
           style={{
@@ -1291,7 +1303,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.35rem' }}>
             <button
               type="button"
-              onClick={() => setShowClearConfirmModal(false)}
+              onClick={handleCancelClearHistory}
               style={{
                 padding: '0.55rem 1.1rem',
                 background: '#F1F5F9',

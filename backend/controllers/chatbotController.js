@@ -519,7 +519,7 @@ function formatTargetTermText(yearLevel, semester) {
 function classifyStudentQueryIntent(query) {
   const q = (query || '').toLowerCase();
   const isRec = /\b(recommend|recommendation|recommended|rekomendasyon|subjects?\s*to\s*take|subjects?\s*to\s*enroll|next\s*(?:sem|semester|term)|course\s*load|curriculum\s*load|advising|courses?\s*to\s*take)\b/i.test(q);
-  const isGrades = /\b(grades?|marka|score|gwa|academic\s*records?|transcript|passed|failed|deficienc(?:y|ies)|retakes?)\b/i.test(q);
+  const isGrades = /\b(grades?|marka|score|gwa|records?|academic\s*records?|transcript|talaan(?:\s*ng\s*marka)?|passed|failed|deficienc(?:y|ies)|retakes?)\b/i.test(q);
   if (isRec && !isGrades) return 'recommendation';
   if (isGrades && !isRec) return 'grades';
   return 'comprehensive';
@@ -875,7 +875,7 @@ function getDistinctTermsList(records) {
  */
 function generateStudentCsv(student, records, gwa, options = {}) {
   const {
-    intent = 'grades',
+    intent = (options.recommendedSubjects && options.recommendedSubjects.length > 0 ? 'comprehensive' : 'grades'),
     recommendedSubjects = [],
     activeDeficiencies = [],
     targetTermText = '',
@@ -960,8 +960,8 @@ function generateStudentCsv(student, records, gwa, options = {}) {
     ].join(','));
   }
 
-  // 2. UNDER THAT: RECOMMENDED SUBJECTS (If there are recommended subjects in the AI response)
-  if (recommendedSubjects && recommendedSubjects.length > 0) {
+  // 2. UNDER THAT: RECOMMENDED SUBJECTS (Only if intent is recommendation or comprehensive)
+  if (intent !== 'grades' && recommendedSubjects && recommendedSubjects.length > 0) {
     rows.push('');
     rows.push(`"RECOMMENDED SUBJECTS (${(targetTermText || 'Upcoming Term').replace(/"/g, '""')})"`);
     const recHeaders = ['Student ID', 'Student Name', 'Program', 'Year Level', 'Subject Code', 'Subject Title', 'Units', 'Classification', 'Prerequisites / Remarks', 'Target Term'];
@@ -2187,6 +2187,7 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
           const activeTerm = await getActiveAcademicTerm(db);
           const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
 
+          const isAskingOpinion = isAskingOpinionQuery(query);
           const isStudentGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?)\b/i.test(query) && !isAskingOpinion && !/\b(hi|hello|kumusta|hey)\b/i.test(query);
           const isStudentExplicitAll = /\b(?:all|lahat|entire|complete|buo|cumulative|tor|transcript)\b/i.test(query);
 
@@ -2272,6 +2273,41 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             }).join('\n')
             : (studentRecSubjects.length > 0 ? studentRecsTableMarkdown : 'Pending Registrar review & approval.');
 
+          // Classify student intent
+          const isStudentRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
+          const isStudentGradesOnlyQuery = isStudentGradesQuery && !isStudentRecQuery;
+
+          const lastBotTurn = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-1)[0]
+            : null;
+          const lastBotText = String(lastBotTurn?.text || lastBotTurn?.content || '');
+          const lastUserTurn = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender === 'user' || h.role === 'user') && (h.text || h.content)).slice(-1)[0]
+            : null;
+          const lastUserText = String(lastUserTurn?.text || lastUserTurn?.content || '');
+          const recentBotTurns = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-3)
+            : [];
+
+          const isStudentFollowUpToGradesPrompt = 
+            lastBotTurn?.pending_action === 'clarify_grades_term' ||
+            recentBotTurns.some(b => 
+              b.pending_action === 'clarify_grades_term' ||
+              /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms on file|Select term to view grades/i.test(b.text || b.content || '') ||
+              /Grade Sheet|Talaan ng Marka|Academic Record/i.test(b.text || b.content || '')
+            ) ||
+            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText));
+
+          const effectiveStudentGradesQuery = isStudentGradesOnlyQuery || (isStudentFollowUpToGradesPrompt && !isStudentRecQuery);
+          let studentIntent = 'comprehensive';
+          if (isStudentRecQuery) {
+            studentIntent = 'recommendation';
+          } else if (effectiveStudentGradesQuery) {
+            studentIntent = 'grades';
+          } else {
+            studentIntent = classifyStudentQueryIntent(query);
+          }
+
           // Detect requested file format (word, excel, text, pdf)
           const requestedFormat = detectRequestedFileFormat(query);
           let fileData = '';
@@ -2280,16 +2316,22 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
           const fileTermLabel = isFilteredByTerm ? ` (${termAnalysis.target_term})` : '';
           const fileTermSuffix = isFilteredByTerm ? `_${termLabelClean}` : '';
 
+          const fileOptions = {
+            intent: studentIntent,
+            isFilteredByTerm,
+            termLabel: termAnalysis.target_term || (isFilteredByTerm ? termLabelClean : 'All Encoded Terms')
+          };
+
           if (requestedFormat === 'word') {
-            fileData = generateStudentWord(studentInfo, displayRecords, gwa);
+            fileData = generateStudentWord(studentInfo, displayRecords, gwa, fileOptions);
             filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.doc`;
             fileLabel = `Download My Academic Record${fileTermLabel} (Word Document)`;
           } else if (requestedFormat === 'text') {
-            fileData = generateStudentText(studentInfo, displayRecords, gwa);
+            fileData = generateStudentText(studentInfo, displayRecords, gwa, fileOptions);
             filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.txt`;
             fileLabel = `Download My Academic Record${fileTermLabel} (Text File)`;
           } else {
-            fileData = generateStudentCsv(studentInfo, displayRecords, gwa);
+            fileData = generateStudentCsv(studentInfo, displayRecords, gwa, fileOptions);
             filename = `${studentInfo.student_id}${fileTermSuffix}_My_Academic_Record.csv`;
             fileLabel = `Download My Academic Record${fileTermLabel} (Excel Spreadsheet)`;
           }
@@ -2306,12 +2348,12 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             student_id: studentInfo.student_id,
             student_name: userName,
             program: studentInfo.program,
+            intent: studentIntent,
             target_term: termAnalysis.target_term || undefined,
             semester: termAnalysis.semester || undefined,
             year_level: termAnalysis.year || undefined
           };
 
-          const isAskingOpinion = isAskingOpinionQuery(query);
           const opinionSection = generateStudentOpinion(
             studentInfo,
             { totalUnits: passedUnits + failedUnits, passedUnits, failedUnits, passedCount, failedCount, gwa },
@@ -2320,7 +2362,48 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             userIsTagalog
           );
 
-          systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
+          if (studentIntent === 'grades') {
+            systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
+Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
+Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
+Cumulative GWA: ${gwa}
+Passed: ${passedCount} subjects (${passedUnits} units)
+Failed/Retakes: ${failedCount} subjects
+Current academic term: ${activeTerm ? `${activeTerm.academicYear}, semester ${activeTerm.semester}` : 'Not configured in system settings'}
+Grades recorded for current term: ${activeTerm && hasRecordForAcademicTerm(records, activeTerm.academicYear, activeTerm.semester) ? 'Yes' : 'No'}
+
+OFFICIAL STUDENT EVALUATION TABLES (GROUND TRUTH):
+---
+Official Grades Table (${isFilteredByTerm ? termAnalysis.target_term : 'All Terms'}):
+${studentGradesTableMarkdown}
+
+Active Deficiencies Table:
+${studentDeficienciesTable || 'None (Clean academic standing)'}
+---
+
+CRITICAL INTENT AND EXCLUSION DIRECTIVE (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY DO NOT INCLUDE SUBJECT RECOMMENDATIONS:
+   - The student asked ONLY for their grades / academic record (${isFilteredByTerm ? `for "${termAnalysis.target_term}"` : 'on file'}).
+   - DO NOT include, list, advise, or recommend upcoming subjects or future course load to take.
+   - DO NOT output any Recommended Subjects table or advising load, because the student did not ask for recommendations.
+   - Present ONLY the requested grade sheet, active deficiencies (if any), and an encouraging summary of performance.
+2. ABSOLUTELY NO MEMORANDUM FORMAT: Never output "MEMORANDUM", "TO:", "FROM:", "DATE:", "SUBJECT:", or institutional memo headers.
+3. MANDATORY MARKDOWN TABLES:
+   - When presenting grades, you MUST format them as a Markdown table with columns: | Subject Code | Description | Units | Grade | Status | Academic Term |
+   - When presenting active deficiencies, use a Markdown table with columns: | Subject Code | Description | Units | Grade | Status | Term Recorded |
+4. CONCISE EXPLANATION: Accompany the table with a clear, encouraging, and honest academic explanation.
+5. STRICT ZERO EMOJIS: Do not use emojis or decorative smiley symbols.
+6. PRIMARY LANGUAGE DIRECTIVE:
+   - Reply in English by default; reply in Tagalog if the student wrote in Tagalog.
+
+USER MESSAGE: "${query}"
+
+Instructions:
+- Directly, politely, and conversationally reply to the student's exact message or question.
+- DO NOT generate or output any recommended subjects table.
+- If they asked to generate a file (Word, Excel, CSV, or Text), confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below!`;
+          } else {
+            systemPrompt = `You are the official GCT STUDENT AI INQUIRY assistant for Garcia College of Technology.
 Logged-in Student: ${userName} (Student ID: ${studentInfo.student_id})
 Program: ${studentInfo.program} - Year ${studentInfo.year_level || 1} (${studentInfo.schedule || studentInfo.section || 'Regular'})
 Cumulative GWA: ${gwa}
@@ -2362,6 +2445,7 @@ Instructions:
 - Format course grades and recommended subjects into Markdown tables.
 - Do not infer year promotion or enrollment eligibility from cumulative passed-subject counts alone. Confirm active-term grades and required curriculum/prerequisite completion first.
 - Language Rule: Reply in English by default; reply in Tagalog if the student wrote in Tagalog.`;
+          }
 
           if (isAskingOpinion) {
             assistantResponse = userIsTagalog
@@ -2398,7 +2482,6 @@ I am your official **GCT STUDENT AI INQUIRY** assistant. Here is a quick summary
 ${failedCount > 0 ? `• **Retakes Needed:** ${failedCount} subject(s)\n` : '• **Standing:** Regular / Good Standing\n'}
 You can ask me about your grades, upcoming subject recommendations, evaluation opinions, or download your complete academic record in **Excel (.csv)**, **Word (.doc)**, or **Text (.txt)** using the buttons below!`;
           } else {
-            const studentIntent = classifyStudentQueryIntent(query);
             if (studentIntent === 'recommendation') {
               assistantResponse = userIsTagalog
                 ? `Hello po, **${userName}**! Narito ang iyong inirerekomendang mga asignatura para sa **${studentTargetTermText}**:\n\n- **Student ID:** \`${studentInfo.student_id}\`\n- **Program & Taon:** ${studentInfo.program} - Year ${studentInfo.year_level || 1}\n- **Cumulative GWA:** **${gwa}**\n- **Target Term:** **${studentTargetTermText}**\n\n#### Mga Inirerekomendang Asignatura:\n${studentRecsTableMarkdown}\n\n${evalData?.activeDeficiencies?.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${studentDeficienciesTable}\n\n` : ''}*Maaari mong i-download ang iyong advising record gamit ang buttons sa ibaba.*`
@@ -2475,7 +2558,7 @@ ${studentGradesTableMarkdown}
       if (multiStudents.length >= 2) {
         // MULTI-STUDENT FLOW
         const isRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
-        const isGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan\s+ng\s+marka)\b/i.test(query);
+        const isGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?)\b/i.test(query);
         const termAnalysis = extractTargetTermAndSemester(query);
 
         let activeAcademicYear = '2026-2027';
@@ -2610,8 +2693,16 @@ ${studentGradesTableMarkdown}
             : null;
           const lastUserText = String(lastUserTurn?.text || lastUserTurn?.content || '');
 
+          const recentBotTurns = Array.isArray(history) && history.length > 0
+            ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-3)
+            : [];
           const isFollowUpToGradesPrompt = 
-            /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms available on file|mga nakatalang termino/i.test(lastBotText) ||
+            lastBotTurn?.pending_action === 'clarify_grades_term' ||
+            recentBotTurns.some(b => 
+              b.pending_action === 'clarify_grades_term' ||
+              /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms available on file|mga nakatalang termino|Select term to view grades/i.test(b.text || b.content || '') ||
+              /Official Academic Record & Grade Sheet|Opisyal na Talaan ng Marka|Academic Record & Grade Sheet|Grade Sheet/i.test(b.text || b.content || '')
+            ) ||
             (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText));
 
           const effectiveGradesQuery = isGradesOnlyQuery || (isFollowUpToGradesPrompt && !isRecQuery);
@@ -2803,6 +2894,7 @@ ${studentGradesTableMarkdown}
             student_id: targetStudent.student_id,
             student_name: targetStudent.name || targetStudent.full_name,
             program: targetStudent.program,
+            intent: queryIntent,
             target_term: targetTermText || termAnalysis.target_term || undefined,
             semester: (targetTerm?.semester != null ? String(targetTerm.semester) : (termAnalysis.semester || undefined)),
             year_level: targetTerm?.year_level || termAnalysis.year || undefined,
@@ -2828,7 +2920,105 @@ ${studentGradesTableMarkdown}
           const studentDisplayName = targetStudent.name || targetStudent.full_name || 'Student';
           const studentYearText = targetStudent.year_level || targetStudent.year || 1;
 
-          systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
+          if (queryIntent === 'grades') {
+            systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
+User: ${userName} (Registrar Operations)
+Student Name: ${studentDisplayName}
+Student ID: ${targetStudent.student_id}
+Program: ${targetStudent.program} - Year ${studentYearText}
+Enrollment Status: ${enrollmentStatus.statusLabel}
+Cumulative GWA: ${gwa}
+Passed: ${passedUnits} units (${passedCount} subjects)
+Deficiencies: ${failedCount} units (${failedCount} subjects)
+${enrollmentStatus.isStoppedOrLapsed ? `ENROLLMENT GAP NOTICE: Student was last enrolled in ${enrollmentStatus.lastEnrolledTerm} and is currently inactive/stopped.` : ''}
+${isFilteredByTerm ? `TERM FILTER NOTICE: The user explicitly requested records for "${termAnalysis.target_term}". When discussing grades, focus strictly on "${termAnalysis.target_term}".` : ''}
+
+OFFICIAL EVALUATION DATA (GROUND TRUTH FROM GCT ASSESSMENT ENGINE):
+---
+Official Grade Sheet Table (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):
+${gradesTableMarkdown}
+
+Active Deficiencies Table:
+${deficienciesTableMarkdown || 'None (Clean academic standing)'}
+---
+
+CRITICAL INTENT AND EXCLUSION DIRECTIVE (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY DO NOT INCLUDE SUBJECT RECOMMENDATIONS:
+   - The user asked ONLY for the student's academic record / grade sheet (${isFilteredByTerm ? `for "${termAnalysis.target_term}"` : 'for encoded terms on file'}).
+   - DO NOT include, list, advise, or recommend upcoming subjects or future courses to enroll in.
+   - DO NOT output any Recommended Subjects table or future curriculum advising load, because the user did not ask for recommendations.
+   - Present ONLY the requested grade sheet, active deficiencies (if any), and a concise narrative of past academic performance.
+2. ABSOLUTELY NO MEMORANDUM FORMAT:
+   - Under NO circumstance should you output "MEMORANDUM", "MEMO", "TO:", "FROM:", "DATE:", "SUBJECT:", or numbered institutional memo titles.
+   - Do NOT format this as an internal memorandum or bureaucratic document.
+3. MANDATORY MARKDOWN TABLES:
+   - When presenting grades, you MUST format them as a Markdown table with columns: | Subject Code | Description | Units | Grade | Status | Academic Term |
+   - When presenting active deficiencies, use a Markdown table with columns: | Subject Code | Description | Units | Grade | Status | Term Recorded |
+   - NEVER present course lists or grades as sentences or run-on paragraphs. Tables are strictly required.
+4. CLEAR NARRATIVE EXPLANATION:
+   - Accompany the tables with a concise, professional narrative explanation summarizing academic performance and standing for the requested term/records.
+5. ACCURACY AND FACTUAL GROUNDING:
+   - Strictly use ONLY the exact subjects, codes, titles, and units provided in the official grade sheet table above. Do NOT hallucinate course codes.
+6. ZERO EMOJIS:
+   - Do NOT include any emojis or decorative smiley symbols.
+7. PRIMARY LANGUAGE DIRECTIVE:
+   - Default language is English. If the user's message is in Tagalog (userIsTagalog = ${userIsTagalog}), respond in fluent, natural Tagalog.
+
+USER MESSAGE: "${query}"
+
+Instructions:
+- Directly, professionally, and accurately present ONLY the requested official grade sheet / academic records for this student.
+- DO NOT generate or output any recommended subjects table.
+- Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
+- Note that interactive buttons below can open this student's profile directly in Academic Records.`;
+          } else if (queryIntent === 'recommendation') {
+            systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
+User: ${userName} (Registrar Operations)
+Student Name: ${studentDisplayName}
+Student ID: ${targetStudent.student_id}
+Program: ${targetStudent.program} - Year ${studentYearText}
+Enrollment Status: ${enrollmentStatus.statusLabel}
+Cumulative GWA: ${gwa}
+Passed: ${passedUnits} units (${passedCount} subjects)
+Deficiencies: ${failedCount} units (${failedCount} subjects)
+Target Advising Term: ${targetTermText} (${totalRecommendedUnits} recommended units)
+${enrollmentStatus.isStoppedOrLapsed ? `ENROLLMENT GAP NOTICE: Student was last enrolled in ${enrollmentStatus.lastEnrolledTerm} and is currently inactive/stopped. Note this when providing advising.` : ''}
+
+OFFICIAL EVALUATION DATA (GROUND TRUTH FROM GCT ASSESSMENT ENGINE - DO NOT INVENT SUBJECTS):
+---
+Official Recommended Subjects Table:
+${recommendationsTableMarkdown}
+
+Active Deficiencies Table:
+${deficienciesTableMarkdown || 'None (Clean academic standing)'}
+---
+
+CRITICAL FORMATTING INSTRUCTIONS (STRICT COMPLIANCE REQUIRED):
+1. ABSOLUTELY NO MEMORANDUM FORMAT:
+   - Under NO circumstance should you output "MEMORANDUM", "MEMO", "TO:", "FROM:", "DATE:", "SUBJECT:", or numbered institutional memo titles.
+   - Do NOT format this as an internal memorandum.
+2. MANDATORY MARKDOWN TABLES:
+   - When presenting subject recommendations, you MUST format them as a Markdown table with columns: | Subject Code | Description | Units | Classification | Prerequisites / Notes |
+   - When presenting active deficiencies, use a Markdown table with columns: | Subject Code | Description | Units | Grade | Status | Term Recorded |
+   - NEVER present course lists as sentences or run-on paragraphs. Tables are strictly required.
+3. CLEAR NARRATIVE EXPLANATION:
+   - Accompany the tables with a concise, professional narrative explanation summarizing prerequisite compliance and advising guidance for ${targetTermText}.
+4. ACCURACY AND FACTUAL GROUNDING:
+   - Strictly use ONLY the exact subjects, codes, titles, and units provided in the official evaluation tables above. Do NOT hallucinate course codes or modify prerequisites.
+5. ZERO EMOJIS:
+   - Do NOT include any emojis or decorative smiley symbols.
+6. PRIMARY LANGUAGE DIRECTIVE:
+   - Default language is English. If the user's message is in Tagalog (userIsTagalog = ${userIsTagalog}), respond in fluent, natural Tagalog.
+
+USER MESSAGE: "${query}"
+
+Instructions:
+- Directly, professionally, and accurately reply with the official subject recommendations for ${targetTermText}.
+- Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
+- Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.`;
+          } else {
+            // Comprehensive / default (only when user explicitly asked for both or general evaluation)
+            systemPrompt = `You are the official GCT Registrar Operations AI Assistant for Garcia College of Technology.
 User: ${userName} (Registrar Operations)
 Student Name: ${studentDisplayName}
 Student ID: ${targetStudent.student_id}
@@ -2855,7 +3045,7 @@ ${gradesTableMarkdown}
 
 CRITICAL FORMATTING INSTRUCTIONS (STRICT COMPLIANCE REQUIRED):
 1. ABSOLUTELY NO MEMORANDUM FORMAT:
-   - Under NO circumstance should you output "MEMORANDUM", "MEMO", "TO:", "FROM:", "DATE:", "SUBJECT:", or numbered institutional memo titles (e.g. "1. STUDENT PROFILE SUMMARY").
+   - Under NO circumstance should you output "MEMORANDUM", "MEMO", "TO:", "FROM:", "DATE:", "SUBJECT:", or numbered institutional memo titles.
    - Do NOT format this as an internal memorandum or bureaucratic document.
 2. MANDATORY MARKDOWN TABLES:
    - When presenting subject recommendations, you MUST format them as a Markdown table with columns: | Subject Code | Description | Units | Classification | Prerequisites / Notes |
@@ -2877,6 +3067,7 @@ Instructions:
 - Directly, professionally, and accurately reply to what the Registrar asked.
 - Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
 - Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.`;
+          }
 
           if (queryIntent === 'recommendation') {
             assistantResponse = userIsTagalog
@@ -3096,7 +3287,7 @@ Instructions:
     const apiKey = process.env.GEMINI_API_KEY;
     const isGeminiBlocked = Date.now() < geminiQuotaBlockedUntil;
 
-    if (apiKey && apiKey !== 'your-google-gemini-api-key' && systemPrompt && !isGeminiBlocked) {
+    if (process.env.NODE_ENV !== 'test' && apiKey && apiKey !== 'your-google-gemini-api-key' && systemPrompt && !isGeminiBlocked) {
       try {
         const ai = new GoogleGenAI({ apiKey });
         const modelName = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';

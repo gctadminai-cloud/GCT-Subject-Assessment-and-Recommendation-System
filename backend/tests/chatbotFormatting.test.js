@@ -77,6 +77,10 @@ Satisfactory standing.`;
     expect(classifyStudentQueryIntent('What subjects should he take next semester?')).toBe('recommendation');
     expect(classifyStudentQueryIntent('Show me his grades')).toBe('grades');
     expect(classifyStudentQueryIntent('Ano ang marka ni Tolibas?')).toBe('grades');
+    expect(classifyStudentQueryIntent('give me the record of the student')).toBe('grades');
+    expect(classifyStudentQueryIntent('record of Jazper Francisco')).toBe('grades');
+    expect(classifyStudentQueryIntent('records of 2024-0001')).toBe('grades');
+    expect(classifyStudentQueryIntent('pakita ang record ni student')).toBe('grades');
     expect(classifyStudentQueryIntent('Comprehensive assessment of student 12310')).toBe('comprehensive');
   });
 
@@ -112,6 +116,27 @@ Satisfactory standing.`;
     expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"Math 1","College Algebra",3,"5.00","failed","2025-2026 1st Sem"');
     expect(csv).toContain('RECOMMENDED SUBJECTS (2025-2026 2nd Sem)');
     expect(csv).toContain('CC 102');
+  });
+
+  it('omits recommended subjects when CSV export intent is grades', () => {
+    const student = { student_id: '12350', name: 'Francisco, Mark', program: 'BSIT', year_level: 1 };
+    const records = [
+      { code: 'CC 101', title: 'Intro to Computing', units: 3, grade: 1.75, status: 'passed', term: '2025-2026 1st Sem' }
+    ];
+    const recommendedSubjects = [
+      { code: 'CC 102', title: 'Computer Programming 1', units: 3, year: 1, semester: '2nd Sem', prerequisites: 'CC 101', isPrereqMet: true }
+    ];
+
+    const csv = generateStudentCsv(student, records, '1.75', {
+      intent: 'grades',
+      recommendedSubjects,
+      targetTermText: '2025-2026 2nd Sem'
+    });
+
+    expect(csv).toContain('Student ID,Student Name,Program,Year Level,Subject Code,Subject Title,Units,Grade,Status,Academic Term');
+    expect(csv).toContain('"12350","Francisco, Mark","BSIT",1,"CC 101","Intro to Computing",3,"1.75","passed","2025-2026 1st Sem"');
+    expect(csv).not.toContain('RECOMMENDED SUBJECTS');
+    expect(csv).not.toContain('CC 102');
   });
 });
 

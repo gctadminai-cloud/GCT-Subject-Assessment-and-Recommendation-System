@@ -37,6 +37,7 @@ interface StudentAction {
   student_id: string;
   student_name?: string;
   program?: string;
+  intent?: string;
   target_term?: string;
   semester?: '1' | '2' | 'summer';
   year_level?: number;
@@ -1005,7 +1006,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           sender: m.sender,
           text: m.text,
           student_id: m.studentAction?.student_id,
-          student_name: m.studentAction?.student_name
+          student_name: m.studentAction?.student_name,
+          pending_action: m.studentAction?.pending_action
         }));
 
       const res = await fetchApi(

@@ -1878,7 +1878,30 @@ function parseCohortFilter(query) {
     program = 'BSME';
   }
 
-  // 3. Detect Cohort Intent Keywords
+  // 3. Detect Semester Filter
+  let semester = null;
+  const asksAllSemesters = /\b(all\s*sem(?:esters?|estres?)?|both\s*sem(?:esters?)?|lahat\s*ng\s*sem(?:estre)?|buong\s*taon|full\s*year)\b/i.test(q);
+  const is1stSem = /\b(?:1st|first|unang)\s*(?:sem|semester|semestre)\b|\bsem(?:ester|estre)?\s*1\b|\b1st\s*sem\b/i.test(q);
+  const is2ndSem = /\b(?:2nd|second|ikalawang|pangalawang)\s*(?:sem|semester|semestre)\b|\bsem(?:ester|estre)?\s*2\b|\b2nd\s*sem\b/i.test(q);
+  const isSummer = /\b(summer|midyear|mid-year)\b/i.test(q);
+
+  if (asksAllSemesters) {
+    semester = 'all';
+  } else if (is1stSem) {
+    semester = 1;
+  } else if (is2ndSem) {
+    semester = 2;
+  } else if (isSummer) {
+    semester = 'summer';
+  } else if (q.trim() === '1' || q.trim() === '1st') {
+    semester = 1;
+  } else if (q.trim() === '2' || q.trim() === '2nd') {
+    semester = 2;
+  } else if (q.trim() === 'all' || q.trim() === 'lahat') {
+    semester = 'all';
+  }
+
+  // 4. Detect Cohort Intent Keywords
   const asksAllRecords = /\b(all\s+records?|lahat\s+ng\s+records?|all\s+students?|lahat\s+ng\s+estudyante|student\s+directory|masterlist|master\s+list|student\s+list|list\s+of\s+students?|roster)\b/i.test(q);
   const asksExport = /\b(excel|csv|download|export|spreadsheet)\b/i.test(q);
   const asksShow = /\b(show|display|pakita|tingnan|view|get|list|ibigay)\b/i.test(q);
@@ -1897,7 +1920,7 @@ function parseCohortFilter(query) {
     isCohortQuery = true;
   }
 
-  // 4. Detect Intent: 'grades' | 'recommendation' | 'directory'
+  // 5. Detect Intent: 'grades' | 'recommendation' | 'directory'
   const isRecQuery = /\b(recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|curriculum(?:\s+matrix|\s+catalog|\s+load)?|course\s+load|mga\s+kukunin|inirerekomenda(?:ng)?)\b/i.test(q);
   const isGradesQuery = /\b(grades?|marka|score|rating|transcript|gwa|records?\s+ng\s+marka|records?\s+ng\s+grades?)\b/i.test(q) && !isRecQuery;
 
@@ -1917,12 +1940,13 @@ function parseCohortFilter(query) {
     cohortType,
     yearLevel,
     program,
+    semester,
     isGroupByProgram
   };
 }
 
 /**
- * Checks whether user provided complete details (Program/Course AND Year Level) for cohort grades or recommendations
+ * Checks whether user provided complete details (Program/Course, Year Level, AND Semester) for cohort grades or recommendations
  */
 function isCohortDetailsComplete(filter) {
   if (!filter || !filter.isCohortQuery) return false;
@@ -1930,8 +1954,9 @@ function isCohortDetailsComplete(filter) {
 
   const hasProgram = Boolean(filter.program || filter.isGroupByProgram);
   const hasYear = Boolean(filter.yearLevel !== null);
+  const hasSemester = Boolean(filter.semester !== null);
 
-  return hasProgram && hasYear;
+  return hasProgram && hasYear && hasSemester;
 }
 
 /**
@@ -3288,6 +3313,13 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
 
         let cohortFilter = parseCohortFilter(query);
 
+        // Determine active academic year from settings
+        let activeAcademicYear = '2025-2026';
+        try {
+          const { data: sData } = await db.from('settings').select('key, value').in('key', ['activeAcademicYear', 'active_academic_year']);
+          if (sData?.[0]?.value) activeAcademicYear = String(sData[0].value).trim();
+        } catch (e) {}
+
         // Merge previous turn's clarification context if pending
         if (pendingCohort) {
           cohortFilter.isCohortQuery = true;
@@ -3300,8 +3332,27 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
           if (cohortFilter.yearLevel === null && pendingCohort.year_level != null) {
             cohortFilter.yearLevel = pendingCohort.year_level;
           }
+          if (cohortFilter.semester === null && pendingCohort.semester != null) {
+            cohortFilter.semester = pendingCohort.semester;
+          }
+          // If previous turn was asking for semester and user responded with a short answer
+          if (pendingCohort.year_level != null && cohortFilter.semester === null) {
+            const trimmed = query.trim().toLowerCase();
+            if (/\b(?:1st|first|unang|una|1)\b/i.test(trimmed)) {
+              cohortFilter.semester = 1;
+            } else if (/\b(?:2nd|second|ikalawang|pangalawa|2)\b/i.test(trimmed)) {
+              cohortFilter.semester = 2;
+            } else if (/\b(?:summer|midyear)\b/i.test(trimmed)) {
+              cohortFilter.semester = 'summer';
+            } else if (/\b(?:all|lahat|both|buong)\b/i.test(trimmed)) {
+              cohortFilter.semester = 'all';
+            }
+          }
           if (!cohortFilter.isGroupByProgram && pendingCohort.is_group_by_program) {
             cohortFilter.isGroupByProgram = true;
+          }
+          if (pendingCohort.active_academic_year) {
+            activeAcademicYear = pendingCohort.active_academic_year;
           }
         }
 
@@ -3357,7 +3408,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `- **BSA** (Bachelor of Science in Accountancy)\n` +
                 `- **All Degree Programs (By Course)**\n\n` +
                 `*Please reply with your preferred program (e.g. "BSIT" or "All Programs") to view records and generate the Excel file.*`;
-          } else {
+          } else if (cohortFilter.yearLevel === null) {
             // Missing YEAR LEVEL
             const progText = cohortFilter.program || 'napiling programa';
             assistantResponse = isTagalog
@@ -3375,6 +3426,25 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `- **4th Year**\n` +
                 `- **All Year Levels**\n\n` +
                 `*Please reply with your preferred year level (e.g. "2nd Year" or "All Year Levels") to generate the full report and Excel spreadsheet.*`;
+          } else {
+            // Missing SEMESTER (Clarify which semester under the active Academic Year)
+            const progText = cohortFilter.program || 'napiling programa';
+            const ylText = cohortFilter.yearLevel === 'all'
+              ? (isTagalog ? 'Lahat ng Taon' : 'All Year Levels')
+              : `Year ${cohortFilter.yearLevel}`;
+            assistantResponse = isTagalog
+              ? `Para sa programang **${progText} (${ylText})** sa kasalukuyang Academic Year (**${activeAcademicYear}**), aling **semestre** ang nais ninyong suriin para sa **${targetLabel}**?\n\n` +
+                `- **1st Semester** (Unang Semestre)\n` +
+                `- **2nd Semester** (Ikalawang Semestre)\n` +
+                `- **Summer** (Midyear Term)\n` +
+                `- **Lahat ng Semestre** (Buong Taon)\n\n` +
+                `*Pakisabi kung aling semestre (halimbawa: "1st Sem", "2nd Sem", o "Lahat") upang mai-filter ang mga datos at maihanda ang opisyal na Excel export.*`
+              : `For **${progText} (${ylText})** in the current Academic Year (**${activeAcademicYear}**), which **semester** would you like to review for **${targetLabel}**?\n\n` +
+                `- **1st Semester**\n` +
+                `- **2nd Semester**\n` +
+                `- **Summer** (Midyear Term)\n` +
+                `- **All Semesters** (Full Academic Year)\n\n` +
+                `*Please specify your preferred semester (e.g. "1st Sem", "2nd Sem", or "All Semesters") to display the matching records and generate the Excel download.*`;
           }
 
           systemPrompt = '';
@@ -3383,7 +3453,9 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             cohort_type: cohortFilter.cohortType,
             program: cohortFilter.program || undefined,
             year_level: cohortFilter.yearLevel || undefined,
-            is_group_by_program: cohortFilter.isGroupByProgram || undefined
+            semester: cohortFilter.semester || undefined,
+            is_group_by_program: cohortFilter.isGroupByProgram || undefined,
+            active_academic_year: activeAcademicYear
           };
         } else {
           // Details are COMPLETE!
@@ -3466,6 +3538,22 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             programFileTag = 'All_Programs';
           }
 
+          let semLabel = '';
+          let semFileTag = '';
+          if (cohortFilter.semester === 1) {
+            semLabel = userIsTagalog ? 'Unang Semestre (1st Sem)' : '1st Semester';
+            semFileTag = '1st_Sem';
+          } else if (cohortFilter.semester === 2) {
+            semLabel = userIsTagalog ? 'Ikalawang Semestre (2nd Sem)' : '2nd Semester';
+            semFileTag = '2nd_Sem';
+          } else if (cohortFilter.semester === 'summer') {
+            semLabel = 'Summer / Midyear';
+            semFileTag = 'Summer';
+          } else {
+            semLabel = userIsTagalog ? 'Lahat ng Semestre (Buong Taon)' : 'All Semesters (Full Year)';
+            semFileTag = 'All_Sem';
+          }
+
           // BRANCH A: SUBJECT RECOMMENDATIONS
           if (cohortFilter.cohortType === 'recommendation') {
             let subQuery = db.from('subjects').select('*');
@@ -3474,6 +3562,10 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             }
             if (cohortFilter.yearLevel && cohortFilter.yearLevel !== 'all') {
               subQuery = subQuery.eq('year_level', Number(cohortFilter.yearLevel));
+            }
+            if (cohortFilter.semester && cohortFilter.semester !== 'all') {
+              const semNum = cohortFilter.semester === 'summer' ? 3 : Number(cohortFilter.semester);
+              subQuery = subQuery.eq('semester', semNum);
             }
             const { data: subsData } = await subQuery;
             const subjectsList = (subsData || []).sort((a, b) => {
@@ -3506,7 +3598,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             });
 
             const totalUnits = subjectsList.reduce((sum, s) => sum + (Number(s.units) || 3), 0);
-            const fileBaseName = `GCT_Subject_Recommendations_${programFileTag}_${yearFileTag}_${Date.now()}`;
+            const fileBaseName = `GCT_Subject_Recommendations_${programFileTag}_${yearFileTag}_${semFileTag}_${Date.now()}`;
             const recsCsv = generateCurriculumRecsCsv(subjectsList, fileBaseName);
 
             fileExport = {
@@ -3514,7 +3606,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
               format: 'excel',
               csv_data: recsCsv,
               data: recsCsv,
-              label: `Download ${programLabel} ${yearLabel} Subject Recommendations (${subjectsList.length} Subjects) (Excel Spreadsheet)`
+              label: `Download ${programLabel} ${yearLabel} (${semLabel}) Subject Recommendations (${subjectsList.length} Subjects) (Excel Spreadsheet)`
             };
 
             const recsTableMarkdown = buildCurriculumTableMarkdown(subjectsList, 25);
@@ -3524,6 +3616,8 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `**Buod ng Rekomendasyon:**\n` +
                 `- **Kurso / Programa:** **${programLabel}**\n` +
                 `- **Year Level:** **${yearLabel}**\n` +
+                `- **Semestre:** **${semLabel}**\n` +
+                `- **Kasalukuyang Academic Year:** **${activeAcademicYear}**\n` +
                 `- **Kabuuang Asignatura:** **${subjectsList.length}** subjects\n` +
                 `- **Kabuuang Units:** **${totalUnits}** units\n\n` +
                 `#### Talaan ng mga Inirerekomendang Asignatura:\n` +
@@ -3535,6 +3629,8 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `**Recommendation Overview:**\n` +
                 `- **Degree Program:** **${programLabel}**\n` +
                 `- **Year Level:** **${yearLabel}**\n` +
+                `- **Semester:** **${semLabel}**\n` +
+                `- **Current Academic Year:** **${activeAcademicYear}**\n` +
                 `- **Total Recommended Subjects:** **${subjectsList.length}** subjects\n` +
                 `- **Total Academic Load:** **${totalUnits}** units\n\n` +
                 `#### Curriculum Subjects Matrix:\n` +
@@ -3592,8 +3688,31 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
               console.warn('Grade records query notice:', err.message);
             }
 
+            // Check if activeAcademicYear has matching records in rawGradeRows
+            const hasActiveAyRecords = rawGradeRows.some(g => String(g.academic_year || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '').includes(activeAcademicYear));
+            const targetAy = hasActiveAyRecords ? activeAcademicYear : (rawGradeRows[0]?.academic_year || activeAcademicYear);
+
+            // Filter rawGradeRows by active academic year and requested semester
+            let matchedRawRows = rawGradeRows;
+            if (hasActiveAyRecords) {
+              matchedRawRows = matchedRawRows.filter(g => String(g.academic_year || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '').includes(targetAy));
+            }
+            if (cohortFilter.semester && cohortFilter.semester !== 'all') {
+              matchedRawRows = matchedRawRows.filter(g => {
+                const sStr = String(g.semester || g.semester_name || g.term || '').toLowerCase();
+                if (cohortFilter.semester === 1) {
+                  return sStr.includes('first') || sStr === '1' || sStr === '1st' || sStr.includes('1st');
+                } else if (cohortFilter.semester === 2) {
+                  return sStr.includes('second') || sStr === '2' || sStr === '2nd' || sStr.includes('2nd');
+                } else if (cohortFilter.semester === 'summer') {
+                  return sStr.includes('summer') || sStr === '3';
+                }
+                return true;
+              });
+            }
+
             // Enrich all grade rows to strictly match official CompleteGradeRow institutional format
-            const gradeRows = rawGradeRows.map(g => {
+            const gradeRows = matchedRawRows.map(g => {
               const gSid = String(g.student_id || '').trim();
               const gCleanSid = gSid.replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^gct-/i, '').toLowerCase();
               const matchedStudent = cohortStudentMap.get(gSid.toLowerCase()) || cohortStudentMap.get(gCleanSid);
@@ -3616,7 +3735,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 semStr = 'First';
               }
 
-              const academicYear = String(g.academic_year || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '2025-2026').trim();
+              const academicYear = String(g.academic_year || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || targetAy).trim();
               const subject = String(g.subject || g.subject_code || g.code || 'N/A').trim();
               const units = Number(g.units) || 3;
 
@@ -3723,7 +3842,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             const cohortPassingRate = cohortTotalSubs > 0 ? `${Math.round((cohortPassedSubs / cohortTotalSubs) * 100)}%` : 'N/A';
 
             const dateStr = new Date().toISOString().slice(0, 10);
-            const fileBaseName = `GCT_${programFileTag}_${yearFileTag}_ALL_GRADES_${dateStr}`;
+            const fileBaseName = `GCT_${programFileTag}_${yearFileTag}_${semFileTag}_ALL_GRADES_${dateStr}`;
             const gradesCsv = generateCohortGradesCsv(gradeRows, fileBaseName);
 
             fileExport = {
@@ -3731,7 +3850,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
               format: 'excel',
               csv_data: gradesCsv,
               data: gradesCsv,
-              label: `Download ${programLabel} ${yearLabel} Complete Grade Records (${gradeRows.length} Entries) (Excel Spreadsheet)`
+              label: `Download ${programLabel} ${yearLabel} (${semLabel}) Complete Grade Records (${gradeRows.length} Entries) (Excel Spreadsheet)`
             };
 
             const gradesTableMarkdown = buildCohortGradesSummaryTableMarkdown(studentSummaries, 20);
@@ -3742,6 +3861,8 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                   `**Buod ng mga Marka ng Cohort:**\n` +
                   `- **Kurso / Programa:** **${programLabel}**\n` +
                   `- **Year Level:** **${yearLabel}**\n` +
+                  `- **Semestre:** **${semLabel}**\n` +
+                  `- **Kasalukuyang Academic Year:** **${targetAy}**\n` +
                   `- **Kabuuang Estudyante:** **${studentSummaries.length}** estudyante (${gradeRows.length} grade entries)\n` +
                   `- **Average Cohort GWA:** **${cohortAverageGwa}**\n` +
                   `- **Passing Rate:** **${cohortPassingRate}** (${cohortPassedSubs} naipasang asignatura)\n\n` +
@@ -3754,6 +3875,8 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                   `**Cohort Academic Performance Overview:**\n` +
                   `- **Degree Program:** **${programLabel}**\n` +
                   `- **Year Level:** **${yearLabel}**\n` +
+                  `- **Semester:** **${semLabel}**\n` +
+                  `- **Current Academic Year:** **${targetAy}**\n` +
                   `- **Total Students with Grades:** **${studentSummaries.length}** students (${gradeRows.length} grade entries)\n` +
                   `- **Average Cohort GWA:** **${cohortAverageGwa}**\n` +
                   `- **Passing Rate:** **${cohortPassingRate}** (${cohortPassedSubs} subjects passed)\n\n` +
@@ -3765,14 +3888,14 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             } else {
               const rosterTable = buildStudentsTableMarkdown(filtered, 20);
               assistantResponse = userIsTagalog
-                ? `### Talaan ng Marka: ${programLabel} — ${yearLabel}\n\n` +
-                  `Kasalukuyang wala pang opisyal na encoded grade records sa database para sa partikular na cohort na ito.\n\n` +
+                ? `### Talaan ng Marka: ${programLabel} — ${yearLabel} (${semLabel})\n\n` +
+                  `Kasalukuyang wala pang opisyal na encoded grade records sa database para sa semestre at academic year (**${targetAy}**) na ito.\n\n` +
                   `**Mga Rehistradong Estudyante (${filtered.length} students):**\n` +
                   `${rosterTable}\n\n` +
                   `*Maaari mong i-download ang roster sa Excel gamit ang button sa ibaba.*\n\n` +
                   `Nais mo bang makita ang curriculum subject recommendations para sa taong ito, o suriin ang ibang programa?`
-                : `### Grade Records: ${programLabel} — ${yearLabel}\n\n` +
-                  `There are currently no official encoded grade sheets on file for this specific cohort in the database.\n\n` +
+                : `### Grade Records: ${programLabel} — ${yearLabel} (${semLabel})\n\n` +
+                  `There are currently no official encoded grade sheets on file for this specific semester and academic year (**${targetAy}**) in the database.\n\n` +
                   `**Registered Students Roster (${filtered.length} students):**\n` +
                   `${rosterTable}\n\n` +
                   `*You can download the student roster in Excel using the button below.*\n\n` +

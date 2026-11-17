@@ -659,17 +659,12 @@ Satisfactory standing.`;
       expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
     });
 
-    it('Admin/Staff: continues across turns when user answers follow-up with "2nd year"', async () => {
-      const mockGradeRecords = [
-        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT201', units: 3, grade: 1.5, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' },
-        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT202', units: 3, grade: 1.75, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' }
-      ];
-
+    it('Admin/Staff: asks clarifying question for semester when year level is provided without semester', async () => {
       const mockSupabase = {
         from: (table) => ({
           select: () => {
             const builder = {
-              data: table === 'grade_records' ? mockGradeRecords : [],
+              data: table === 'settings' ? [{ key: 'activeAcademicYear', value: '2025-2026' }] : [],
               order: () => builder,
               limit: () => ({ data: [] }),
               or: () => ({ limit: () => ({ data: [] }) }),
@@ -710,21 +705,93 @@ Satisfactory standing.`;
       await queryChatbot(req, res, mockSupabase);
 
       expect(jsonResponse).not.toBeNull();
-      // Should now produce grade records report for BSIT 2nd Year
+      // Must ask clarifying question about semester under active Academic Year
+      expect(jsonResponse.response).toMatch(/semest(?:er|re)/i);
+      expect(jsonResponse.response).toContain('1st Semester');
+      expect(jsonResponse.response).toContain('2nd Semester');
+      expect(jsonResponse.response).toContain('2025-2026');
+      // No file export until semester is clarified
+      expect(jsonResponse.file_export).toBeNull();
+      // student_action must record pending_action: clarify_cohort_details with program and year_level
+      expect(jsonResponse.student_action).not.toBeNull();
+      expect(jsonResponse.student_action.pending_action).toBe('clarify_cohort_details');
+      expect(jsonResponse.student_action.program).toBe('BSIT');
+      expect(jsonResponse.student_action.year_level).toBe(2);
+      expect(jsonResponse.student_action.active_academic_year).toBe('2025-2026');
+      // Zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('Admin/Staff: continues and exports official Excel when user answers semester follow-up with "1st sem"', async () => {
+      const mockGradeRecords = [
+        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT201', units: 3, grade: 1.5, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' },
+        { student_id: '10002', full_name: 'Reyes, John', course: 'BSIT', year_level: 2, subject: 'IT202', units: 3, grade: 1.75, semester: '1st Sem', academic_year: '2025-2026', status: 'passed' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: table === 'grade_records' ? mockGradeRecords : (table === 'settings' ? [{ key: 'activeAcademicYear', value: '2025-2026' }] : []),
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => builder,
+              in: () => builder
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: {
+          query: '1st sem',
+          history: [
+            { sender: 'user', role: 'user', content: 'records ng grades ng BSIT 2nd year' },
+            {
+              sender: 'bot',
+              role: 'assistant',
+              content: 'Para sa programang BSIT (Year 2) sa kasalukuyang Academic Year (2025-2026), aling semestre ang nais ninyong suriin para sa talaan ng mga marka?',
+              student_action: {
+                pending_action: 'clarify_cohort_details',
+                cohort_type: 'grades',
+                program: 'BSIT',
+                year_level: 2,
+                active_academic_year: '2025-2026'
+              }
+            }
+          ]
+        },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Should now produce grade records report for BSIT 2nd Year 1st Sem
       expect(jsonResponse.response).toContain('BSIT');
       expect(jsonResponse.response).toContain('2nd Year');
+      expect(jsonResponse.response).toContain('1st Sem');
       expect(jsonResponse.response).toMatch(/Reyes,\s*John/i);
       // Excel export must be present
       expect(jsonResponse.file_export).not.toBeNull();
       expect(jsonResponse.file_export.format).toBe('excel');
-      expect(jsonResponse.file_export.filename).toContain('BSIT_2nd_Year');
+      expect(jsonResponse.file_export.filename).toContain('BSIT_2nd_Year_1st_Sem');
       expect(jsonResponse.file_export.csv_data).toContain('10002');
       expect(jsonResponse.file_export.csv_data).toContain('IT201');
       // Zero emojis
       expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
     });
 
-    it('Admin/Staff: returns subject recommendations with Excel file when querying "subject recommendation ng 1st year BSIT"', async () => {
+    it('Admin/Staff: returns subject recommendations with Excel file when querying "subject recommendation ng 1st year 1st sem BSIT"', async () => {
       const mockSubjectsList = [
         { id: 'sub-1', code: 'IT101', title: 'Introduction to Computing', units: 3, lec_units: 2, lab_units: 1, year_level: 1, semester: 1, program: 'BSIT', prerequisites_text: 'None' },
         { id: 'sub-2', code: 'IT102', title: 'Computer Programming 1', units: 3, lec_units: 2, lab_units: 1, year_level: 1, semester: 1, program: 'BSIT', prerequisites_text: 'None' }
@@ -734,7 +801,7 @@ Satisfactory standing.`;
         from: (table) => ({
           select: () => {
             const builder = {
-              data: table === 'subjects' ? mockSubjectsList : [],
+              data: table === 'subjects' ? mockSubjectsList : (table === 'settings' ? [{ key: 'activeAcademicYear', value: '2025-2026' }] : []),
               order: () => builder,
               limit: () => ({ data: [] }),
               or: () => ({ limit: () => ({ data: [] }) }),
@@ -749,7 +816,7 @@ Satisfactory standing.`;
 
       let jsonResponse = null;
       const req = {
-        body: { query: 'subject recommendation ng 1st year BSIT tapos may excel din' },
+        body: { query: 'subject recommendation ng 1st year 1st sem BSIT tapos may excel din' },
         user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
       };
       const res = {
@@ -769,7 +836,7 @@ Satisfactory standing.`;
       // Excel export must be present
       expect(jsonResponse.file_export).not.toBeNull();
       expect(jsonResponse.file_export.format).toBe('excel');
-      expect(jsonResponse.file_export.filename).toContain('Subject_Recommendations_BSIT_1st_Year');
+      expect(jsonResponse.file_export.filename).toContain('Subject_Recommendations_BSIT_1st_Year_1st_Sem');
       expect(jsonResponse.file_export.csv_data).toContain('IT101');
       expect(jsonResponse.file_export.csv_data).toContain('Introduction to Computing');
 

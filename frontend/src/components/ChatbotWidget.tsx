@@ -743,9 +743,11 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
   // Use the last bot message's follow-up questions as quick suggestions if available
   const lastBotMsg = [...messages].reverse().find(m => m.sender === 'bot');
-  const dynamicFollowUps = lastBotMsg?.followUpQuestions;
+  const dynamicFollowUps = (!isRegistrar) ? lastBotMsg?.followUpQuestions : undefined;
 
-  const quickPrompts = (dynamicFollowUps && dynamicFollowUps.length > 0)
+  const quickPrompts = isRegistrar
+    ? []
+    : (dynamicFollowUps && dynamicFollowUps.length > 0)
     ? dynamicFollowUps
     : isGuest
     ? [
@@ -757,19 +759,13 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         "What is GCT's mission & location?",
         'How do I create a student account?'
       ]
-    : isStudent
-    ? [
+    : [
         'Requirements for old students',
         'Can transferees have previous subjects credited?',
         'How can I contact the GCT College Registrar?',
         'What is my cumulative GWA and standing?',
         'What subjects am I eligible for next semester?',
         'Download my official academic record'
-      ]
-    : [
-        'Show list of registered students',
-        'What is the passing grade threshold and prerequisite rules?',
-        'How many student registrations are pending?'
       ];
 
   const formatFileSize = (bytes: number): string => {
@@ -1027,9 +1023,9 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           studentAction: primaryStudentId ? {
             student_id: primaryStudentId,
             pending_action: 'upload_follow_up',
-            available_terms: followUpSuggestions
+            available_terms: isRegistrar ? undefined : followUpSuggestions
           } : undefined,
-          followUpQuestions: followUpSuggestions
+          followUpQuestions: isRegistrar ? undefined : followUpSuggestions
         };
         setMessages(prev => [...prev, botMsg]);
         setLoading(false);
@@ -1102,7 +1098,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         fileExport: res.file_export || undefined,
         studentAction: finalAction,
-        followUpQuestions: (res.follow_up_questions && Array.isArray(res.follow_up_questions) && res.follow_up_questions.length > 0) ? res.follow_up_questions : undefined
+        followUpQuestions: (!isRegistrar && res.follow_up_questions && Array.isArray(res.follow_up_questions) && res.follow_up_questions.length > 0) ? res.follow_up_questions : undefined
       };
       setMessages(prev => [...prev, botMsg]);
     } catch (err: any) {
@@ -1881,8 +1877,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                   );
                 })()}
 
-                {/* Suggested Follow-up Questions */}
-                {msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                {/* Suggested Follow-up Questions (Only for Guest and Student, hidden for Admin/Staff) */}
+                {!isRegistrar && msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
                   <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed #CBD5E1' }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', marginBottom: '0.4rem', letterSpacing: '0.3px' }}>
                       Suggested follow-up:
@@ -1957,8 +1953,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Suggestion Prompts */}
-        {quickPrompts.length > 0 && (
+        {/* Quick Suggestion Prompts (Only for Guest and Student, hidden for Admin/Staff) */}
+        {!isRegistrar && quickPrompts.length > 0 && (
           <div
             style={{
               padding: '0.65rem 1.5rem',
@@ -2638,8 +2634,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                     );
                   })()}
 
-                  {/* Suggested Follow-up Questions */}
-                  {msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                  {/* Suggested Follow-up Questions (Only for Guest and Student, hidden for Admin/Staff) */}
+                  {!isRegistrar && msg.sender === 'bot' && msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
                     <div style={{ marginTop: '0.65rem', paddingTop: '0.55rem', borderTop: '1px dashed #CBD5E1' }}>
                       <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', marginBottom: '0.35rem', letterSpacing: '0.3px' }}>
                         Suggested follow-up:
@@ -2703,8 +2699,8 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Prompts */}
-          {quickPrompts.length > 0 && (
+          {/* Quick Prompts (Only for Guest and Student, hidden for Admin/Staff) */}
+          {!isRegistrar && quickPrompts.length > 0 && (
             <div style={{
               padding: '0.5rem 0.75rem',
               borderTop: '1px solid #E2E8F0',

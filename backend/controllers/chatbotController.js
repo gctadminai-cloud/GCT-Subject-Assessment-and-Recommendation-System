@@ -2063,7 +2063,13 @@ function ensureFollowUpQuestion(text, context = {}) {
         : 'Would you like to review your latest grades, check your recommended subjects for next semester, or calculate your cumulative GWA?';
     }
   } else {
-    // Registrar admin / staff
+    // Registrar admin / staff:
+    // "stay mo padin yung may mag follow up na question pag di details ang hiningi or inano ng user"
+    // If user already requested full details (such as comprehensive assessment), do not append redundant follow-up.
+    if (intent === 'comprehensive') {
+      return trimmed;
+    }
+
     const idLabel = studentId ? `para kay ${studentId}` : '';
     const idLabelEn = studentId ? `for ${studentId}` : '';
 
@@ -2075,10 +2081,6 @@ function ensureFollowUpQuestion(text, context = {}) {
       followUp = userIsTagalog
         ? `Nais mo bang suriin ang buong talaan ng nakaraang marka ${idLabel}, o buksan ang profile sa Subject Recommendations?`
         : `Would you like to inspect this student's full historical grade sheet ${idLabelEn}, or open their profile in Subject Recommendations?`;
-    } else if (intent === 'comprehensive') {
-      followUp = userIsTagalog
-        ? `Nais mo bang suriin ang prerequisite progression nang detalyado, i-download ang ulat sa Excel, o buksan ang profile sa Academic Records?`
-        : `Would you like to review their prerequisite progression in detail, download this evaluation in Excel, or open their profile in Academic Records?`;
     } else {
       followUp = userIsTagalog
         ? 'Aling Student ID o katanungang pang-operasyon ang nais mong simulan natin ngayon?'
@@ -2152,58 +2154,8 @@ function generateFollowUpQuestions(options = {}) {
         ];
   }
 
-  // Registrar / Staff
-  if (sId) {
-    if (intent === 'grades') {
-      return userIsTagalog
-        ? [
-            `Ano ang recommended subjects para kay ${sId}?`,
-            `Pagsusuri sa buong academic standing ni ${sId}`,
-            `I-download ang grade sheet ni ${sId} sa Excel`
-          ]
-        : [
-            `What are the recommended subjects for ${sId}?`,
-            `Evaluate complete academic assessment for ${sId}`,
-            `Download grade sheet for ${sId} in Excel`
-          ];
-    }
-    if (intent === 'recommendation') {
-      return userIsTagalog
-        ? [
-            `Ipakita ang buong talaan ng marka ni ${sId}`,
-            `Mayroon bang active deficiencies si ${sId}?`,
-            `Pagsusuri sa buong academic standing ni ${sId}`
-          ]
-        : [
-            `Show complete grade sheet for ${sId}`,
-            `Does ${sId} have any active prerequisite deficiencies?`,
-            `Evaluate complete academic assessment for ${sId}`
-          ];
-    }
-    return userIsTagalog
-      ? [
-          `Ano ang recommended subjects para kay ${sId}?`,
-          `Ipakita ang talaan ng marka ni ${sId}`,
-          `I-download ang evaluation report ni ${sId}`
-        ]
-      : [
-          `What are the recommended subjects for ${sId}?`,
-          `Show complete grade sheet for ${sId}`,
-          `Download evaluation report for ${sId}`
-        ];
-  }
-
-  return userIsTagalog
-    ? [
-        'Ipakita ang listahan ng mga nakatalang estudyante',
-        'Ano ang passing grade threshold at prerequisite rules?',
-        'Ilan ang pending student account approvals?'
-      ]
-    : [
-        'Show list of registered students',
-        'What is the passing grade threshold and prerequisite rules?',
-        'How many student registrations are pending?'
-      ];
+  // Registrar / Staff: Return empty array to disable FAQ / suggested follow-up chips for admin & staff
+  return [];
 }
 
 async function queryChatbot(req, res, customSupabase = null) {
@@ -3320,8 +3272,8 @@ Instructions:
           } else {
             // Comprehensive / assessment
             assistantResponse = userIsTagalog
-              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Buong Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*\n\nNais mo bang suriin ang kanyang prerequisite progression nang detalyado, i-download ang ulat na ito sa Excel, o buksan ang profile sa Academic Records?`
-              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Academic Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*\n\nWould you like to review their prerequisite progression in detail, download this evaluation in Excel, or open their profile in Academic Records?`;
+              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Buong Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*`
+              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Academic Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*`;
           }
         }
         // General institutional inquiry

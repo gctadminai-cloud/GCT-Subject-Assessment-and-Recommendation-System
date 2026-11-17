@@ -158,11 +158,16 @@ Satisfactory standing.`;
     expect(ensuredTagalog.trim().endsWith('?')).toBe(true);
     expect(ensuredTagalog).toContain('Nais mo bang suriin natin ang iyong overall standing');
 
-    // When text for Registrar does not end with a question mark
+    // When text for Registrar does not end with a question mark and lacks details (e.g. grades without term)
     const staticRegistrarText = 'Evaluated records for student 12310.';
     const ensuredRegistrar = ensureFollowUpQuestion(staticRegistrarText, { role: 'registrar_admin', intent: 'grades', studentId: '12310', userIsTagalog: false });
     expect(ensuredRegistrar.trim().endsWith('?')).toBe(true);
     expect(ensuredRegistrar).toContain('Would you like me to compute recommended subjects for 12310');
+
+    // When text for Registrar already provided full details (e.g. comprehensive assessment), do not append redundant follow-up question
+    const comprehensiveRegistrarText = '### Academic Assessment & Recommendations: Student 12310';
+    const ensuredComp = ensureFollowUpQuestion(comprehensiveRegistrarText, { role: 'registrar_admin', intent: 'comprehensive', studentId: '12310' });
+    expect(ensuredComp).toBe(comprehensiveRegistrarText);
 
     // When text for Guest does not end with a question mark
     const staticGuestText = 'Welcome to GCT.';
@@ -176,15 +181,16 @@ Satisfactory standing.`;
     expect(preserved).toBe('Which academic term would you like to view?');
   });
 
-  it('generates non-empty contextual follow-up questions for UI chips', () => {
+  it('generates contextual follow-up questions for UI chips, excluding admin/staff to prevent FAQ clutter', () => {
     const studentFollowUps = generateFollowUpQuestions({ role: 'student', intent: 'grades', userIsTagalog: false });
     expect(Array.isArray(studentFollowUps)).toBe(true);
     expect(studentFollowUps.length).toBeGreaterThanOrEqual(2);
     expect(studentFollowUps.some(q => q.includes('eligible for next semester'))).toBe(true);
 
+    // Admin/Staff: FAQ chips are disabled to maintain clean institutional interface
     const registrarFollowUps = generateFollowUpQuestions({ role: 'registrar_admin', intent: 'grades', studentId: '12310', userIsTagalog: false });
     expect(Array.isArray(registrarFollowUps)).toBe(true);
-    expect(registrarFollowUps.some(q => q.includes('12310'))).toBe(true);
+    expect(registrarFollowUps.length).toBe(0);
 
     const guestFollowUps = generateFollowUpQuestions({ role: 'guest', userIsTagalog: false });
     expect(Array.isArray(guestFollowUps)).toBe(true);

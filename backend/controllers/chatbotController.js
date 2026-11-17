@@ -3053,19 +3053,31 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
       else if (multiStudents.length === 0 && parseCohortFilter(query).isCohortQuery) {
         const cohortFilter = parseCohortFilter(query);
 
-        let sQuery = db.from('students').select('id, student_id, full_name, name, program, year_level, status, schedule');
-        if (typeof sQuery.order === 'function') {
-          sQuery = sQuery.order('program', { ascending: true });
-          if (typeof sQuery.order === 'function') {
-            sQuery = sQuery.order('year_level', { ascending: true });
-            if (typeof sQuery.order === 'function') {
-              sQuery = sQuery.order('student_id', { ascending: true });
+        let { data: stData, error: stErr } = await db.from('students').select('id, student_id, full_name, program, year_level, status');
+        if (stErr || !stData || stData.length === 0) {
+          if (stErr) console.warn('Students directory query notice, checking fallback select(*):', stErr.message);
+          try {
+            const { data: fallbackData } = await db.from('students').select('*');
+            if (fallbackData && fallbackData.length > 0) {
+              stData = fallbackData;
             }
-          }
+          } catch (fbErr) {}
         }
-        const { data: stData } = await sQuery;
-        const allStudents = stData || [];
-        const totalInDb = allStudents.length;
+        const rawStudents = stData || [];
+        const totalInDb = rawStudents.length;
+
+        // Sort reliably in memory by program, year level, and student ID
+        const allStudents = [...rawStudents].sort((a, b) => {
+          const pA = String(a.program || 'BSIT');
+          const pB = String(b.program || 'BSIT');
+          if (pA !== pB) return pA.localeCompare(pB);
+          const yA = Number(a.year_level || a.year || 1);
+          const yB = Number(b.year_level || b.year || 1);
+          if (yA !== yB) return yA - yB;
+          const sA = String(a.student_id || a.id || '');
+          const sB = String(b.student_id || b.id || '');
+          return sA.localeCompare(sB);
+        });
 
         let filtered = [...allStudents];
 

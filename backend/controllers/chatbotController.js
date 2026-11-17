@@ -1793,6 +1793,119 @@ async function findTargetStudent(query, supabase, history = []) {
 }
 
 /**
+ * Detects cohort, directory, year-level, and degree program queries
+ * e.g. "by course or program", "all year level", "1st year only", "2nd", "3rd", "4th only", "BSIT students", "all records"
+ */
+function parseCohortFilter(query) {
+  if (!query || typeof query !== 'string') {
+    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false };
+  }
+
+  // 0. Remove academic year ranges (e.g. 2024-2025, 2025-2026) so they are not parsed as student IDs
+  const cleanQuery = query.replace(/\b(?:19|20)\d{2}-(?:19|20)\d{2}\b/g, ' ');
+  const q = cleanQuery.toLowerCase();
+
+  // If query contains an explicit numeric student ID (4-6 digits or GCT-xxxx),
+  // then this is a specific student lookup, NOT a cohort directory request
+  const hasSpecificId = /\b(?:GCT-)?(?:\d{4}-\d{4,5}|\d{4,6})\b/i.test(cleanQuery);
+  if (hasSpecificId) {
+    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false };
+  }
+
+  // 1. Detect Year Level Filter
+  const asksAllYears = /\b(all\s+year\s*levels?|all\s+years?|every\s+year\s*level|lahat\s+ng\s+year\s*levels?|lahat\s+ng\s+taon|bawat\s+taon|across\s+all\s+years?)\b/i.test(q);
+
+  const is1st = /\b(?:1st|first|unang)\s*(?:yr|year|taon|level)\b|\b(?:year|yr|taon)\s*1\b|\b1st\s*(?:year\s*)?(?:only|lang)\b/i.test(q) ||
+    (/\b1st\b/i.test(q) && !/\b1st\s*(?:sem|semester)\b/i.test(q) && /\b(?:student|students|record|records|only|lang|year|taon|level|all|course|program)\b/i.test(q));
+
+  const is2nd = /\b(?:2nd|second|ikalawang|pangalawang)\s*(?:yr|year|taon|level)\b|\b(?:year|yr|taon)\s*2\b|\b2nd\s*(?:year\s*)?(?:only|lang)\b/i.test(q) ||
+    (/\b2nd\b/i.test(q) && !/\b2nd\s*(?:sem|semester)\b/i.test(q) && /\b(?:student|students|record|records|only|lang|year|taon|level|all|course|program)\b/i.test(q));
+
+  const is3rd = /\b(?:3rd|third|ikatlong|pangatlong)\s*(?:yr|year|taon|level)\b|\b(?:year|yr|taon)\s*3\b|\b3rd\s*(?:year\s*)?(?:only|lang)\b/i.test(q) ||
+    (/\b3rd\b/i.test(q) && !/\b3rd\s*(?:sem|semester)\b/i.test(q) && /\b(?:student|students|record|records|only|lang|year|taon|level|all|course|program)\b/i.test(q));
+
+  const is4th = /\b(?:4th|fourth|ikaapat|pang-apat)\s*(?:yr|year|taon|level)\b|\b(?:year|yr|taon)\s*4\b|\b4th\s*(?:year\s*)?(?:only|lang)\b|\bgraduating\b/i.test(q) ||
+    (/\b4th\b/i.test(q) && !/\b4th\s*(?:sem|semester)\b/i.test(q) && /\b(?:student|students|record|records|only|lang|year|taon|level|all|course|program)\b/i.test(q));
+
+  let yearLevel = null;
+  const yearMatchesCount = [is1st, is2nd, is3rd, is4th].filter(Boolean).length;
+
+  if (asksAllYears || yearMatchesCount >= 2) {
+    yearLevel = 'all';
+  } else if (is1st) {
+    yearLevel = 1;
+  } else if (is2nd) {
+    yearLevel = 2;
+  } else if (is3rd) {
+    yearLevel = 3;
+  } else if (is4th) {
+    yearLevel = 4;
+  }
+
+  // 2. Detect Program / Course Filter
+  let program = null;
+  let isGroupByProgram = false;
+
+  if (/\b(by\s+course|by\s+program|per\s+course|per\s+program|bawat\s+kurso|bawat\s+programa|kada\s+kurso|kada\s+programa|group(?:ed)?\s+by\s+course|group(?:ed)?\s+by\s+program|course\s+or\s+program|all\s+programs?|all\s+courses?)\b/i.test(q)) {
+    isGroupByProgram = true;
+  }
+
+  if (/\b(bsit|information\s+technology)\b/i.test(q)) {
+    program = 'BSIT';
+  } else if (/\b(bscs|computer\s+science)\b/i.test(q)) {
+    program = 'BSCS';
+  } else if (/\b(bsa|accountancy)\b/i.test(q)) {
+    program = 'BSA';
+  } else if (/\b(bshm|hospitality(?:\s+management)?)\b/i.test(q)) {
+    program = 'BSHM';
+  } else if (/\b(bsba-fm|financial\s+management)\b/i.test(q)) {
+    program = 'BSBA-FM';
+  } else if (/\b(bsba-hrm|human\s+resource)\b/i.test(q)) {
+    program = 'BSBA-HRM';
+  } else if (/\b(bsba-mm|marketing\s+management)\b/i.test(q)) {
+    program = 'BSBA-MM';
+  } else if (/\b(bsba-om|operations?\s+management)\b/i.test(q)) {
+    program = 'BSBA-OM';
+  } else if (/\b(bsba|business\s+administration)\b/i.test(q)) {
+    program = 'BSBA';
+  } else if (/\b(bsoa|office\s+administration)\b/i.test(q)) {
+    program = 'BSOA';
+  } else if (/\b(bsce|civil\s+engineering)\b/i.test(q)) {
+    program = 'BSCE';
+  } else if (/\b(bsee|electrical\s+engineering)\b/i.test(q)) {
+    program = 'BSEE';
+  } else if (/\b(bsme|mechanical\s+engineering)\b/i.test(q)) {
+    program = 'BSME';
+  }
+
+  // 3. Detect Cohort Intent Keywords
+  const asksAllRecords = /\b(all\s+records?|lahat\s+ng\s+records?|all\s+students?|lahat\s+ng\s+estudyante|student\s+directory|masterlist|master\s+list|student\s+list|list\s+of\s+students?|roster)\b/i.test(q);
+  const asksExport = /\b(excel|csv|download|export|spreadsheet)\b/i.test(q);
+  const asksShow = /\b(show|display|pakita|tingnan|view|get|list|ibigay)\b/i.test(q);
+  const mentionsRecordOrStudent = /\b(records?|students?|estudyante|talaan)\b/i.test(q);
+
+  let isCohortQuery = false;
+  if (asksAllYears || yearLevel !== null) {
+    isCohortQuery = true;
+  } else if (isGroupByProgram) {
+    isCohortQuery = true;
+  } else if (program !== null && (mentionsRecordOrStudent || asksShow || asksExport || asksAllRecords)) {
+    isCohortQuery = true;
+  } else if (asksAllRecords || (mentionsRecordOrStudent && (asksShow || asksExport))) {
+    isCohortQuery = true;
+  } else if (q.includes('list') || q.includes('directory') || q.includes('all student') || q.includes('export student') || q.includes('download student')) {
+    isCohortQuery = true;
+  }
+
+  return {
+    isCohortQuery,
+    yearLevel,
+    program,
+    isGroupByProgram
+  };
+}
+
+/**
  * Detects and retrieves multiple target students mentioned in a single query
  * e.g. "student id 1111,2222,3333 show me their record"
  */
@@ -2935,7 +3048,175 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
 
         assistantResponse = introHeader + studentSections.join('\n---\n\n') + downloadNotice;
       }
-      // 2. SINGLE-STUDENT or GENERAL QUERY
+      // 2. COHORT / ROSTER / YEAR LEVEL / PROGRAM DIRECTORY QUERY
+      // (Directly handles queries asking for records by course or program, all year levels, or 1st/2nd/3rd/4th year only with Excel export)
+      else if (multiStudents.length === 0 && parseCohortFilter(query).isCohortQuery) {
+        const cohortFilter = parseCohortFilter(query);
+
+        let sQuery = db.from('students').select('id, student_id, full_name, name, program, year_level, status, schedule');
+        if (typeof sQuery.order === 'function') {
+          sQuery = sQuery.order('program', { ascending: true });
+          if (typeof sQuery.order === 'function') {
+            sQuery = sQuery.order('year_level', { ascending: true });
+            if (typeof sQuery.order === 'function') {
+              sQuery = sQuery.order('student_id', { ascending: true });
+            }
+          }
+        }
+        const { data: stData } = await sQuery;
+        const allStudents = stData || [];
+        const totalInDb = allStudents.length;
+
+        let filtered = [...allStudents];
+
+        if (cohortFilter.program) {
+          const pTarget = cohortFilter.program.toUpperCase();
+          filtered = filtered.filter(s => {
+            const p = String(s.program || 'BSIT').toUpperCase();
+            return p === pTarget || p.startsWith(pTarget);
+          });
+        }
+
+        if (cohortFilter.yearLevel && cohortFilter.yearLevel !== 'all') {
+          const yTarget = Number(cohortFilter.yearLevel);
+          filtered = filtered.filter(s => {
+            const y = Number(s.year_level || s.year || 1);
+            return y === yTarget;
+          });
+        }
+
+        let yearLabel = '';
+        let yearFileTag = '';
+        if (cohortFilter.yearLevel === 1) {
+          yearLabel = userIsTagalog ? 'Unang Taon (1st Year Only)' : '1st Year Records Only';
+          yearFileTag = '1st_Year';
+        } else if (cohortFilter.yearLevel === 2) {
+          yearLabel = userIsTagalog ? 'Ikalawang Taon (2nd Year Only)' : '2nd Year Records Only';
+          yearFileTag = '2nd_Year';
+        } else if (cohortFilter.yearLevel === 3) {
+          yearLabel = userIsTagalog ? 'Ikatlong Taon (3rd Year Only)' : '3rd Year Records Only';
+          yearFileTag = '3rd_Year';
+        } else if (cohortFilter.yearLevel === 4) {
+          yearLabel = userIsTagalog ? 'Ikaapat na Taon (4th Year Only)' : '4th Year Records Only';
+          yearFileTag = '4th_Year';
+        } else if (cohortFilter.yearLevel === 'all') {
+          yearLabel = userIsTagalog ? 'Lahat ng Year Level (1st, 2nd, 3rd, 4th Year)' : 'All Year Levels (1st, 2nd, 3rd, 4th Year)';
+          yearFileTag = 'All_Year_Levels';
+        } else {
+          yearLabel = userIsTagalog ? 'Lahat ng Year Level' : 'All Year Levels';
+          yearFileTag = 'All_Years';
+        }
+
+        let programLabel = '';
+        let programFileTag = '';
+        if (cohortFilter.program) {
+          programLabel = cohortFilter.program;
+          programFileTag = cohortFilter.program;
+        } else if (cohortFilter.isGroupByProgram) {
+          programLabel = userIsTagalog ? 'Naka-grupo bawat Kurso / Programa' : 'Grouped by Degree Program';
+          programFileTag = 'By_Program';
+        } else {
+          programLabel = userIsTagalog ? 'Lahat ng Programa' : 'All Degree Programs';
+          programFileTag = 'All_Programs';
+        }
+
+        const countY1 = filtered.filter(s => Number(s.year_level || s.year || 1) === 1).length;
+        const countY2 = filtered.filter(s => Number(s.year_level || s.year || 1) === 2).length;
+        const countY3 = filtered.filter(s => Number(s.year_level || s.year || 1) === 3).length;
+        const countY4 = filtered.filter(s => Number(s.year_level || s.year || 1) === 4).length;
+
+        const requestedFormat = detectRequestedFileFormat(query);
+        const fileBaseName = `GCT_Students_${programFileTag}_${yearFileTag}_${Date.now()}`;
+        let fileData = '';
+        let filename = '';
+        let fileLabel = '';
+
+        if (requestedFormat === 'word') {
+          fileData = generateStudentsListWord(filtered, `GCT Students Directory - ${programLabel} (${yearLabel})`);
+          filename = `${fileBaseName}.doc`;
+          fileLabel = `Download ${programLabel} ${yearLabel} (${filtered.length} Students) (Word Document)`;
+        } else if (requestedFormat === 'text') {
+          fileData = filtered.map(s => `${s.student_id || s.id}\t${s.full_name || s.name}\t${s.program || 'BSIT'}\tYear ${s.year_level || s.year || 1}\t${s.status || 'Active'}`).join('\n');
+          filename = `${fileBaseName}.txt`;
+          fileLabel = `Download ${programLabel} ${yearLabel} (${filtered.length} Students) (Text File)`;
+        } else {
+          fileData = generateStudentsListCsv(filtered, `GCT_Students_${programFileTag}_${yearFileTag}`);
+          filename = `${fileBaseName}.csv`;
+          fileLabel = `Download ${programLabel} ${yearLabel} (${filtered.length} Students) (Excel Spreadsheet)`;
+        }
+
+        fileExport = {
+          filename,
+          format: requestedFormat === 'word' || requestedFormat === 'text' ? requestedFormat : 'excel',
+          csv_data: fileData,
+          data: fileData,
+          label: fileLabel
+        };
+
+        let programSummaryMarkdown = '';
+        if (cohortFilter.isGroupByProgram || (!cohortFilter.program && cohortFilter.yearLevel === 'all')) {
+          const programMap = new Map();
+          for (const s of filtered) {
+            const p = s.program || 'BSIT';
+            const y = Number(s.year_level || s.year || 1);
+            if (!programMap.has(p)) {
+              programMap.set(p, { y1: 0, y2: 0, y3: 0, y4: 0, total: 0 });
+            }
+            const entry = programMap.get(p);
+            if (y === 1) entry.y1++;
+            else if (y === 2) entry.y2++;
+            else if (y === 3) entry.y3++;
+            else if (y === 4) entry.y4++;
+            entry.total++;
+          }
+
+          const progRows = Array.from(programMap.entries())
+            .sort((a, b) => b[1].total - a[1].total)
+            .map(([code, d]) => `| **${code}** | ${d.y1} | ${d.y2} | ${d.y3} | ${d.y4} | **${d.total}** |`);
+
+          if (progRows.length > 0) {
+            programSummaryMarkdown = [
+              userIsTagalog ? '#### Buod ng Estudyante Bawat Programa at Taon:' : '#### Program & Year Level Distribution Matrix:',
+              '| Degree Program | 1st Year | 2nd Year | 3rd Year | 4th Year | Total Students |',
+              '| :--- | :---: | :---: | :---: | :---: | :---: |',
+              ...progRows
+            ].join('\n') + '\n\n';
+          }
+        }
+
+        const rosterTableMarkdown = buildStudentsTableMarkdown(filtered, 20);
+
+        if (userIsTagalog) {
+          assistantResponse = `### Opisyal na Talaan ng mga Rekord ng Estudyante ng GCT\n\n` +
+            `**Buod ng Hiniling na Talaan:**\n` +
+            `- **Kabuuang Estudyante:** **${filtered.length}** rekord (mula sa kabuuang ${totalInDb} sa database)\n` +
+            `- **Filter ng Programa:** **${programLabel}**\n` +
+            `- **Filter ng Year Level:** **${yearLabel}**\n` +
+            `- **Distribusyon sa Bawat Taon:** 1st Year: **${countY1}** | 2nd Year: **${countY2}** | 3rd Year: **${countY3}** | 4th Year: **${countY4}**\n\n` +
+            programSummaryMarkdown +
+            `#### Talaan ng mga Estudyante (Unang 20 rekord):\n` +
+            `${rosterTableMarkdown}\n` +
+            (filtered.length > 20 ? `\n*... at ${filtered.length - 20} pang mga estudyante sa database.*\n` : '\n') +
+            `\n---\n*Ang buong talaan ng **${filtered.length}** na estudyante ay handa nang i-download bilang **Excel Spreadsheet** gamit ang download button sa ibaba.*\n\n` +
+            `Nais mo bang i-filter ang mga estudyante ayon sa partikular na kurso, o suriin ang rekord ng isang partikular na Student ID?`;
+        } else {
+          assistantResponse = `### GCT Official Student Academic Records Directory\n\n` +
+            `**Directory Report Overview:**\n` +
+            `- **Total Matching Records:** **${filtered.length}** students (out of ${totalInDb} registered in database)\n` +
+            `- **Academic Program Filter:** **${programLabel}**\n` +
+            `- **Year Level Filter:** **${yearLabel}**\n` +
+            `- **Year Level Distribution:** 1st Year: **${countY1}** | 2nd Year: **${countY2}** | 3rd Year: **${countY3}** | 4th Year: **${countY4}**\n\n` +
+            programSummaryMarkdown +
+            `#### Student Roster (First 20 records):\n` +
+            `${rosterTableMarkdown}\n` +
+            (filtered.length > 20 ? `\n*... and ${filtered.length - 20} more students in the database.*\n` : '\n') +
+            `\n---\n*The complete dataset of **${filtered.length}** students has been exported and is ready to download as an **Excel Spreadsheet** using the download button below.*\n\n` +
+            `Would you like to filter these records by a specific degree program, or inspect the academic evaluation of an individual Student ID?`;
+        }
+
+        systemPrompt = '';
+      }
+      // 3. SINGLE-STUDENT or GENERAL QUERY
       else {
         const targetStudent = multiStudents.length === 1 ? multiStudents[0] : await findTargetStudent(query, db, history);
 
@@ -3737,5 +4018,6 @@ module.exports = {
   ensureFollowUpQuestion,
   generateFollowUpQuestions,
   isStudentGreetingQuery,
-  buildStudentGreetingResponse
+  buildStudentGreetingResponse,
+  parseCohortFilter
 };

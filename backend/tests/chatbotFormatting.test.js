@@ -12,7 +12,8 @@ const {
   generateFollowUpQuestions,
   isStudentGreetingQuery,
   buildStudentGreetingResponse,
-  queryChatbot
+  queryChatbot,
+  parseCohortFilter
 } = require('../controllers/chatbotController');
 
 describe('Chatbot Table Formatting & Anti-Memorandum Sanitizer', () => {
@@ -400,6 +401,201 @@ Satisfactory standing.`;
     expect(jsonResponse.file_export).toBeNull();
     // Strict zero emojis
     expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+  });
+
+  describe('Cohort, Degree Program & Year Level Directory Queries', () => {
+    it('parseCohortFilter correctly identifies year levels, programs, and grouping', () => {
+      expect(parseCohortFilter('all year level')).toMatchObject({ isCohortQuery: true, yearLevel: 'all' });
+      expect(parseCohortFilter('lahat ng year level')).toMatchObject({ isCohortQuery: true, yearLevel: 'all' });
+      expect(parseCohortFilter('1st year only')).toMatchObject({ isCohortQuery: true, yearLevel: 1 });
+      expect(parseCohortFilter('pakita records ng 2nd year')).toMatchObject({ isCohortQuery: true, yearLevel: 2 });
+      expect(parseCohortFilter('3rd year students')).toMatchObject({ isCohortQuery: true, yearLevel: 3 });
+      expect(parseCohortFilter('4th only')).toMatchObject({ isCohortQuery: true, yearLevel: 4 });
+      expect(parseCohortFilter('by course or program')).toMatchObject({ isCohortQuery: true, isGroupByProgram: true });
+      expect(parseCohortFilter('BSIT 2nd year tapos may excel din')).toMatchObject({ isCohortQuery: true, program: 'BSIT', yearLevel: 2 });
+      expect(parseCohortFilter('show me BSCS records')).toMatchObject({ isCohortQuery: true, program: 'BSCS' });
+
+      // Should NOT trigger cohort mode when a specific numeric student ID is present
+      expect(parseCohortFilter('student 12310 2nd year').isCohortQuery).toBe(false);
+      expect(parseCohortFilter('show record of student 1111').isCohortQuery).toBe(false);
+
+      // Should NOT confuse semester with year level
+      expect(parseCohortFilter('2025-2026 2nd Sem').isCohortQuery).toBe(false);
+    });
+
+    it('Admin/Staff: returns 2nd year records with Excel spreadsheet export when querying "2nd year only"', async () => {
+      const mockStudentsList = [
+        { id: '1', student_id: '10001', full_name: 'Santos, Maria', program: 'BSIT', year_level: 1, status: 'Active' },
+        { id: '2', student_id: '10002', full_name: 'Reyes, John', program: 'BSIT', year_level: 2, status: 'Active' },
+        { id: '3', student_id: '10003', full_name: 'Cruz, Carlos', program: 'BSCS', year_level: 2, status: 'Active' },
+        { id: '4', student_id: '10004', full_name: 'Lim, Anna', program: 'BSHM', year_level: 3, status: 'Active' },
+        { id: '5', student_id: '10005', full_name: 'Tan, David', program: 'BSIT', year_level: 4, status: 'Active' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: mockStudentsList,
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => ({ limit: () => ({ data: [] }), order: () => ({ data: [] }) })
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: { query: 'pakita lahat ng record ng 2nd year tapos may excel din' },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Should mention 2nd Year
+      expect(jsonResponse.response).toContain('2nd Year');
+      // Should contain 2nd year students
+      expect(jsonResponse.response).toContain('Reyes, John');
+      expect(jsonResponse.response).toContain('Cruz, Carlos');
+      // Should NOT contain 1st or 3rd or 4th year students in the roster
+      expect(jsonResponse.response).not.toContain('Santos, Maria');
+      expect(jsonResponse.response).not.toContain('Lim, Anna');
+      expect(jsonResponse.response).not.toContain('Tan, David');
+
+      // Excel export must be present
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.filename).toContain('2nd_Year');
+      expect(jsonResponse.file_export.csv_data).toContain('10002');
+      expect(jsonResponse.file_export.csv_data).toContain('Reyes, John');
+      expect(jsonResponse.file_export.csv_data).toContain('10003');
+      expect(jsonResponse.file_export.csv_data).toContain('Cruz, Carlos');
+      expect(jsonResponse.file_export.csv_data).not.toContain('10001');
+
+      // Strict zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('Admin/Staff: returns all year levels grouped by program when querying "by course or program, all year level tapos may excel"', async () => {
+      const mockStudentsList = [
+        { id: '1', student_id: '10001', full_name: 'Santos, Maria', program: 'BSIT', year_level: 1, status: 'Active' },
+        { id: '2', student_id: '10002', full_name: 'Reyes, John', program: 'BSIT', year_level: 2, status: 'Active' },
+        { id: '3', student_id: '10003', full_name: 'Cruz, Carlos', program: 'BSCS', year_level: 2, status: 'Active' },
+        { id: '4', student_id: '10004', full_name: 'Lim, Anna', program: 'BSHM', year_level: 3, status: 'Active' },
+        { id: '5', student_id: '10005', full_name: 'Tan, David', program: 'BSIT', year_level: 4, status: 'Active' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: mockStudentsList,
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => ({ limit: () => ({ data: [] }), order: () => ({ data: [] }) })
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: { query: 'gusto ko ipakita din ng chatbot ai ang lahat ng record pag hining by course or program, all year level or 1st year, 2nd ,3rd, 4th only tapos may excel din' },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      // Should show matrix / table with degree programs
+      expect(jsonResponse.response).toContain('BSIT');
+      expect(jsonResponse.response).toContain('BSCS');
+      expect(jsonResponse.response).toContain('BSHM');
+      expect(jsonResponse.response).toContain('Santos, Maria');
+      expect(jsonResponse.response).toContain('Reyes, John');
+
+      // Excel export must be present
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.format).toBe('excel');
+      expect(jsonResponse.file_export.csv_data).toContain('10001');
+      expect(jsonResponse.file_export.csv_data).toContain('10005');
+
+      // Strict zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('Admin/Staff: returns BSIT Year 1 records only when querying "BSIT 1st year"', async () => {
+      const mockStudentsList = [
+        { id: '1', student_id: '10001', full_name: 'Santos, Maria', program: 'BSIT', year_level: 1, status: 'Active' },
+        { id: '2', student_id: '10002', full_name: 'Reyes, John', program: 'BSIT', year_level: 2, status: 'Active' },
+        { id: '3', student_id: '10003', full_name: 'Cruz, Carlos', program: 'BSCS', year_level: 1, status: 'Active' },
+        { id: '4', student_id: '10004', full_name: 'Lim, Anna', program: 'BSHM', year_level: 1, status: 'Active' }
+      ];
+
+      const mockSupabase = {
+        from: (table) => ({
+          select: () => {
+            const builder = {
+              data: mockStudentsList,
+              order: () => builder,
+              limit: () => ({ data: [] }),
+              or: () => ({ limit: () => ({ data: [] }) }),
+              ilike: () => ({ limit: () => ({ data: [] }) }),
+              eq: () => ({ limit: () => ({ data: [] }), order: () => ({ data: [] }) })
+            };
+            return builder;
+          },
+          insert: () => ({ data: [] })
+        })
+      };
+
+      let jsonResponse = null;
+      const req = {
+        body: { query: 'BSIT 1st year' },
+        user: { id: 'admin-1', role: 'registrar_admin', full_name: 'Registrar Admin' }
+      };
+      const res = {
+        status() { return this; },
+        json(data) { jsonResponse = data; return this; }
+      };
+
+      await queryChatbot(req, res, mockSupabase);
+
+      expect(jsonResponse).not.toBeNull();
+      expect(jsonResponse.response).toContain('BSIT');
+      expect(jsonResponse.response).toContain('Santos, Maria');
+      // Should not contain BSCS or BSHM or BSIT 2nd year
+      expect(jsonResponse.response).not.toContain('Cruz, Carlos');
+      expect(jsonResponse.response).not.toContain('Lim, Anna');
+      expect(jsonResponse.response).not.toContain('Reyes, John');
+
+      // Excel export must be present
+      expect(jsonResponse.file_export).not.toBeNull();
+      expect(jsonResponse.file_export.csv_data).toContain('10001');
+      expect(jsonResponse.file_export.csv_data).not.toContain('10002');
+      expect(jsonResponse.file_export.csv_data).not.toContain('10003');
+
+      // Strict zero emojis
+      expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
   });
 });
 

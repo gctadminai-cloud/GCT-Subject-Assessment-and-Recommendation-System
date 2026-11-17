@@ -518,6 +518,9 @@ function formatTargetTermText(yearLevel, semester) {
  */
 function classifyStudentQueryIntent(query) {
   const q = (query || '').toLowerCase();
+  const isAssessment = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(q);
+  if (isAssessment) return 'comprehensive';
+
   const isRec = /\b(recommend|recommendation|recommended|rekomendasyon|subjects?\s*to\s*take|subjects?\s*to\s*enroll|next\s*(?:sem|semester|term)|course\s*load|curriculum\s*load|advising|courses?\s*to\s*take)\b/i.test(q);
   const isGrades = /\b(grades?|marka|score|gwa|records?|academic\s*records?|transcript|talaan(?:\s*ng\s*marka)?|passed|failed|deficienc(?:y|ies)|retakes?)\b/i.test(q);
   if (isRec && !isGrades) return 'recommendation';
@@ -2188,7 +2191,8 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
           const termAnalysis = extractTargetTermAndSemester(query, studentInfo.year_level || studentInfo.year);
 
           const isAskingOpinion = isAskingOpinionQuery(query);
-          const isStudentGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?)\b/i.test(query) && !isAskingOpinion && !/\b(hi|hello|kumusta|hey)\b/i.test(query);
+          const isStudentAssessment = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
+          const isStudentGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?)\b/i.test(query) && !isAskingOpinion && !isStudentAssessment && !/\b(hi|hello|kumusta|hey)\b/i.test(query);
           const isStudentExplicitAll = /\b(?:all|lahat|entire|complete|buo|cumulative|tor|transcript)\b/i.test(query);
 
           if (isStudentGradesQuery && !termAnalysis.isSpecificFilter && !isStudentExplicitAll && records.length > 0) {
@@ -2197,15 +2201,15 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
               const termsListMarkdown = distinctTerms.map(t => `- **${t.displayLabel}**`).join('\n');
               const studentFollowUp = userIsTagalog
                 ? `Aling academic year o semestre ang nais mong makitang marka, **${userName}**?\n\n` +
-                  `**Mga nakatalang termino sa iyong record:**\n` +
-                  `${termsListMarkdown}\n` +
-                  `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
-                  `*Piliin o i-type ang nais mong termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat").*`
+                `**Mga nakatalang termino sa iyong record:**\n` +
+                `${termsListMarkdown}\n` +
+                `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
+                `*Piliin o i-type ang nais mong termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat").*`
                 : `Which academic term or semester's grades would you like to view, **${userName}**?\n\n` +
-                  `**Recorded terms on file:**\n` +
-                  `${termsListMarkdown}\n` +
-                  `- **All Terms / Cumulative Grade Sheet**\n\n` +
-                  `*Please select or reply with your desired term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms").*`;
+                `**Recorded terms on file:**\n` +
+                `${termsListMarkdown}\n` +
+                `- **All Terms / Cumulative Grade Sheet**\n\n` +
+                `*Please select or reply with your desired term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms").*`;
 
               return res.json({
                 id: 'chat-' + Date.now(),
@@ -2274,8 +2278,9 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             : (studentRecSubjects.length > 0 ? studentRecsTableMarkdown : 'Pending Registrar review & approval.');
 
           // Classify student intent
-          const isStudentRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
-          const isStudentGradesOnlyQuery = isStudentGradesQuery && !isStudentRecQuery;
+          const isStudentAssessmentQuery = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
+          const isStudentRecQuery = (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isStudentAssessmentQuery;
+          const isStudentGradesOnlyQuery = isStudentGradesQuery && !isStudentRecQuery && !isStudentAssessmentQuery;
 
           const lastBotTurn = Array.isArray(history) && history.length > 0
             ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-1)[0]
@@ -2289,18 +2294,21 @@ Under GCT Data Privacy policies, students are **strictly authorized to access on
             ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-3)
             : [];
 
-          const isStudentFollowUpToGradesPrompt = 
+          const isStudentFollowUpToGradesPrompt = !isStudentAssessmentQuery && (
             lastBotTurn?.pending_action === 'clarify_grades_term' ||
-            recentBotTurns.some(b => 
+            recentBotTurns.some(b =>
               b.pending_action === 'clarify_grades_term' ||
               /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms on file|Select term to view grades/i.test(b.text || b.content || '') ||
               /Grade Sheet|Talaan ng Marka|Academic Record/i.test(b.text || b.content || '')
             ) ||
-            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText));
+            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText))
+          );
 
-          const effectiveStudentGradesQuery = isStudentGradesOnlyQuery || (isStudentFollowUpToGradesPrompt && !isStudentRecQuery);
+          const effectiveStudentGradesQuery = !isStudentAssessmentQuery && (isStudentGradesOnlyQuery || (isStudentFollowUpToGradesPrompt && !isStudentRecQuery));
           let studentIntent = 'comprehensive';
-          if (isStudentRecQuery) {
+          if (isStudentAssessmentQuery) {
+            studentIntent = 'comprehensive';
+          } else if (isStudentRecQuery) {
             studentIntent = 'recommendation';
           } else if (effectiveStudentGradesQuery) {
             studentIntent = 'grades';
@@ -2557,15 +2565,16 @@ ${studentGradesTableMarkdown}
 
       if (multiStudents.length >= 2) {
         // MULTI-STUDENT FLOW
-        const isRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
-        const isGradesQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?)\b/i.test(query);
+        const isAssessmentQuery = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
+        const isRecQuery = (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isAssessmentQuery;
+        const isGradesQuery = (/\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?)\b/i.test(query)) && !isAssessmentQuery;
         const termAnalysis = extractTargetTermAndSemester(query);
 
         let activeAcademicYear = '2026-2027';
         try {
           const { data: sData } = await db.from('settings').select('key, value').in('key', ['activeAcademicYear', 'active_academic_year']);
           if (sData?.[0]?.value) activeAcademicYear = String(sData[0].value).trim();
-        } catch (e) {}
+        } catch (e) { }
 
         const multiStudentsData = [];
         const studentSections = [];
@@ -2602,24 +2611,24 @@ ${studentGradesTableMarkdown}
           // Build markdown section for this student
           let sMarkdown = userIsTagalog
             ? `### ${idx + 1}. **${sName}** (\`${cleanId}\`)\n` +
-              `- **Program & Taon:** ${sProg} — Year ${sYear}\n` +
-              `- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n` +
-              `- **Cumulative GWA:** **${gwa}** | **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n` +
-              `- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n` +
-              (enrollmentStatus.isStoppedOrLapsed ? `> ⚠️ **Paunawa:** May patlang sa enrollment ang estudyante. Huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**.\n\n` : '\n')
+            `- **Program & Taon:** ${sProg} — Year ${sYear}\n` +
+            `- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n` +
+            `- **Cumulative GWA:** **${gwa}** | **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n` +
+            `- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Track)'}**\n` +
+            (enrollmentStatus.isStoppedOrLapsed ? `> ⚠️ **Paunawa:** May patlang sa enrollment ang estudyante. Huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**.\n\n` : '\n')
             : `### ${idx + 1}. **${sName}** (\`${cleanId}\`)\n` +
-              `- **Program & Year:** ${sProg} — Year ${sYear}\n` +
-              `- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n` +
-              `- **Cumulative GWA:** **${gwa}** | **Passed Units:** **${passedUnits}** units (${passedCount} subjects)\n` +
-              `- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**\n` +
-              (enrollmentStatus.isStoppedOrLapsed ? `> ⚠️ **Notice:** Student has an enrollment gap. Last attended term was **${enrollmentStatus.lastEnrolledTerm}**.\n\n` : '\n');
+            `- **Program & Year:** ${sProg} — Year ${sYear}\n` +
+            `- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n` +
+            `- **Cumulative GWA:** **${gwa}** | **Passed Units:** **${passedUnits}** units (${passedCount} subjects)\n` +
+            `- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Track)'}**\n` +
+            (enrollmentStatus.isStoppedOrLapsed ? `> ⚠️ **Notice:** Student has an enrollment gap. Last attended term was **${enrollmentStatus.lastEnrolledTerm}**.\n\n` : '\n');
 
           if (isRecQuery && !isGradesQuery) {
             sMarkdown += userIsTagalog
               ? `#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recsTable}\n\n` +
-                (activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${defTable}\n\n` : '')
+              (activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${defTable}\n\n` : '')
               : `#### Recommended Subjects for ${targetTermText} (${totalRecommendedUnits} Units):\n${recsTable}\n\n` +
-                (activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${defTable}\n\n` : '');
+              (activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${defTable}\n\n` : '');
           } else if (isGradesQuery && !isRecQuery) {
             sMarkdown += userIsTagalog
               ? `#### Talaan ng mga Marka (${records.length} subjects):\n${gradesTable}\n\n`
@@ -2628,11 +2637,11 @@ ${studentGradesTableMarkdown}
             // Both or general record inquiry
             sMarkdown += userIsTagalog
               ? `#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recsTable}\n\n` +
-                (activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${defTable}\n\n` : '') +
-                `#### Talaan ng Marka (${records.length} subjects):\n${gradesTable}\n\n`
+              (activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${defTable}\n\n` : '') +
+              `#### Talaan ng Marka (${records.length} subjects):\n${gradesTable}\n\n`
               : `#### Recommended Subjects for ${targetTermText} (${totalRecommendedUnits} Units):\n${recsTable}\n\n` +
-                (activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${defTable}\n\n` : '') +
-                `#### Academic Grade Sheet (${records.length} subjects):\n${gradesTable}\n\n`;
+              (activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${defTable}\n\n` : '') +
+              `#### Academic Grade Sheet (${records.length} subjects):\n${gradesTable}\n\n`;
           }
 
           studentSections.push(sMarkdown);
@@ -2672,13 +2681,14 @@ ${studentGradesTableMarkdown}
           try {
             const { data: sData } = await db.from('settings').select('key, value').in('key', ['activeAcademicYear', 'active_academic_year']);
             if (sData?.[0]?.value) activeAcademicYear = String(sData[0].value).trim();
-          } catch (e) {}
+          } catch (e) { }
 
           const enrollmentStatus = getStudentEnrollmentStatus(targetStudent, records, activeAcademicYear);
 
           // Classify user intent
-          const isRecQuery = /(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query);
-          const isGradesOnlyQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?|record\s+ng\s+marka)\b/i.test(query) && !isRecQuery;
+          const isAssessmentQuery = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
+          const isRecQuery = (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isAssessmentQuery;
+          const isGradesOnlyQuery = /\b(?:grades?|marka|score|rating|transcript|talaan(?:\s+ng\s+marka)?|records?|academic\s+records?|record\s+ng\s+marka)\b/i.test(query) && !isRecQuery && !isAssessmentQuery;
 
           // Check if user explicitly asked for all terms
           const isExplicitAllTerms = /\b(?:all|lahat|entire|complete|buo(?:ng)?|cumulative|tor|transcript\s+of\s+records|all\s+terms?|lahat\s+ng\s+termino)\b/i.test(query);
@@ -2696,16 +2706,17 @@ ${studentGradesTableMarkdown}
           const recentBotTurns = Array.isArray(history) && history.length > 0
             ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.text || h.content)).slice(-3)
             : [];
-          const isFollowUpToGradesPrompt = 
+          const isFollowUpToGradesPrompt = !isAssessmentQuery && (
             lastBotTurn?.pending_action === 'clarify_grades_term' ||
-            recentBotTurns.some(b => 
+            recentBotTurns.some(b =>
               b.pending_action === 'clarify_grades_term' ||
               /which academic term.*grades|aling academic year o semestre.*marka|aling termino.*marka|recorded terms available on file|mga nakatalang termino|Select term to view grades/i.test(b.text || b.content || '') ||
               /Official Academic Record & Grade Sheet|Opisyal na Talaan ng Marka|Academic Record & Grade Sheet|Grade Sheet/i.test(b.text || b.content || '')
             ) ||
-            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText));
+            (/\b(?:grades?|marka|records?)\b/i.test(lastUserText) && !/(?:subject\s+)?recommend/i.test(lastUserText))
+          );
 
-          const effectiveGradesQuery = isGradesOnlyQuery || (isFollowUpToGradesPrompt && !isRecQuery);
+          const effectiveGradesQuery = !isAssessmentQuery && (isGradesOnlyQuery || (isFollowUpToGradesPrompt && !isRecQuery));
 
           // 🔒 FOLLOW-UP CLARIFICATION QUESTION:
           // When the user asks for a student's grades without specifying which term, DO NOT dump all grades immediately!
@@ -2715,11 +2726,11 @@ ${studentGradesTableMarkdown}
             if (records.length === 0) {
               const noGradesMsg = userIsTagalog
                 ? `Walang natagpuang rekord ng nakaraang marka para kay **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`) sa opisyal na database.\n\n` +
-                  `Nais ninyo bang tingnan ang kanyang **Inirerekomendang mga Asignatura (Subject Recommendations)** para sa enrollment?\n\n` +
-                  `*Maaari ninyong i-type ang "Subject Recommendations" o gamitin ang action buttons sa ibaba.*`
+                `Nais ninyo bang tingnan ang kanyang **Inirerekomendang mga Asignatura (Subject Recommendations)** para sa enrollment?\n\n` +
+                `*Maaari ninyong i-type ang "Subject Recommendations" o gamitin ang action buttons sa ibaba.*`
                 : `No recorded past grades found on file for **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`) in the official database.\n\n` +
-                  `Would you like to review their **Subject Recommendations** for the upcoming semester instead?\n\n` +
-                  `*Please reply with "Subject Recommendations" or use the action buttons below.*`;
+                `Would you like to review their **Subject Recommendations** for the upcoming semester instead?\n\n` +
+                `*Please reply with "Subject Recommendations" or use the action buttons below.*`;
               return res.json({
                 id: 'chat-' + Date.now(),
                 query,
@@ -2740,15 +2751,15 @@ ${studentGradesTableMarkdown}
             const termsListMarkdown = distinctTerms.map(t => `- **${t.displayLabel}**`).join('\n');
             const followUpResponse = userIsTagalog
               ? `Aling academic year o semestre ang nais ninyong makitang marka para kay **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`)?\n\n` +
-                `**Mga nakatalang termino sa kanyang academic records:**\n` +
-                `${termsListMarkdown}\n` +
-                `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
-                `*Pakisabi kung aling termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat") ang nais ninyong suriin.*`
+              `**Mga nakatalang termino sa kanyang academic records:**\n` +
+              `${termsListMarkdown}\n` +
+              `- **Lahat ng Termino (All Terms / Cumulative Summary)**\n\n` +
+              `*Pakisabi kung aling termino (halimbawa: "${distinctTerms[0]?.term || '1st Sem'}" o "Lahat") ang nais ninyong suriin.*`
               : `Which academic term or semester's grades would you like to review for **${targetStudent.name || targetStudent.full_name}** (\`${cleanId}\`)?\n\n` +
-                `**Recorded terms available on file for this student:**\n` +
-                `${termsListMarkdown}\n` +
-                `- **All Terms / Cumulative Grade Sheet**\n\n` +
-                `*Please reply with your preferred term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms") to view the official grade sheet.*`;
+              `**Recorded terms available on file for this student:**\n` +
+              `${termsListMarkdown}\n` +
+              `- **All Terms / Cumulative Grade Sheet**\n\n` +
+              `*Please reply with your preferred term (for example: "${distinctTerms[0]?.term || '1st Sem'}" or "All Terms") to view the official grade sheet.*`;
 
             return res.json({
               id: 'chat-' + Date.now(),
@@ -2818,7 +2829,9 @@ ${studentGradesTableMarkdown}
           const targetTermText = formatTargetTermText(targetTerm?.year_level, targetTerm?.semester);
 
           let queryIntent = 'comprehensive';
-          if (isRecQuery) {
+          if (isAssessmentQuery) {
+            queryIntent = 'comprehensive';
+          } else if (isRecQuery) {
             queryIntent = 'recommendation';
           } else if (effectiveGradesQuery) {
             queryIntent = 'grades';
@@ -3033,14 +3046,14 @@ ${isFilteredByTerm ? `TERM FILTER NOTICE: The user explicitly requested records 
 
 OFFICIAL EVALUATION DATA (GROUND TRUTH FROM GCT ASSESSMENT ENGINE - DO NOT INVENT SUBJECTS):
 ---
-Official Recommended Subjects Table:
+Official Grade Sheet Table (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):
+${gradesTableMarkdown}
+
+Official Recommended Subjects Table (${targetTermText}):
 ${recommendationsTableMarkdown}
 
 Active Deficiencies Table:
 ${deficienciesTableMarkdown || 'None (Clean academic standing)'}
-
-Official Grade Sheet Table (${isFilteredByTerm ? termAnalysis.target_term : 'All Terms'}):
-${gradesTableMarkdown}
 ---
 
 CRITICAL FORMATTING INSTRUCTIONS (STRICT COMPLIANCE REQUIRED):
@@ -3064,7 +3077,8 @@ CRITICAL FORMATTING INSTRUCTIONS (STRICT COMPLIANCE REQUIRED):
 USER MESSAGE: "${query}"
 
 Instructions:
-- Directly, professionally, and accurately reply to what the Registrar asked.
+- The user requested an assessment of the student. You MUST present BOTH the Official Grade Sheet Table (displaying all encoded grades on file across all terms) AND the Official Recommended Subjects Table for the upcoming advising term (${targetTermText}).
+- Accompany the tables with active deficiencies (if any) and a comprehensive advising evaluation narrative.
 - Confirm that their requested ${requestedFormat.toUpperCase()} file has been generated and is ready to download below.
 - Note that interactive buttons below will open this student's profile directly in Academic Records or Subject Recommendations.`;
           }
@@ -3078,85 +3092,85 @@ Instructions:
               ? `### Opisyal na Talaan ng Marka${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n\n#### Talaan ng mga Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency:\n${deficienciesTableMarkdown}\n\n` : ''}#### Pagsusuri sa Academic Standing:\n${narrativeExplanation}\n\n---\n*Gamitin ang action buttons sa ibaba upang i-download ang rekord bilang ${requestedFormat.toUpperCase()} file, o buksan ang profile sa Academic Records.*`
               : `### Official Academic Record & Grade Sheet${isFilteredByTerm ? ` (${termAnalysis.target_term})` : ''}: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **GWA (${isFilteredByTerm ? termAnalysis.target_term : 'Cumulative'}):** **${gwa}**\n- **Completed Units:** **${passedUnits}** units (${passedCount} passed)\n- **Deficiencies / Retakes:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'None (Regular Standing)'}**\n\n#### Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies:\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Performance Evaluation & Explanation:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download this record as a ${requestedFormat.toUpperCase()} file, or view the student in Academic Records.*`;
           } else {
-            // Comprehensive / default
+            // Comprehensive / assessment
             assistantResponse = userIsTagalog
-              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*`
-              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Grades Summary (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*`;
+              ? `### Pagsusuri sa Academic Record at Rekomendasyon: **${studentDisplayName}**\n\n**Profile ng Estudyante:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Taon:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Naipasang Units:** **${passedUnits}** units (${passedCount} subjects)\n- **Deficiencies:** **${failedCount > 0 ? `${failedCount} subject(s)` : 'Wala (Regular Standing)'}**\n- **Target na Termino ng Advising:** **${targetTermText}** (${totalRecommendedUnits} Units)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Paunawa sa Enrollment:** May patlang sa enrollment ang estudyante (huling pumasok noong **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Buong Talaan ng Marka (${isFilteredByTerm ? termAnalysis.target_term : 'Lahat ng Termino'}):\n${gradesTableMarkdown}\n\n#### Inirerekomendang mga Asignatura (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Mga Aktibong Deficiency (Kailangang I-retake):\n${deficienciesTableMarkdown}\n\n` : ''}#### Opisyal na Pagsusuri at Gabay ng Registrar:\n${narrativeExplanation}\n\n---\n*Gamitin ang buttons sa ibaba upang i-download ang opisyal na ulat (${requestedFormat.toUpperCase()}) o buksan ang profile sa Academic Records o Subject Recommendations.*`
+              : `### Academic Assessment & Recommendations: **${studentDisplayName}**\n\n**Student Profile:**\n- **Student ID:** \`${cleanId}\`\n- **Program & Year:** ${targetStudent.program} — Year ${studentYearText}\n- **Enrollment Status:** **${enrollmentStatus.statusLabel}**\n- **Cumulative GWA:** **${gwa}**\n- **Completed Units:** **${passedUnits}** units passed | **${failedCount} deficiencies**\n- **Target Advising Term:** **${targetTermText}** (${totalRecommendedUnits} Units Recommended)\n${enrollmentStatus.isStoppedOrLapsed ? `\n> ⚠️ **Enrollment Notice:** Student has an enrollment gap (last attended **${enrollmentStatus.lastEnrolledTerm}**).\n` : ''}\n#### Academic Grade Sheet (${isFilteredByTerm ? termAnalysis.target_term : 'All Encoded Terms'}):\n${gradesTableMarkdown}\n\n#### Recommended Subjects for Upcoming Term (${targetTermText} • ${totalRecommendedUnits} Units):\n${recommendationsTableMarkdown}\n\n${activeDeficiencies.length > 0 ? `#### Active Deficiencies (Retakes Required):\n${deficienciesTableMarkdown}\n\n` : ''}#### Academic Standing & Advising Summary:\n${narrativeExplanation}\n\n---\n*Use the action buttons below to download the report as a ${requestedFormat.toUpperCase()} file, or open this profile directly in Academic Records or Subject Recommendations.*`;
           }
         }
-      // General institutional inquiry
-      else {
-        const { data: stData } = await db.from('students').select('id, student_id, full_name, program, year_level, status');
-        const allStudents = stData || [];
-        const studentCount = allStudents.length;
+        // General institutional inquiry
+        else {
+          const { data: stData } = await db.from('students').select('id, student_id, full_name, program, year_level, status');
+          const allStudents = stData || [];
+          const studentCount = allStudents.length;
 
-        const { data: acctData } = await db.from('accounts').select('role, status');
-        const pendingStudentsCount = (acctData || []).filter(a => a.role === 'student' && a.status === 'pending').length;
+          const { data: acctData } = await db.from('accounts').select('role, status');
+          const pendingStudentsCount = (acctData || []).filter(a => a.role === 'student' && a.status === 'pending').length;
 
-        const { data: recData } = await db.from('recommendations').select('id').eq('status', 'pending_review');
-        const pendingRecsCount = recData?.length || 0;
+          const { data: recData } = await db.from('recommendations').select('id').eq('status', 'pending_review');
+          const pendingRecsCount = recData?.length || 0;
 
-        const { data: subData } = await db.from('subjects').select('id');
-        const subjectCount = subData?.length || 10;
+          const { data: subData } = await db.from('subjects').select('id');
+          const subjectCount = subData?.length || 10;
 
-        let passingThreshold = 75;
-        let maxFailedPrereqs = 3;
-        try {
-          const { data: setThresh } = await db.from('settings').select('value').eq('key', 'passing_grade_threshold').limit(1);
-          if (setThresh?.[0]?.value) passingThreshold = Number(setThresh[0].value);
-          const { data: setPrereq } = await db.from('settings').select('value').eq('key', 'max_failed_prerequisites').limit(1);
-          if (setPrereq?.[0]?.value) maxFailedPrereqs = Number(setPrereq[0].value);
-        } catch (e) { }
+          let passingThreshold = 75;
+          let maxFailedPrereqs = 3;
+          try {
+            const { data: setThresh } = await db.from('settings').select('value').eq('key', 'passing_grade_threshold').limit(1);
+            if (setThresh?.[0]?.value) passingThreshold = Number(setThresh[0].value);
+            const { data: setPrereq } = await db.from('settings').select('value').eq('key', 'max_failed_prerequisites').limit(1);
+            if (setPrereq?.[0]?.value) maxFailedPrereqs = Number(setPrereq[0].value);
+          } catch (e) { }
 
-        const q = query.toLowerCase();
-        const requestedFormat = detectRequestedFileFormat(query);
+          const q = query.toLowerCase();
+          const requestedFormat = detectRequestedFileFormat(query);
 
-        // Check if admin asks for a list or export of all students
-        if (q.includes('list') || q.includes('all student') || q.includes('export student') || q.includes('download student') || q.includes('directory')) {
-          let fileData = '';
-          let filename = '';
-          let fileLabel = '';
+          // Check if admin asks for a list or export of all students
+          if (q.includes('list') || q.includes('all student') || q.includes('export student') || q.includes('download student') || q.includes('directory')) {
+            let fileData = '';
+            let filename = '';
+            let fileLabel = '';
 
-          if (requestedFormat === 'word') {
-            fileData = generateStudentsListWord(allStudents, 'GCT Students Directory');
-            filename = `GCT_Students_Directory_${Date.now()}.doc`;
-            fileLabel = `Download All Students Directory (Word Document)`;
-          } else {
-            fileData = generateStudentsListCsv(allStudents, 'GCT_Students_Directory');
-            filename = `GCT_Students_Directory_${Date.now()}.csv`;
-            fileLabel = `Download All Students Directory (Excel Spreadsheet)`;
-          }
+            if (requestedFormat === 'word') {
+              fileData = generateStudentsListWord(allStudents, 'GCT Students Directory');
+              filename = `GCT_Students_Directory_${Date.now()}.doc`;
+              fileLabel = `Download All Students Directory (Word Document)`;
+            } else {
+              fileData = generateStudentsListCsv(allStudents, 'GCT_Students_Directory');
+              filename = `GCT_Students_Directory_${Date.now()}.csv`;
+              fileLabel = `Download All Students Directory (Excel Spreadsheet)`;
+            }
 
-          fileExport = {
-            filename,
-            format: requestedFormat,
-            csv_data: fileData,
-            data: fileData,
-            label: fileLabel
-          };
+            fileExport = {
+              filename,
+              format: requestedFormat,
+              csv_data: fileData,
+              data: fileData,
+              label: fileLabel
+            };
 
-          const studentsTableMarkdown = buildStudentsTableMarkdown(allStudents, 15);
+            const studentsTableMarkdown = buildStudentsTableMarkdown(allStudents, 15);
 
-          assistantResponse = userIsTagalog
-            ? `### Direktoryo ng mga Estudyante ng GCT\nKasalukuyang may **${studentCount}** na rehistradong estudyante sa database.\n\n**Listahan ng mga Estudyante (Unang 15 talaan):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... at ${allStudents.length - 15} pang mga estudyante sa database.*` : ''}\n\n*Maaari mong i-download ang buong listahan bilang ${requestedFormat.toUpperCase()} file gamit ang button sa ibaba, o maghanap ng partikular na Student ID.*`
-            : `### GCT Student Directory Report\nThe system currently manages **${studentCount}** registered students.\n\n**Directory Roster (First 15 records):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... and ${allStudents.length - 15} more students in the database.*` : ''}\n\n*You can download the complete student list as a ${requestedFormat.toUpperCase()} file using the button below, or query an individual student ID.*`;
-        } else if (/\b\d{4,6}\b/.test(query) || /\b(student|record|grades?|profile|evaluation|transcript|show\s+record|search|find|grades\s+of)\b/i.test(query)) {
-          assistantResponse = userIsTagalog
-            ? `**Walang nahanap na student record** para sa: **"${query.trim()}"**.
+            assistantResponse = userIsTagalog
+              ? `### Direktoryo ng mga Estudyante ng GCT\nKasalukuyang may **${studentCount}** na rehistradong estudyante sa database.\n\n**Listahan ng mga Estudyante (Unang 15 talaan):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... at ${allStudents.length - 15} pang mga estudyante sa database.*` : ''}\n\n*Maaari mong i-download ang buong listahan bilang ${requestedFormat.toUpperCase()} file gamit ang button sa ibaba, o maghanap ng partikular na Student ID.*`
+              : `### GCT Student Directory Report\nThe system currently manages **${studentCount}** registered students.\n\n**Directory Roster (First 15 records):**\n${studentsTableMarkdown}\n${allStudents.length > 15 ? `\n*... and ${allStudents.length - 15} more students in the database.*` : ''}\n\n*You can download the complete student list as a ${requestedFormat.toUpperCase()} file using the button below, or query an individual student ID.*`;
+          } else if (/\b\d{4,6}\b/.test(query) || /\b(student|record|grades?|profile|evaluation|transcript|show\s+record|search|find|grades\s+of)\b/i.test(query)) {
+            assistantResponse = userIsTagalog
+              ? `**Walang nahanap na student record** para sa: **"${query.trim()}"**.
 
 **Mga suhestiyon:**
 1. **Student ID:** Siguraduhing tama ang numero (halimbawa: \`2024-0001\` o \`12718\`).
 2. **Pangalan:** Siguraduhing tama ang spelling ng apelyido o unang pangalan.
 3. **Master Directory:** Maaari mong buksan ang tab ng **Student Academic Records** para tingnan ang kumpletong listahan ng lahat ng ${studentCount} estudyante sa database.`
-            : `**No student record found** matching: **"${query.trim()}"**.
+              : `**No student record found** matching: **"${query.trim()}"**.
 
 **Suggestions:**
 1. **Student ID:** Verify the ID number (e.g., \`2024-0001\` or \`12718\`).
 2. **Name:** Double check the spelling of the surname or first name.
 3. **Master Directory:** Open the **Student Academic Records** tab to view the complete roster of ${studentCount} registered students.`;
-        } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening|mabuhay)\b/i.test(q)) {
-          assistantResponse = userIsTagalog
-            ? `Hello po, **${userName}**! Kumusta po kayo?
+          } else if (/\b(hi|hello|hey|kumusta|kamusta|good\s*morning|good\s*afternoon|good\s*evening|mabuhay)\b/i.test(q)) {
+            assistantResponse = userIsTagalog
+              ? `Hello po, **${userName}**! Kumusta po kayo?
 
 Ako ang inyong **GCT Registrar Operations Assistant**. Handa akong tumulong sa:
 • **Student Records & Grades:** Mag-type ng Student ID o apelyido upang makita ang buong academic evaluation.
@@ -3164,7 +3178,7 @@ Ako ang inyong **GCT Registrar Operations Assistant**. Handa akong tumulong sa:
 • **Registrar Tasks & Opinions:** Alamin ang pending student registrations, subject recommendation approvals, curriculum rules, o humingi ng formal advising evaluation sa isang estudyante.
 
 May partikular ka bang estudyante o ulat na nais suriin ngayon?`
-            : `Hello, **${userName}**!
+              : `Hello, **${userName}**!
 
 I am your **GCT Registrar Operations Assistant**. I am ready to assist with:
 • **Student Records & Grades:** Search any Student ID or surname to view comprehensive academic evaluations.
@@ -3172,9 +3186,9 @@ I am your **GCT Registrar Operations Assistant**. I am ready to assist with:
 • **Registrar Governance & Advising:** Monitor pending registrations, recommendation evaluations, curriculum rules, or request formal advising opinions.
 
 Which student record or operational report would you like to review today?`;
-        } else if (/\b(ano kaya mo|ano magagawa mo|paano|help|tulong|guide|features?|capabilities)\b/i.test(q)) {
-          assistantResponse = userIsTagalog
-            ? `Narito ang mga pangunahing magagawa ko para sa Registrar Operations:
+          } else if (/\b(ano kaya mo|ano magagawa mo|paano|help|tulong|guide|features?|capabilities)\b/i.test(q)) {
+            assistantResponse = userIsTagalog
+              ? `Narito ang mga pangunahing magagawa ko para sa Registrar Operations:
 
 1. **Student Academic Lookups & Opinions:**
    - I-type ang Student ID o apelyido ng estudyante para makita ang GWA, passed units, at deficiencies.
@@ -3185,7 +3199,7 @@ Which student record or operational report would you like to review today?`;
 3. **Enrollment & Rules Oversight:**
    - Itanong: *"How many student registrations are pending?"*
    - Itanong: *"What are the academic threshold rules?"*`
-            : `Here are the core operations available for Registrar and Staff:
+              : `Here are the core operations available for Registrar and Staff:
 
 1. **Student Academic Lookups & Evaluations:**
    - Search by Student ID or surname to view full course history, GWA, earned units, and prerequisites.
@@ -3196,62 +3210,62 @@ Which student record or operational report would you like to review today?`;
 3. **Institutional Governance & Rules:**
    - Ask: *"How many student registrations are pending?"*
    - Ask: *"What are the academic threshold rules?"*`;
-        } else if (/\b(magkano|presyo|pricing|cost|bayad|api\s*key|gemini\s*cost)\b/i.test(q)) {
-          assistantResponse = userIsTagalog
-            ? `Tungkol sa Google Gemini API:
+          } else if (/\b(magkano|presyo|pricing|cost|bayad|api\s*key|gemini\s*cost)\b/i.test(q)) {
+            assistantResponse = userIsTagalog
+              ? `Tungkol sa Google Gemini API:
 - Ang Google AI Studio ay may **Free Tier** (libreng gamitin para sa trial at development).
 - Para sa production gamit ang **Pay-as-you-go (Blended Rate)**, ang Gemini Flash ay napakamura: humigit-kumulang **$0.075 bawat 1 milyong input tokens** (nasa ilang sentimo lamang sa libo-libong chat queries).
 - Kung naabot ang daily limit ng free key, awtomatikong gumagana ang built-in GCT database rule engine upang hindi maantala ang serbisyo!`
-            : `About the Google Gemini API:
+              : `About the Google Gemini API:
 - Google AI Studio provides a generous **Free Tier** suitable for development and operational evaluation.
 - For production under **Pay-as-you-go rates**, Gemini Flash is economical at approximately **$0.075 per 1 million input tokens**.
 - If quota limits are reached, the system automatically engages the built-in GCT database rule engine to maintain uninterrupted service.`;
-        } else if (q.includes('pending') || q.includes('approval') || q.includes('signup')) {
-          assistantResponse = userIsTagalog
-            ? `### Student Registration Approval Queue
+          } else if (q.includes('pending') || q.includes('approval') || q.includes('signup')) {
+            assistantResponse = userIsTagalog
+              ? `### Student Registration Approval Queue
 - **Pending Approvals:** **${pendingStudentsCount}** bagong student account ang naghihintay ng verification.
 - **Office Governance:** Maaari mong suriin ang mga ID photo, kumpirmahin ang mga detalye, at i-approve o i-reject ang registration sa **User & Account Governance** tab.`
-            : `### Student Registration Approval Queue
+              : `### Student Registration Approval Queue
 - **Pending Approvals:** **${pendingStudentsCount}** new student accounts awaiting verification.
 - **Office Governance:** You can inspect submitted ID photos, verify student credentials, and approve or reject submissions in the **User & Account Governance** tab.`;
-        } else if (q.includes('threshold') || q.includes('prereq') || q.includes('rule') || q.includes('setting')) {
-          assistantResponse = userIsTagalog
-            ? `### Institutional Academic Rules & Thresholds
+          } else if (q.includes('threshold') || q.includes('prereq') || q.includes('rule') || q.includes('setting')) {
+            assistantResponse = userIsTagalog
+              ? `### Institutional Academic Rules & Thresholds
 - **Minimum Passing Grade Threshold:** **${passingThreshold}%** (katumbas ng Grade 3.00)
 - **Maximum Allowed Failed Prerequisites:** **${maxFailedPrereqs}** subjects bago masuspinde ang enrollment
 - **Active Academic Year:** 2025–2026 (Semester 1)
 *Maaaring baguhin ang mga pamantayan sa System Settings.*`
-            : `### Institutional Academic Rules & Thresholds
+              : `### Institutional Academic Rules & Thresholds
 - **Minimum Passing Grade Threshold:** **${passingThreshold}%** (Grade 3.00 equivalent)
 - **Maximum Allowed Failed Prerequisites:** **${maxFailedPrereqs}** subjects before enrollment suspension
 - **Active Academic Year:** 2025–2026 (Semester 1)
 *Rules can be configured under System Settings.*`;
-        } else if (q.includes('queue') || q.includes('recommend') || q.includes('review')) {
-          assistantResponse = userIsTagalog
-            ? `### Subject Recommendations & Advising
+          } else if (q.includes('queue') || q.includes('recommend') || q.includes('review')) {
+            assistantResponse = userIsTagalog
+              ? `### Subject Recommendations & Advising
 - **Status:** Direktang gumagana ang automated prerequisite evaluation para sa mga estudyante.
 - Hindi na kinakailangan ng manual approval queue dahil real-time na kinakalkula ang recommended subjects at retakes batay sa kanilang naipasang prerequisites.`
-            : `### Subject Recommendations & Advising
+              : `### Subject Recommendations & Advising
 - **Status:** Automated prerequisite evaluation is directly active for students.
 - Manual approval review is no longer required as recommended subjects, eligible unlocks, and retakes are computed dynamically in real-time.`;
-        } else {
-          assistantResponse = userIsTagalog
-            ? `Kumusta, **${userName}** (Registrar Operations)!
+          } else {
+            assistantResponse = userIsTagalog
+              ? `Kumusta, **${userName}** (Registrar Operations)!
 
 Ako ang inyong GCT Registrar Operations Assistant na may direktang koneksyon sa database. Maaari mong itanong:
 1. **Paghahanap ng record at academic evaluation:** I-type ang Student ID (halimbawa: \`2024-0001\`, \`12718\`) o pangalan ng estudyante upang makita ang buong grado, GWA, advising opinions, at downloadable file.
 2. **Direktang pagbubukas ng student profile:** May mabilisang links patungo sa **Academic Records** o **Subject Recommendations**.
 3. **Institutional analytics at opisyal na payo:** Magtanong ukol sa pending approvals, failure trends, curriculum compliance, at iba pa.`
-            : `Hello **${userName}** (Registrar Operations)!
+              : `Hello **${userName}** (Registrar Operations)!
 
 I am your GCT Registrar Operations Assistant with direct database access. You can ask me to:
 1. **Search any student record & evaluation:** Enter a Student ID (e.g. \`2024-0001\`, \`12718\`) or name to review course grades, GWA, advising opinions, and downloadable reports.
 2. **Open student records:** Use direct action shortcuts to open their profile in **Academic Records** or **Subject Recommendations**.
 3. **Institutional analytics & advice:** Inquire about pending student approvals, curriculum compliance, or request formal advising guidance.`;
-        }
+          }
 
-        // Set prompt for Gemini to answer the user's specific query directly
-        systemPrompt = `You are the GCT Registrar Operations AI Assistant for Garcia College of Technology.
+          // Set prompt for Gemini to answer the user's specific query directly
+          systemPrompt = `You are the GCT Registrar Operations AI Assistant for Garcia College of Technology.
 User: ${userName} (Registrar Administrator / Staff).
 Database Status:
 - Registered Students: ${studentCount}
@@ -3278,11 +3292,11 @@ Instructions:
 - Provide accurate operational guidance regarding GCT Registrar tasks, student evaluations, curriculum rules, or reports.
 - If they asked to export or download, note that the ${requestedFormat.toUpperCase()} file is ready below.
 - Reply in Tagalog if the user used Tagalog; otherwise reply in English as the main language.`;
+        }
       }
     }
-  }
 
-  // Call Google Gemini API if key is set and quota cooldown is not active
+    // Call Google Gemini API if key is set and quota cooldown is not active
     require('dotenv').config();
     const apiKey = process.env.GEMINI_API_KEY;
     const isGeminiBlocked = Date.now() < geminiQuotaBlockedUntil;

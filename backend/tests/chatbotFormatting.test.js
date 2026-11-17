@@ -81,6 +81,10 @@ Satisfactory standing.`;
     expect(classifyStudentQueryIntent('record of Jazper Francisco')).toBe('grades');
     expect(classifyStudentQueryIntent('records of 2024-0001')).toBe('grades');
     expect(classifyStudentQueryIntent('pakita ang record ni student')).toBe('grades');
+    expect(classifyStudentQueryIntent('give me the assessment of the student')).toBe('comprehensive');
+    expect(classifyStudentQueryIntent('assessment of student 2024-0001')).toBe('comprehensive');
+    expect(classifyStudentQueryIntent('can you evaluate student records?')).toBe('comprehensive');
+    expect(classifyStudentQueryIntent('pagsusuri sa rekord ng estudyante')).toBe('comprehensive');
     expect(classifyStudentQueryIntent('Comprehensive assessment of student 12310')).toBe('comprehensive');
   });
 

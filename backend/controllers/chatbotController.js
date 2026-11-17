@@ -1959,29 +1959,108 @@ function generateCurriculumRecsCsv(subjects, title = 'GCT_Curriculum_Recommendat
 }
 
 /**
- * Format cohort grade records as a downloadable CSV spreadsheet
+ * Parse a raw name string into separate Last Name, First Name, and Display Name
  */
-function generateCohortGradesCsv(gradeRows, title = 'GCT_Cohort_Grade_Records') {
-  const headers = ['Student ID', 'Full Name', 'Program / Course', 'Year Level', 'Subject Code', 'Units', 'Grade', 'Academic Term / Semester', 'Status'];
-  const rows = [headers.join(',')];
+function parseNameParts(rawName) {
+  let lName = '';
+  let fName = '';
+  let dispName = String(rawName || '').trim();
+  if (dispName && dispName.includes(',')) {
+    const parts = dispName.split(',');
+    lName = parts[0].trim().toUpperCase();
+    fName = parts.slice(1).join(',').trim().toUpperCase();
+    dispName = `${lName}, ${fName}`.trim();
+  } else if (dispName) {
+    const parts = dispName.split(/\s+/);
+    if (parts.length > 1) {
+      lName = parts[parts.length - 1].toUpperCase();
+      fName = parts.slice(0, -1).join(' ').toUpperCase();
+    } else {
+      lName = dispName.toUpperCase();
+      fName = dispName.toUpperCase();
+    }
+  }
+  return { lastName: lName, firstName: fName, displayName: dispName };
+}
 
-  for (const g of (gradeRows || [])) {
-    const rawG = Number(g.grade);
-    const status = g.status || ((!isNaN(rawG) && (rawG <= 3.0 || rawG >= 75)) ? 'Passed' : 'Failed');
-    rows.push([
-      `"${g.student_id || ''}"`,
-      `"${(g.full_name || g.name || '').replace(/"/g, '""')}"`,
-      `"${g.course || g.program || 'BSIT'}"`,
-      `"${g.year_level || g.year || 1}"`,
-      `"${g.subject || g.subject_code || ''}"`,
-      `"${g.units || 3}"`,
-      `"${g.grade != null ? Number(g.grade).toFixed(2) : 'N/A'}"`,
-      `"${g.term || `${g.academic_year || ''} ${g.semester || ''}`.trim() || 'N/A'}"`,
-      `"${status}"`
+/**
+ * Format complete institutional grade records matching exportCompleteAllGradesExcel / exportCompleteAllGradesCsv
+ * Official Garcia College of Technology format:
+ * - Row 1: ALL GRADES
+ * - Row 2: Complete Grade Record
+ * - Row 3: Blank spacer
+ * - Row 4 Headers: Student ID, Last Name, First Name, Name, Course, Year Level, Semester, Academic Year, Subject, Grade, Units
+ * - Grades strictly formatted to 2 decimals ('1.00', '1.25', '1.50', '2.00', '3.00', '5.00')
+ */
+function generateCohortGradesCsv(gradeRows, title = 'GCT_ALL_GRADES_Complete_Record') {
+  const lines = [
+    '"ALL GRADES"',
+    '"Complete Grade Record"',
+    '""',
+    '"Student ID","Last Name","First Name","Name","Course","Year Level","Semester","Academic Year","Subject","Grade","Units"'
+  ];
+
+  for (const r of (gradeRows || [])) {
+    let formattedGrade = '';
+    if (r.grade !== null && r.grade !== undefined && r.grade !== '') {
+      const num = parseFloat(String(r.grade));
+      if (!isNaN(num)) {
+        formattedGrade = num.toFixed(2);
+      } else {
+        formattedGrade = String(r.grade).trim();
+      }
+    }
+
+    const sid = String(r.student_id || r.studentId || '').trim();
+    let lastName = String(r.last_name || r.lastName || '').trim();
+    let firstName = String(r.first_name || r.firstName || '').trim();
+    let fullName = String(r.full_name || r.name || '').trim();
+
+    if ((!lastName || !firstName) && fullName) {
+      const parsed = parseNameParts(fullName);
+      if (!lastName) lastName = parsed.lastName;
+      if (!firstName) firstName = parsed.firstName;
+    }
+    if (!fullName && (lastName || firstName)) {
+      fullName = `${lastName}, ${firstName}`.trim();
+    }
+    lastName = lastName.toUpperCase();
+    firstName = firstName.toUpperCase();
+    fullName = fullName.toUpperCase();
+
+    const course = String(r.course || r.program || 'BSIT').trim().toUpperCase();
+    const yearLevel = Number(r.year_level || r.yearLevel || r.year) || 1;
+
+    let semStr = 'First';
+    const rawSem = String(r.semester || r.semester_name || r.term || '').toLowerCase();
+    if (rawSem.includes('summer') || rawSem === '3') {
+      semStr = 'Summer';
+    } else if (rawSem.includes('2') || rawSem.includes('second')) {
+      semStr = 'Second';
+    } else {
+      semStr = 'First';
+    }
+
+    const academicYear = String(r.academic_year || r.academicYear || (r.term && r.term.match(/\d{4}-\d{4}/)?.[0]) || '2025-2026').trim();
+    const subject = String(r.subject || r.subject_code || r.code || 'N/A').trim();
+    const units = Number(r.units) || 3;
+
+    lines.push([
+      `"${sid.replace(/"/g, '""')}"`,
+      `"${lastName.replace(/"/g, '""')}"`,
+      `"${firstName.replace(/"/g, '""')}"`,
+      `"${fullName.replace(/"/g, '""')}"`,
+      `"${course.replace(/"/g, '""')}"`,
+      yearLevel,
+      `"${semStr.replace(/"/g, '""')}"`,
+      `"${academicYear.replace(/"/g, '""')}"`,
+      `"${subject.replace(/"/g, '""')}"`,
+      `"${formattedGrade}"`,
+      units
     ].join(','));
   }
 
-  return rows.join('\r\n');
+  return lines.join('\r\n');
 }
 
 /**
@@ -3466,19 +3545,116 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
 
             systemPrompt = '';
           }
-          // BRANCH B: COHORT GRADE RECORDS
+          // BRANCH B: COHORT GRADE RECORDS (Matches official Academic Records / ALL GRADES structure)
           else if (cohortFilter.cohortType === 'grades') {
-            let grQuery = db.from('grade_records').select('*');
-            if (cohortFilter.program) {
-              grQuery = grQuery.eq('course', cohortFilter.program);
+            // Build lookup of students in cohort to enrich grade records with full profiles
+            const cohortStudentMap = new Map();
+            for (const st of filtered) {
+              const sid = String(st.student_id || st.id || '').trim();
+              const cleanSid = sid.replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^gct-/i, '').toLowerCase();
+              if (sid) cohortStudentMap.set(sid.toLowerCase(), st);
+              if (cleanSid) cohortStudentMap.set(cleanSid, st);
             }
-            if (cohortFilter.yearLevel && cohortFilter.yearLevel !== 'all') {
-              grQuery = grQuery.eq('year_level', Number(cohortFilter.yearLevel));
-            }
-            const { data: grData } = await grQuery;
-            const gradeRows = grData || [];
 
-            // Group by student
+            // Query grade_records with fallback and cross-referencing to ensure complete dataset
+            let rawGradeRows = [];
+            try {
+              let grQuery = db.from('grade_records').select('*');
+              if (cohortFilter.program) {
+                grQuery = grQuery.eq('course', cohortFilter.program);
+              }
+              if (cohortFilter.yearLevel && cohortFilter.yearLevel !== 'all') {
+                grQuery = grQuery.eq('year_level', Number(cohortFilter.yearLevel));
+              }
+              const { data: grData, error: grErr } = await grQuery;
+              if (grData && grData.length > 0) {
+                rawGradeRows.push(...grData);
+              }
+
+              // Cross-reference: if cohort filtered students have records by student_id not captured above
+              if (filtered.length > 0 && rawGradeRows.length < filtered.length) {
+                const sids = filtered.map(s => String(s.student_id || s.id || '').trim()).filter(Boolean);
+                if (sids.length > 0 && sids.length <= 200) {
+                  const { data: bySidData } = await db.from('grade_records').select('*').in('student_id', sids);
+                  if (bySidData && bySidData.length > 0) {
+                    const existingKeys = new Set(rawGradeRows.map(g => `${g.id || ''}-${g.student_id}-${g.subject}`));
+                    for (const bg of bySidData) {
+                      const key = `${bg.id || ''}-${bg.student_id}-${bg.subject}`;
+                      if (!existingKeys.has(key)) {
+                        existingKeys.add(key);
+                        rawGradeRows.push(bg);
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn('Grade records query notice:', err.message);
+            }
+
+            // Enrich all grade rows to strictly match official CompleteGradeRow institutional format
+            const gradeRows = rawGradeRows.map(g => {
+              const gSid = String(g.student_id || '').trim();
+              const gCleanSid = gSid.replace(/^student-/i, '').replace(/^acc-/i, '').replace(/^gct-/i, '').toLowerCase();
+              const matchedStudent = cohortStudentMap.get(gSid.toLowerCase()) || cohortStudentMap.get(gCleanSid);
+
+              const parsedName = parseNameParts(g.full_name || matchedStudent?.full_name || matchedStudent?.name || `${g.last_name || ''}, ${g.first_name || ''}`);
+              const lastName = String(g.last_name || parsedName.lastName).trim();
+              const firstName = String(g.first_name || parsedName.firstName).trim();
+              const fullName = parsedName.displayName || `${lastName}, ${firstName}`.trim();
+
+              const course = String(g.course || matchedStudent?.program || cohortFilter.program || 'BSIT').trim().toUpperCase();
+              const yearLevel = Number(g.year_level || matchedStudent?.year_level || matchedStudent?.year || (cohortFilter.yearLevel !== 'all' ? cohortFilter.yearLevel : 1)) || 1;
+
+              let semStr = 'First';
+              const rawSem = String(g.semester || g.semester_name || g.term || '').toLowerCase();
+              if (rawSem.includes('summer') || rawSem === '3') {
+                semStr = 'Summer';
+              } else if (rawSem.includes('2') || rawSem.includes('second')) {
+                semStr = 'Second';
+              } else {
+                semStr = 'First';
+              }
+
+              const academicYear = String(g.academic_year || (g.term && g.term.match(/\d{4}-\d{4}/)?.[0]) || '2025-2026').trim();
+              const subject = String(g.subject || g.subject_code || g.code || 'N/A').trim();
+              const units = Number(g.units) || 3;
+
+              return {
+                ...g,
+                student_id: gSid || matchedStudent?.student_id || matchedStudent?.id || '',
+                last_name: lastName,
+                first_name: firstName,
+                full_name: fullName,
+                name: fullName,
+                course,
+                year_level: yearLevel,
+                semester: semStr,
+                academic_year: academicYear,
+                subject,
+                grade: g.grade,
+                units
+              };
+            });
+
+            // Sort chronologically and alphabetically
+            gradeRows.sort((a, b) => {
+              const nA = String(a.full_name || a.student_id || '');
+              const nB = String(b.full_name || b.student_id || '');
+              const nComp = nA.localeCompare(nB);
+              if (nComp !== 0) return nComp;
+              const yA = Number(a.year_level) || 1;
+              const yB = Number(b.year_level) || 1;
+              if (yA !== yB) return yA - yB;
+              const ayA = String(a.academic_year || '');
+              const ayB = String(b.academic_year || '');
+              if (ayA !== ayB) return ayA.localeCompare(ayB);
+              const semA = String(a.semester || '');
+              const semB = String(b.semester || '');
+              return semA.localeCompare(semB);
+            });
+
+            // Group by student for Markdown summary table
             const studentMap = new Map();
             for (const g of gradeRows) {
               const sid = String(g.student_id || '').trim();
@@ -3546,15 +3722,16 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
             const cohortAverageGwa = cohortTotalUnits > 0 ? (cohortGradePoints / cohortTotalUnits).toFixed(2) : 'N/A';
             const cohortPassingRate = cohortTotalSubs > 0 ? `${Math.round((cohortPassedSubs / cohortTotalSubs) * 100)}%` : 'N/A';
 
-            const fileBaseName = `GCT_Grade_Records_${programFileTag}_${yearFileTag}_${Date.now()}`;
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const fileBaseName = `GCT_${programFileTag}_${yearFileTag}_ALL_GRADES_${dateStr}`;
             const gradesCsv = generateCohortGradesCsv(gradeRows, fileBaseName);
 
             fileExport = {
-              filename: `${fileBaseName}.csv`,
+              filename: `${fileBaseName}.xlsx`,
               format: 'excel',
               csv_data: gradesCsv,
               data: gradesCsv,
-              label: `Download ${programLabel} ${yearLabel} Grade Records (${gradeRows.length} Grade Entries) (Excel Spreadsheet)`
+              label: `Download ${programLabel} ${yearLabel} Complete Grade Records (${gradeRows.length} Entries) (Excel Spreadsheet)`
             };
 
             const gradesTableMarkdown = buildCohortGradesSummaryTableMarkdown(studentSummaries, 20);

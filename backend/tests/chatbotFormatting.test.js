@@ -713,7 +713,7 @@ Satisfactory standing.`;
       // Should now produce grade records report for BSIT 2nd Year
       expect(jsonResponse.response).toContain('BSIT');
       expect(jsonResponse.response).toContain('2nd Year');
-      expect(jsonResponse.response).toContain('Reyes, John');
+      expect(jsonResponse.response).toMatch(/Reyes,\s*John/i);
       // Excel export must be present
       expect(jsonResponse.file_export).not.toBeNull();
       expect(jsonResponse.file_export.format).toBe('excel');
@@ -775,6 +775,46 @@ Satisfactory standing.`;
 
       // Zero emojis
       expect(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(jsonResponse.response)).toBe(false);
+    });
+
+    it('generateCohortGradesCsv strictly matches official ALL GRADES 11-column format', () => {
+      const sampleGrades = [
+        {
+          student_id: '12718',
+          last_name: 'AREVALO',
+          first_name: 'MARK LESTER',
+          full_name: 'AREVALO, MARK LESTER',
+          course: 'BSIT',
+          year_level: 1,
+          semester: 'First',
+          academic_year: '2025-2026',
+          subject: 'IT 101',
+          grade: 1.25,
+          units: 3
+        },
+        {
+          student_id: '12719',
+          name: 'Santos, Maria Clara',
+          program: 'BSIT',
+          year_level: 2,
+          semester: '2nd Sem',
+          term: '2025-2026 2nd Sem',
+          subject_code: 'IT 202',
+          grade: 2,
+          units: 3
+        }
+      ];
+
+      const csv = generateCohortGradesCsv(sampleGrades, 'GCT_BSIT_ALL_GRADES_2026');
+      expect(csv).toContain('"ALL GRADES"');
+      expect(csv).toContain('"Complete Grade Record"');
+      expect(csv).toContain('"Student ID","Last Name","First Name","Name","Course","Year Level","Semester","Academic Year","Subject","Grade","Units"');
+
+      // First student
+      expect(csv).toContain('"12718","AREVALO","MARK LESTER","AREVALO, MARK LESTER","BSIT",1,"First","2025-2026","IT 101","1.25",3');
+
+      // Second student with parsed name and 2-decimal grade
+      expect(csv).toContain('"12719","SANTOS","MARIA CLARA","SANTOS, MARIA CLARA","BSIT",2,"Second","2025-2026","IT 202","2.00",3');
     });
   });
 });

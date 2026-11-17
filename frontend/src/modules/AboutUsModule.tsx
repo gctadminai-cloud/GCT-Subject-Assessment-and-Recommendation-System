@@ -288,6 +288,7 @@ export const AboutUsModule: React.FC = () => {
               color: '#F1F5F9',
               lineHeight: 1.65,
               margin: 0,
+              textAlign: 'justify',
               textShadow: '0 2px 8px rgba(0, 0, 0, 0.65)'
             }}>
               Garcia College of Technology is committed to academic excellence, technological innovation, and holistic student development.
@@ -300,6 +301,7 @@ export const AboutUsModule: React.FC = () => {
               color: '#E2E8F0',
               lineHeight: 1.65,
               margin: 0,
+              textAlign: 'justify',
               textShadow: '0 2px 8px rgba(0, 0, 0, 0.65)'
             }}>
               By integrating intelligent recommendation algorithms with institutional academic policies, the platform empowers students—both regular and irregular—with clear, transparent course planning and personalized subject loads each term. Simultaneously, it equips registrar evaluators and academic advisers with automated eligibility checking, effectively eliminating manual enrollment bottlenecks and ensuring that every student remains on an optimized, achievable pathway toward graduation.
@@ -327,7 +329,7 @@ export const AboutUsModule: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <Cpu size={15} /> Automated Prerequisite Engine
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45 }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
                 Real-time validation of prerequisite chains and course eligibility across all semesters.
               </div>
             </div>
@@ -345,7 +347,7 @@ export const AboutUsModule: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <Sparkles size={15} /> Intelligent Advising
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45 }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
                 Automated course load suggestions tailored for regular and irregular student progression.
               </div>
             </div>
@@ -363,7 +365,7 @@ export const AboutUsModule: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <ShieldCheck size={15} /> Registrar Directory
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45 }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
                 Seamless integration with collegiate curricula, grade records, and academic policies.
               </div>
             </div>
@@ -412,7 +414,8 @@ export const AboutUsModule: React.FC = () => {
             fontSize: '0.92rem',
             color: '#334155',
             lineHeight: 1.65,
-            margin: 0
+            margin: 0,
+            textAlign: 'justify'
           }}>
             Hello! We are <strong>ByteMe</strong>, a dedicated group of Information Technology student developers from the Garcia College of Technology College. Driven by our passion for innovation and practical problem-solving, we came together to develop software solutions that make a meaningful impact on our campus community.
           </p>
@@ -421,7 +424,8 @@ export const AboutUsModule: React.FC = () => {
             fontSize: '0.92rem',
             color: '#334155',
             lineHeight: 1.65,
-            margin: 0
+            margin: 0,
+            textAlign: 'justify'
           }}>
             We created the <strong>GCT AI-Based Subject Assessment & Recommendation System</strong> as our capstone project to modernize and simplify academic advising. From formulating automated prerequisite traversal algorithms and engineering high-reliability cloud database schemas, to designing intuitive registrar and student interfaces, every component was carefully crafted by our team to help students navigate their curriculum seamlessly and stay on track toward graduation.
           </p>
@@ -433,17 +437,17 @@ export const AboutUsModule: React.FC = () => {
             gap: '0.65rem',
             marginTop: '0.25rem'
           }}>
-            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6, textAlign: 'justify' }}>
               <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>What We Build: </strong>
               We automate multi-level prerequisite logic and course load calculations to eliminate advising bottlenecks.
             </div>
 
-            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6, textAlign: 'justify' }}>
               <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>Why We Build It: </strong>
               We transform complicated evaluation forms into fast, clear, and student-centered digital experiences.
             </div>
 
-            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6, textAlign: 'justify' }}>
               <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>How We Work: </strong>
               We work in close synergy across frontend design, database architecture, and systematic quality assurance.
             </div>
@@ -706,7 +710,8 @@ export const AboutUsModule: React.FC = () => {
                     fontSize: '0.88rem',
                     color: '#334155',
                     lineHeight: 1.6,
-                    margin: 0
+                    margin: 0,
+                    textAlign: 'justify'
                   }}>
                     {activeMember.bio}
                   </p>
@@ -721,7 +726,7 @@ export const AboutUsModule: React.FC = () => {
                     {activeMember.responsibilities.map((resp, rIdx) => (
                       <div key={rIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', fontSize: '0.82rem', color: '#334155', lineHeight: 1.45 }}>
                         <CheckCircle2 size={15} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                        <span>{resp}</span>
+                        <span style={{ textAlign: 'justify' }}>{resp}</span>
                       </div>
                     ))}
                   </div>

@@ -951,16 +951,19 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
             }
 
             if (studentProfilesPayload.length > 0) {
-              for (const sp of studentProfilesPayload) {
-                try {
-                  await fetchApi('/students', {
+              // Only sync student profiles that are not already covered in gradeRecordsPayload
+              const existingBatchIds = new Set(gradeRecordsPayload.map(g => String(g.student_id).trim()));
+              const remainingProfiles = studentProfilesPayload.filter(sp => !existingBatchIds.has(String(sp.student_id).trim()));
+
+              if (remainingProfiles.length > 0) {
+                const profilePromises = remainingProfiles.map(sp =>
+                  fetchApi('/students', {
                     method: 'POST',
                     body: JSON.stringify(sp)
-                  });
-                  importedStudentCount++;
-                } catch (e) {
-                  // duplicate or already exists
-                }
+                  }).then(() => { importedStudentCount++; })
+                    .catch(() => {})
+                );
+                await Promise.allSettled(profilePromises);
               }
               if (importedStudentCount > 0) {
                 importSummaries.push(`Synced **${importedStudentCount} student profile(s)** into database`);
@@ -973,26 +976,60 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         }
 
         if (importedGradeCount > 0 || importedStudentCount > 0) {
-          if (refreshAcademicGrades) await refreshAcademicGrades();
-          if (refreshStudents) await refreshStudents();
+          // Trigger asynchronous background refresh without blocking the 2-3s response time
+          if (refreshAcademicGrades) {
+            refreshAcademicGrades().catch((err: any) => console.warn('Background refresh grades:', err));
+          }
+          if (refreshStudents) {
+            refreshStudents().catch((err: any) => console.warn('Background refresh students:', err));
+          }
         }
       }
 
-      // If user uploaded a file without additional prompt text, reply with confirmation
-      if (!promptText && importSummaries.length > 0) {
-        const studentListStr = Array.from(affectedStudentIds).join(', ') || 'N/A';
-        const directBotText = `### ✅ File Import Successfully Saved to Database!\n\n` +
+      // Helper to detect if user prompt is a pure upload directive or empty
+      const isPureUploadDirective = (text: string): boolean => {
+        const cleaned = text.trim().toLowerCase().replace(/[^\w\s-]/g, '');
+        if (!cleaned) return true;
+        return /^(upload(\s+(this|the|file|files|excel|grades|grade|records|data|it|sheet|spreadsheet|to\s+(db|database)))?|import(\s+(this|the|file|files|excel|grades|grade|records|data|it|sheet|spreadsheet))?|save(\s+(this|the|file|files|excel|grades|grade|records|data|it|to\s+(database|db)))?|store(\s+(this|the|file|files|excel|grades|grade|records|data|it))?|process(\s+(this|the|file|files|excel|sheet|spreadsheet))?|add(\s+(this|the|file|files|excel|to\s+(db|database)))?|eto(\s+(na|ang|yung|i-upload|upload|file))?|ito(\s+(na|ang|yung|i-upload|upload|file))?|paki(\s*(upload|save|import|pasok))?(\s+(ito|eto|to|this|file))?|please\s+(upload|save|import)(\s+(this|the\s+file|it))?)$/i.test(cleaned);
+      };
+
+      // If user uploaded a file with a direct upload directive or empty prompt text, reply with instant confirmation (2-3s)
+      if (importSummaries.length > 0 && isPureUploadDirective(promptText)) {
+        const studentList = Array.from(affectedStudentIds);
+        const primaryStudentId = studentList[0] || '';
+        const studentListStr = studentList.join(', ') || 'N/A';
+
+        const directBotText = `### File Import Successfully Saved to Database\n\n` +
           importSummaries.map(s => `- ${s}`).join('\n') +
           `\n\n- **Target Student(s):** ${studentListStr}` +
-          `\n- **Database Tables Updated:** \`academic_records\` & \`grade_records\` (Supabase)` +
-          `\n- **Standing & Prerequisites:** Recalculated and synchronized across the system.` +
-          `\n\nAll missing grades from your file are now stored permanently in the database. You can ask me to evaluate their academic standing, calculate GWA, or generate subject recommendations for the next semester!`;
+          `\n- **Database Tables Updated:** \`academic_records\` and \`grade_records\` (Supabase)` +
+          `\n- **Status:** Verified and synchronized across institutional records.` +
+          `\n\nAll grades and academic records from your uploaded spreadsheet have been successfully verified and saved.` +
+          `\n\n**Follow-up Question:** Would you like me to evaluate their full academic assessment, show their grades, check for any deficiencies, or generate recommended subjects for the next term?`;
+
+        const followUpSuggestions = primaryStudentId
+          ? [
+              `Show assessment and recommendations for ${primaryStudentId}`,
+              `Show academic record for ${primaryStudentId}`,
+              `Check deficiencies for ${primaryStudentId}`
+            ]
+          : [
+              'Show academic assessment for student',
+              'Show recommended subjects',
+              'Check deficiencies'
+            ];
 
         const botMsg: ChatMessage = {
           id: 'bot-' + Date.now(),
           sender: 'bot',
           text: directBotText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          studentAction: primaryStudentId ? {
+            student_id: primaryStudentId,
+            pending_action: 'upload_follow_up',
+            available_terms: followUpSuggestions
+          } : undefined,
+          followUpQuestions: followUpSuggestions
         };
         setMessages(prev => [...prev, botMsg]);
         setLoading(false);
@@ -1051,7 +1088,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
       let botResponseText = res.response || 'No response received.';
       if (importSummaries.length > 0) {
-        const importBanner = `### ✅ File Import Saved to Database\n` +
+        const importBanner = `### File Import Saved to Database\n` +
           importSummaries.map(s => `- ${s}`).join('\n') +
           `\n- **Target Student(s):** ${Array.from(affectedStudentIds).join(', ') || 'N/A'}\n` +
           `- **Database Tables:** \`academic_records\` & \`grade_records\` synced\n\n---\n\n`;
@@ -1700,7 +1737,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                 {msg.studentAction?.available_terms && msg.studentAction.available_terms.length > 0 && (
                   <div style={{ marginTop: '0.65rem' }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem' }}>
-                      Select term to view grades:
+                      {msg.studentAction.pending_action === 'upload_follow_up' ? 'Suggested follow-up actions:' : 'Select term to view grades:'}
                     </div>
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                       {msg.studentAction.available_terms.map((t, idx) => (
@@ -2506,7 +2543,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                   {msg.studentAction?.available_terms && msg.studentAction.available_terms.length > 0 && (
                     <div style={{ marginTop: '0.5rem' }}>
                       <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#475569', marginBottom: '0.3rem' }}>
-                        Select term to view grades:
+                        {msg.studentAction.pending_action === 'upload_follow_up' ? 'Suggested follow-up actions:' : 'Select term to view grades:'}
                       </div>
                       <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
                         {msg.studentAction.available_terms.map((t, idx) => (

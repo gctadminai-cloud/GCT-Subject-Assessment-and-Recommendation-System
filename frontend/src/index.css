@@ -1079,30 +1079,34 @@ a:hover {
 
 .byteme-image-side {
   flex: 1 1 50%;
-  background: radial-gradient(circle at center, rgba(37, 99, 235, 0.04) 0%, rgba(248, 250, 252, 0.7) 100%);
+  background: #F8FAFC;
   border-left: 1px solid #F1F5F9;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 0;
   position: relative;
   overflow: hidden;
+  min-height: 480px;
 }
 
 .byteme-image-side img {
   width: 100%;
-  max-width: 520px;
-  max-height: 440px;
+  height: 100%;
+  min-height: 100%;
+  max-width: none;
+  max-height: none;
   object-fit: cover;
-  border-radius: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.16);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+  object-position: center 22%;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  display: block;
 }
 
 .byteme-card-container:hover .byteme-image-side img {
-  transform: scale(1.025);
-  box-shadow: 0 22px 40px -6px rgba(37, 99, 235, 0.22);
+  transform: scale(1.04);
 }
 
 @media (max-width: 900px) {
@@ -1112,7 +1116,9 @@ a:hover {
   .byteme-image-side {
     border-left: none !important;
     border-bottom: 1px solid #F1F5F9;
-    padding: 2rem 1.5rem !important;
+    padding: 0 !important;
+    min-height: 340px;
+    max-height: 440px;
   }
   .byteme-text-side {
     padding: 2rem 1.5rem !important;

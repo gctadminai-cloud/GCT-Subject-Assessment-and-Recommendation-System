@@ -303,17 +303,19 @@ function evaluateStudent({
   const catalogSemRaw = studentInfo && studentInfo.semester !== undefined && studentInfo.semester !== null ? Number(studentInfo.semester) : NaN;
   
   // Effective year level:
-  const effectiveAnchorYear = Number.isFinite(anchorYear) && anchorYear >= 1 
-    ? Math.max(anchorYear, Number.isFinite(catalogYearRaw) ? catalogYearRaw : 1) 
+  // RULE: When real grade records exist, the grade-derived anchorYear is authoritative.
+  // Do NOT let the catalog year_level override upward — a student whose profile was promoted
+  // to Year 3 but whose latest grades are for Year 2 Sem 1 should still anchor at Year 2.
+  // Only fall back to catalogYearRaw when no grade records are available at all.
+  const effectiveAnchorYear = Number.isFinite(anchorYear) && anchorYear >= 1
+    ? anchorYear
     : (Number.isFinite(catalogYearRaw) ? Math.min(4, Math.max(1, catalogYearRaw)) : 1);
 
   // Effective semester:
-  // If catalog year is higher than anchorYear (e.g. catalog year 2, but grades were only up to year 1),
-  // then the student is starting the new catalog year at catalogSemRaw (or 1)!
+  // When real grade records exist, trust the grade-derived anchorSem directly.
+  // Only fall back to catalogSemRaw when no real grade anchor is available.
   let effectiveAnchorSem = 1;
-  if (Number.isFinite(catalogYearRaw) && Number.isFinite(anchorYear) && catalogYearRaw > anchorYear) {
-    effectiveAnchorSem = Number.isFinite(catalogSemRaw) && catalogSemRaw >= 1 && catalogSemRaw <= 3 ? catalogSemRaw : 1;
-  } else if (Number.isFinite(anchorSem) && anchorSem >= 1 && anchorSem <= 3) {
+  if (Number.isFinite(anchorSem) && anchorSem >= 1 && anchorSem <= 3 && hasGradeRecords) {
     effectiveAnchorSem = anchorSem;
   } else if (Number.isFinite(catalogSemRaw) && catalogSemRaw >= 1 && catalogSemRaw <= 3) {
     effectiveAnchorSem = catalogSemRaw;

@@ -47,6 +47,8 @@ interface StudentAction {
   recommended_semester?: '1' | '2' | 'summer';
   recommended_year_level?: number;
   recommended_target_term?: string;
+  cohort_type?: string;
+  active_academic_year?: string;
 }
 
 interface ChatMessage {

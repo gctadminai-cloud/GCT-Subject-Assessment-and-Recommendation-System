@@ -5008,7 +5008,7 @@ Instructions:
         });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Gemini API call timed out after 35 seconds')), 35000)
+          setTimeout(() => reject(new Error('Gemini API call timed out after 8 seconds')), 8000)
         );
 
         const response = await Promise.race([geminiPromise, timeoutPromise]);

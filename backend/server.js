@@ -120,9 +120,11 @@ async function fixStudentYearLevelsOnStartup() {
 }
 
 
-if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-  // Start weekly student accounts reset cron (every Monday at 12:00 AM)
-  initWeeklyResetCron();
+if (process.env.NODE_ENV !== 'test') {
+  // Start weekly student accounts reset cron only in non-Vercel environments
+  if (!process.env.VERCEL) {
+    initWeeklyResetCron();
+  }
 
   app.listen(PORT, () => {
     console.log(`====================================================`);

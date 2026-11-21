@@ -1439,7 +1439,7 @@ export const UserManagementModule: React.FC = () => {
                     lineHeight: 1.2,
                     textShadow: '0 1px 2px rgba(0,0,0,0.15)'
                   }}>
-                    Student Identity & Photo Verification Review
+                    Student Identity Verification Review
                   </h3>
                   <p style={{
                     fontSize: '0.8rem',

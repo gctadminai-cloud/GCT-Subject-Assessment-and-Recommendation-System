@@ -1798,10 +1798,14 @@ async function findTargetStudent(query, supabase, history = []) {
  */
 function parseCohortFilter(query) {
   if (!query || typeof query !== 'string') {
-    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false };
+    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false, semester: null, academicYear: null, cohortType: 'directory' };
   }
 
-  // 0. Remove academic year ranges (e.g. 2024-2025, 2025-2026) so they are not parsed as student IDs
+  // 0. Extract explicit academic year (e.g. 2024-2025, 2025-2026, 2026-2027)
+  const ayMatch = query.match(/\b((?:19|20)\d{2}-(?:19|20)\d{2})\b/);
+  const academicYear = ayMatch ? ayMatch[1] : null;
+
+  // Remove academic year ranges so they are not parsed as student IDs
   const cleanQuery = query.replace(/\b(?:19|20)\d{2}-(?:19|20)\d{2}\b/g, ' ');
   const q = cleanQuery.toLowerCase();
 
@@ -1809,7 +1813,7 @@ function parseCohortFilter(query) {
   // then this is a specific student lookup, NOT a cohort directory request
   const hasSpecificId = /\b(?:GCT-)?(?:\d{4}-\d{4,5}|\d{4,6})\b/i.test(cleanQuery);
   if (hasSpecificId) {
-    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false };
+    return { isCohortQuery: false, yearLevel: null, program: null, isGroupByProgram: false, semester: null, academicYear, cohortType: 'directory' };
   }
 
   // 1. Detect Year Level Filter
@@ -1880,7 +1884,7 @@ function parseCohortFilter(query) {
 
   // 3. Detect Semester Filter
   let semester = null;
-  const asksAllSemesters = /\b(all\s*sem(?:esters?|estres?)?|both\s*sem(?:esters?)?|lahat\s*ng\s*sem(?:estre)?|buong\s*taon|full\s*year)\b/i.test(q);
+  const asksAllSemesters = /\b(all\s*sem(?:esters?|estres?)?|all\s*terms?|both\s*sem(?:esters?)?|lahat\s*ng\s*sem(?:estre)?|lahat\s*ng\s*termino|buong\s*taon|full\s*year|cumulative)\b/i.test(q);
   const is1stSem = /\b(?:1st|first|unang)\s*(?:sem|semester|semestre)\b|\bsem(?:ester|estre)?\s*1\b|\b1st\s*sem\b/i.test(q);
   const is2ndSem = /\b(?:2nd|second|ikalawang|pangalawang)\s*(?:sem|semester|semestre)\b|\bsem(?:ester|estre)?\s*2\b|\b2nd\s*sem\b/i.test(q);
   const isSummer = /\b(summer|midyear|mid-year)\b/i.test(q);
@@ -1922,7 +1926,7 @@ function parseCohortFilter(query) {
 
   // 5. Detect Intent: 'grades' | 'recommendation' | 'directory'
   const isRecQuery = /\b(recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|curriculum(?:\s+matrix|\s+catalog|\s+load)?|course\s+load|mga\s+kukunin|inirerekomenda(?:ng)?)\b/i.test(q);
-  const isGradesQuery = /\b(grades?|marka|score|rating|transcript|gwa|records?\s+ng\s+marka|records?\s+ng\s+grades?)\b/i.test(q) && !isRecQuery;
+  const isGradesQuery = /\b(grades?|marka|score|rating|transcript|gwa|records?(?:\s+ng\s+(?:marka|grades?))?|academic\s+records?|grade\s+sheet|talaan(?:\s+ng\s+marka)?)\b/i.test(q) && !isRecQuery;
 
   let cohortType = 'directory';
   if (isRecQuery) {
@@ -1941,7 +1945,116 @@ function parseCohortFilter(query) {
     yearLevel,
     program,
     semester,
-    isGroupByProgram
+    isGroupByProgram,
+    academicYear
+  };
+}
+
+/**
+ * Resolves cohort filter context from the current query and conversational history,
+ * preserving program, year level, semester, academic year, and cohort type across multi-turn exchanges.
+ */
+function extractCohortContext(query, history = []) {
+  const current = parseCohortFilter(query);
+
+  let cohortType = current.cohortType;
+  let program = current.program;
+  let yearLevel = current.yearLevel;
+  let semester = current.semester;
+  let isGroupByProgram = current.isGroupByProgram;
+  let academicYear = current.academicYear;
+  let hadCohortInHistory = false;
+
+  if (Array.isArray(history) && history.length > 0) {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const turn = history[i];
+      if (!turn) continue;
+
+      const act = turn.student_action || turn.studentAction || turn;
+
+      if (act) {
+        if ((!cohortType || cohortType === 'directory') && act.cohort_type) {
+          cohortType = act.cohort_type;
+        }
+        if (!program && act.program) {
+          program = act.program;
+        }
+        if (yearLevel === null && act.year_level != null) {
+          yearLevel = act.year_level;
+        }
+        if (semester === null && act.semester != null) {
+          semester = act.semester;
+        }
+        if (!academicYear && act.active_academic_year) {
+          academicYear = act.active_academic_year;
+        }
+        if (!isGroupByProgram && act.is_group_by_program) {
+          isGroupByProgram = true;
+        }
+        if (act.pending_action === 'clarify_cohort_details' || act.pending_action === 'clarify_grades_term' || act.cohort_type) {
+          hadCohortInHistory = true;
+        }
+      }
+
+      const text = String(turn.text || turn.content || '').trim();
+      if (text) {
+        if (!academicYear) {
+          const ayM = text.match(/\b((?:19|20)\d{2}-(?:19|20)\d{2})\b/);
+          if (ayM) academicYear = ayM[1];
+        }
+
+        const parsedTurn = parseCohortFilter(text);
+        if (parsedTurn.isCohortQuery) {
+          hadCohortInHistory = true;
+          if ((!cohortType || cohortType === 'directory') && parsedTurn.cohortType && parsedTurn.cohortType !== 'directory') {
+            cohortType = parsedTurn.cohortType;
+          }
+          if (!program && parsedTurn.program) {
+            program = parsedTurn.program;
+          }
+          if (yearLevel === null && parsedTurn.yearLevel != null) {
+            yearLevel = parsedTurn.yearLevel;
+          }
+          if (semester === null && parsedTurn.semester != null) {
+            semester = parsedTurn.semester;
+          }
+          if (!isGroupByProgram && parsedTurn.isGroupByProgram) {
+            isGroupByProgram = true;
+          }
+        }
+
+        if (!program) {
+          const pM = text.match(/\b(BSIT|BSCS|BSHM|BSBA|BSA)\b/i);
+          if (pM) program = pM[1].toUpperCase();
+        }
+        if (yearLevel === null) {
+          const yM = text.match(/\b(?:Year\s*|Taon\s*)([1-4])\b/i) || text.match(/\b([1-4])(?:st|nd|rd|th)?\s*Year\b/i);
+          if (yM) yearLevel = Number(yM[1]);
+        }
+        if ((!cohortType || cohortType === 'directory') && /\b(grades?|marka)\b/i.test(text)) {
+          cohortType = 'grades';
+        }
+      }
+    }
+  }
+
+  // If previous turn had cohort flow and current query is an answer
+  const isCohortQuery = current.isCohortQuery ||
+    (hadCohortInHistory && (
+      semester !== null ||
+      program !== null ||
+      yearLevel !== null ||
+      /\b(yes|oo|sige|proceed|continue|all\s*terms?)\b/i.test(query)
+    ));
+
+  return {
+    isCohortQuery,
+    cohortType: cohortType || 'directory',
+    yearLevel,
+    program,
+    semester,
+    isGroupByProgram,
+    academicYear
   };
 }
 
@@ -2146,6 +2259,46 @@ function buildCohortGradesSummaryTableMarkdown(studentSummaries, max = 20) {
   return [
     '| Student ID | Full Name | Program | Year Level | GWA | Passed Units | Deficiencies | Standing |',
     '| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |',
+    ...rows
+  ].join('\n');
+}
+
+/**
+ * Build Markdown table for cohort grade records matching the official Excel format:
+ * Student ID | Last Name | First Name | Name | Course | Year Level | Semester | Academic Year | Subject | Grade | Units
+ */
+function buildCohortGradesDetailTableMarkdown(gradeRows, max = 50) {
+  const display = (gradeRows || []).slice(0, max);
+  if (display.length === 0) {
+    return [
+      '| Student ID | Last Name | First Name | Name | Course | Year Level | Semester | Academic Year | Subject | Grade | Units |',
+      '| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |',
+      '| — | — | No grade records found | — | — | — | — | — | — | — | — |'
+    ].join('\n');
+  }
+
+  const rows = display.map(r => {
+    const sid = String(r.student_id || '').trim().replace(/\|/g, '-');
+    const lastName = String(r.last_name || '').trim().toUpperCase().replace(/\|/g, '-');
+    const firstName = String(r.first_name || '').trim().toUpperCase().replace(/\|/g, '-');
+    const fullName = String(r.full_name || r.name || `${lastName}, ${firstName}`.trim()).toUpperCase().replace(/\|/g, '-');
+    const course = String(r.course || r.program || 'BSIT').trim().toUpperCase();
+    const yearLevel = Number(r.year_level || 1) || 1;
+    const semester = String(r.semester || 'First').trim();
+    const academicYear = String(r.academic_year || '').trim();
+    const subject = String(r.subject || r.subject_code || r.code || 'N/A').trim().replace(/\|/g, '-');
+    let grade = '';
+    if (r.grade !== null && r.grade !== undefined && r.grade !== '') {
+      const num = parseFloat(String(r.grade));
+      grade = !isNaN(num) ? num.toFixed(2) : String(r.grade).trim();
+    }
+    const units = Number(r.units) || 3;
+    return `| \`${sid}\` | ${lastName} | ${firstName} | **${fullName}** | ${course} | ${yearLevel} | ${semester} | ${academicYear} | \`${subject}\` | **${grade}** | ${units} |`;
+  });
+
+  return [
+    '| Student ID | Last Name | First Name | Name | Course | Year Level | Semester | Academic Year | Subject | Grade | Units |',
+    '| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |',
     ...rows
   ].join('\n');
 }
@@ -3186,10 +3339,52 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
     // Generates downloadable CSV/Excel and direct links to Academic Records & Recommendations!
     // =========================================================================
     else {
-      // 1. Check if multiple students were queried (e.g. "student id 1111,2222,3333 show me their record")
-      const multiStudents = await findMultipleTargetStudents(query, db);
+      // PRIORITY 0: Check if the user is replying to a pending single-student term clarification.
+      // If the last bot turn has pending_action === 'clarify_grades_term' with a student_id,
+      // the current query is the user selecting a semester for THAT specific student — do NOT
+      // let the cohort-flow detector intercept it.
+      //
+      // GUARDS — do NOT use the pending clarification when:
+      //   1. The query explicitly mentions a (different) student ID number, OR
+      //   2. The query is itself a new cohort/program request (e.g. "all 1st year BSIT students"), OR
+      //   3. The query is a conversational/analytical question (e.g. "so the 100 don't have grades?")
+      const queryMentionsStudentId = /\b\d{4,}\b/.test(query.replace(/\b\d{4}-\d{4}\b/g, ''));
+      const queryIsCohortRequest = (() => {
+        const hasProgram = /\b(bsit|bscs|bshm|bsba|bsis|bsed|beed|bscpe|bsce|bsme|bsee|bsarch|bs[a-z]{2,})\b/i.test(query);
+        const hasYearLevel = /\b(1st|2nd|3rd|4th|first|second|third|fourth)\s*(year|yr)\b|\byear\s*(1|2|3|4)\b/i.test(query);
+        const hasCohortWord = /\b(all\s+students?|students?|class|section|cohort|batch|roster|group|mga\s+estudyante)\b/i.test(query);
+        return hasProgram || (hasYearLevel && hasCohortWord);
+      })();
+      const queryIsConversational = (() => {
+        const q = query.trim();
+        const startsWithQuestion = /^(but|so|why|does|do|is|are|can|will|would|what\s+if|how\s+come|doesn't|don't|aren't|isn't)\b/i.test(q);
+        const endsWithQuestionMark = q.endsWith('?');
+        const hasDataVerb = /\b(show|give|get|list|display|fetch|export|download|generate|produce|provide|print)\b/i.test(q);
+        const hasCountQuery = /\b(how\s+many|ilan|dami|count|total\s+number|number\s+of)\b/i.test(q);
+        return (startsWithQuestion || endsWithQuestionMark) && !hasDataVerb && !hasCountQuery;
+      })();
+      const pendingClarificationStudentId = (() => {
+        if (queryMentionsStudentId) return null; // new student request → skip
+        if (queryIsCohortRequest) return null;   // cohort/program query → skip
+        if (queryIsConversational) return null;  // conversational question → skip
+        if (!Array.isArray(history) || history.length === 0) return null;
+        for (let i = history.length - 1; i >= 0; i--) {
+          const turn = history[i];
+          // history entries may store the action at different depths
+          const act = turn?.student_action || turn?.studentAction || turn;
+          if (act?.pending_action === 'clarify_grades_term' && act?.student_id) {
+            return String(act.student_id).trim();
+          }
+        }
+        return null;
+      })();
+      const skipToSingleStudent = Boolean(pendingClarificationStudentId);
 
-      if (multiStudents.length >= 2) {
+      // 1. Check if multiple students were queried (e.g. "student id 1111,2222,3333 show me their record")
+      // Skip this when we already know we're in a single-student clarification follow-up.
+      const multiStudents = skipToSingleStudent ? [] : await findMultipleTargetStudents(query, db);
+
+      if (!skipToSingleStudent && multiStudents.length >= 2) {
         // MULTI-STUDENT FLOW
         const isAssessmentQuery = /\b(assess|assessment|evaluat(?:e|ion)|pagsusuri|comprehensive|full\s+report|overall\s+standing|standing\s+assessment)\b/i.test(query);
         const isRecQuery = (/(?:subject\s+)?recommend(?:ation|ed|ing)?s?|subjects?\s+to\s+take|what\s+subjects?|curriculum\s+load|course\s+load|anong\s+(?:mga\s+)?kukunin/i.test(query)) && !isAssessmentQuery;
@@ -3295,66 +3490,24 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
       }
       // 2. COHORT / ROSTER / YEAR LEVEL / PROGRAM FILTER FLOW
       // (Handles records by course/program, all year levels or per year level, subject recommendations, and clarification follow-ups)
-      else if (multiStudents.length === 0 && (() => {
-        const lastBotTurn = Array.isArray(history) && history.length > 0
-          ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.student_action || h.pending_action || h.text || h.content)).slice(-1)[0]
-          : null;
-        const pendingCohort = lastBotTurn?.student_action?.pending_action === 'clarify_cohort_details'
-          ? lastBotTurn.student_action
-          : (lastBotTurn?.pending_action === 'clarify_cohort_details' ? lastBotTurn : null);
-        return parseCohortFilter(query).isCohortQuery || Boolean(pendingCohort);
+      // Guards:
+      //  - skipToSingleStudent: pending single-student term follow-up → skip cohort
+      //  - queryIsConversational: analytical/rhetorical question (e.g. "but why are there only 59?")
+      //    → skip cohort data dump, let AI answer conversationally
+      else if (!skipToSingleStudent && !queryIsConversational && multiStudents.length === 0 && (() => {
+        const cohortCtx = extractCohortContext(query, history);
+        return cohortCtx.isCohortQuery;
       })()) {
-        const lastBotTurn = Array.isArray(history) && history.length > 0
-          ? history.filter(h => (h.sender !== 'user' && h.role !== 'user') && (h.student_action || h.pending_action || h.text || h.content)).slice(-1)[0]
-          : null;
-        const pendingCohort = lastBotTurn?.student_action?.pending_action === 'clarify_cohort_details'
-          ? lastBotTurn.student_action
-          : (lastBotTurn?.pending_action === 'clarify_cohort_details' ? lastBotTurn : null);
+        let cohortFilter = extractCohortContext(query, history);
 
-        let cohortFilter = parseCohortFilter(query);
-
-        // Determine active academic year from settings
-        let activeAcademicYear = '2025-2026';
+        // Determine active academic year from settings or cohort context
+        let activeAcademicYear = cohortFilter.academicYear || '2025-2026';
         try {
           const { data: sData } = await db.from('settings').select('key, value').in('key', ['activeAcademicYear', 'active_academic_year']);
-          if (sData?.[0]?.value) activeAcademicYear = String(sData[0].value).trim();
+          if (sData?.[0]?.value && !cohortFilter.academicYear) {
+            activeAcademicYear = String(sData[0].value).trim();
+          }
         } catch (e) {}
-
-        // Merge previous turn's clarification context if pending
-        if (pendingCohort) {
-          cohortFilter.isCohortQuery = true;
-          if (cohortFilter.cohortType === 'directory') {
-            cohortFilter.cohortType = pendingCohort.cohort_type || 'grades';
-          }
-          if (!cohortFilter.program && pendingCohort.program) {
-            cohortFilter.program = pendingCohort.program;
-          }
-          if (cohortFilter.yearLevel === null && pendingCohort.year_level != null) {
-            cohortFilter.yearLevel = pendingCohort.year_level;
-          }
-          if (cohortFilter.semester === null && pendingCohort.semester != null) {
-            cohortFilter.semester = pendingCohort.semester;
-          }
-          // If previous turn was asking for semester and user responded with a short answer
-          if (pendingCohort.year_level != null && cohortFilter.semester === null) {
-            const trimmed = query.trim().toLowerCase();
-            if (/\b(?:1st|first|unang|una|1)\b/i.test(trimmed)) {
-              cohortFilter.semester = 1;
-            } else if (/\b(?:2nd|second|ikalawang|pangalawa|2)\b/i.test(trimmed)) {
-              cohortFilter.semester = 2;
-            } else if (/\b(?:summer|midyear)\b/i.test(trimmed)) {
-              cohortFilter.semester = 'summer';
-            } else if (/\b(?:all|lahat|both|buong)\b/i.test(trimmed)) {
-              cohortFilter.semester = 'all';
-            }
-          }
-          if (!cohortFilter.isGroupByProgram && pendingCohort.is_group_by_program) {
-            cohortFilter.isGroupByProgram = true;
-          }
-          if (pendingCohort.active_academic_year) {
-            activeAcademicYear = pendingCohort.active_academic_year;
-          }
-        }
 
         // Check if query details are incomplete for grades or recommendation
         if (!isCohortDetailsComplete(cohortFilter)) {
@@ -3386,6 +3539,21 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `- **All Degree Programs (By Course)**\n\n` +
                 `**Year Level:** \`1st Year\`, \`2nd Year\`, \`3rd Year\`, \`4th Year\`, or \`All Year Levels\`.\n\n` +
                 `*Example query: "BSIT 2nd Year" or "BSCS All Year Levels".*`;
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: assistantResponse,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: {
+                pending_action: 'clarify_cohort_details',
+                cohort_type: cohortFilter.cohortType,
+                active_academic_year: activeAcademicYear
+              },
+              follow_up_questions: ['BSIT 1st Year', 'BSIT 2nd Year', 'BSCS 1st Year', 'All Programs']
+            });
           } else if (!cohortFilter.program && !cohortFilter.isGroupByProgram) {
             // Missing PROGRAM
             const ylText = cohortFilter.yearLevel === 'all'
@@ -3408,6 +3576,22 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `- **BSA** (Bachelor of Science in Accountancy)\n` +
                 `- **All Degree Programs (By Course)**\n\n` +
                 `*Please reply with your preferred program (e.g. "BSIT" or "All Programs") to view records and generate the Excel file.*`;
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: assistantResponse,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: {
+                pending_action: 'clarify_cohort_details',
+                cohort_type: cohortFilter.cohortType,
+                year_level: cohortFilter.yearLevel,
+                active_academic_year: activeAcademicYear
+              },
+              follow_up_questions: ['BSIT', 'BSCS', 'BSHM', 'BSBA', 'BSA', 'All Programs']
+            });
           } else if (cohortFilter.yearLevel === null) {
             // Missing YEAR LEVEL
             const progText = cohortFilter.program || 'napiling programa';
@@ -3426,40 +3610,78 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                 `- **4th Year**\n` +
                 `- **All Year Levels**\n\n` +
                 `*Please reply with your preferred year level (e.g. "2nd Year" or "All Year Levels") to generate the full report and Excel spreadsheet.*`;
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: assistantResponse,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: {
+                pending_action: 'clarify_cohort_details',
+                cohort_type: cohortFilter.cohortType,
+                program: cohortFilter.program,
+                active_academic_year: activeAcademicYear
+              },
+              follow_up_questions: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels']
+            });
           } else {
             // Missing SEMESTER (Clarify which semester under the active Academic Year)
-            const progText = cohortFilter.program || 'napiling programa';
+            const progText = cohortFilter.program || 'BSIT';
             const ylText = cohortFilter.yearLevel === 'all'
               ? (isTagalog ? 'Lahat ng Taon' : 'All Year Levels')
-              : `Year ${cohortFilter.yearLevel}`;
-            assistantResponse = isTagalog
-              ? `Para sa programang **${progText} (${ylText})** sa kasalukuyang Academic Year (**${activeAcademicYear}**), aling **semestre** ang nais ninyong suriin para sa **${targetLabel}**?\n\n` +
-                `- **1st Semester** (Unang Semestre)\n` +
-                `- **2nd Semester** (Ikalawang Semestre)\n` +
-                `- **Summer** (Midyear Term)\n` +
-                `- **Lahat ng Semestre** (Buong Taon)\n\n` +
-                `*Pakisabi kung aling semestre (halimbawa: "1st Sem", "2nd Sem", o "Lahat") upang mai-filter ang mga datos at maihanda ang opisyal na Excel export.*`
-              : `For **${progText} (${ylText})** in the current Academic Year (**${activeAcademicYear}**), which **semester** would you like to review for **${targetLabel}**?\n\n` +
-                `- **1st Semester**\n` +
-                `- **2nd Semester**\n` +
-                `- **Summer** (Midyear Term)\n` +
-                `- **All Semesters** (Full Academic Year)\n\n` +
-                `*Please specify your preferred semester (e.g. "1st Sem", "2nd Sem", or "All Semesters") to display the matching records and generate the Excel download.*`;
-          }
+              : (cohortFilter.yearLevel ? `${cohortFilter.yearLevel === 1 ? '1st' : cohortFilter.yearLevel === 2 ? '2nd' : cohortFilter.yearLevel === 3 ? '3rd' : `${cohortFilter.yearLevel}th`} Year` : '1st Year');
 
-          systemPrompt = '';
-          studentAction = {
-            pending_action: 'clarify_cohort_details',
-            cohort_type: cohortFilter.cohortType,
-            program: cohortFilter.program || undefined,
-            year_level: cohortFilter.yearLevel || undefined,
-            semester: cohortFilter.semester || undefined,
-            is_group_by_program: cohortFilter.isGroupByProgram || undefined,
-            active_academic_year: activeAcademicYear
-          };
+            const termOption1 = `${activeAcademicYear} 1st Sem (${ylText} • 1st Sem)`;
+            const termOption2 = `${activeAcademicYear} 2nd Sem (${ylText} • 2nd Sem)`;
+
+            assistantResponse = isTagalog
+              ? `Aling academic term o semestre ang nais ninyong makitang marka para sa **${progText} (${ylText})**?\n\n` +
+                `**Mga nakatalang termino sa academic records para sa cohort na ito:**\n` +
+                `• ${termOption1}\n` +
+                `• ${termOption2}\n` +
+                `• Lahat ng Termino / Cumulative Grade Sheet\n\n` +
+                `*Pakisabi kung aling termino (halimbawa: "${activeAcademicYear} 1st Sem" o "All Terms") upang maihanda ang opisyal na grade sheet.*`
+              : `Which academic term or semester's grades would you like to review for **${progText} (${ylText})**?\n\n` +
+                `**Recorded terms available on file for this cohort:**\n` +
+                `• ${termOption1}\n` +
+                `• ${termOption2}\n` +
+                `• All Terms / Cumulative Grade Sheet\n\n` +
+                `*Please reply with your preferred term (for example: "${activeAcademicYear} 1st Sem" or "All Terms") to view the official grade sheet.*`;
+
+            studentAction = {
+              pending_action: 'clarify_cohort_details',
+              cohort_type: cohortFilter.cohortType,
+              program: cohortFilter.program || undefined,
+              year_level: cohortFilter.yearLevel || undefined,
+              semester: cohortFilter.semester || undefined,
+              is_group_by_program: cohortFilter.isGroupByProgram || undefined,
+              active_academic_year: activeAcademicYear,
+              available_terms: [
+                `${activeAcademicYear} 1st Sem`,
+                `${activeAcademicYear} 2nd Sem`
+              ]
+            };
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: assistantResponse,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: studentAction,
+              follow_up_questions: [
+                `${activeAcademicYear} 1st Sem`,
+                `${activeAcademicYear} 2nd Sem`,
+                userIsTagalog ? 'Lahat ng Termino' : 'All Terms'
+              ]
+            });
+          }
         } else {
           // Details are COMPLETE!
-          let { data: stData, error: stErr } = await db.from('students').select('id, student_id, full_name, program, year_level, status');
+          let { data: stData, error: stErr } = await db.from('students').select('*').limit(2000);
           if (stErr || !stData || stData.length === 0) {
             if (stErr) console.warn('Students directory query notice, checking fallback select(*):', stErr.message);
             try {
@@ -3552,6 +3774,35 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
           } else {
             semLabel = userIsTagalog ? 'Lahat ng Semestre (Buong Taon)' : 'All Semesters (Full Year)';
             semFileTag = 'All_Sem';
+          }
+
+          // BRANCH 0: COUNT / HOW MANY QUERY
+          // If the user is just asking for a headcount (e.g. "how many BSIT 1st year students"),
+          // answer with the count directly instead of dumping the full grade table.
+          const isCountQuery = /\b(how\s+many|ilan|count|total\s+number|bilang|dami|number\s+of)\b/i.test(query);
+          if (isCountQuery) {
+            const ylNum = cohortFilter.yearLevel;
+            const ylSuffix = ylNum === 1 ? '1st Year' : ylNum === 2 ? '2nd Year' : ylNum === 3 ? '3rd Year' : ylNum === 4 ? '4th Year' : '';
+            const prog = cohortFilter.program || 'All Programs';
+            const countLabel = `${prog}${ylSuffix ? ` — ${ylSuffix}` : ''}`;
+            const countAnswer = userIsTagalog
+              ? `Mayroon **${filtered.length}** na estudyante sa **${countLabel}** sa kasalukuyang database.\n\nNais mo bang tingnan ang kanilang listahan, mga marka, o mga inirerekomendang asignatura?`
+              : `There are currently **${filtered.length}** enrolled students under **${countLabel}** in the database.\n\nWould you like to view their roster, grade records, or subject recommendations?`;
+
+            return res.json({
+              id: 'chat-' + Date.now(),
+              query,
+              response: countAnswer,
+              role: userRole,
+              timestamp: new Date().toISOString(),
+              file_export: null,
+              student_action: null,
+              follow_up_questions: [
+                `Show roster of ${countLabel} students`,
+                `Grade records for ${countLabel}`,
+                `Subject recommendations for ${countLabel}`
+              ]
+            });
           }
 
           // BRANCH A: SUBJECT RECOMMENDATIONS
@@ -3853,7 +4104,7 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
               label: `Download ${programLabel} ${yearLabel} (${semLabel}) Complete Grade Records (${gradeRows.length} Entries) (Excel Spreadsheet)`
             };
 
-            const gradesTableMarkdown = buildCohortGradesSummaryTableMarkdown(studentSummaries, 20);
+            const gradesDetailTableMarkdown = buildCohortGradesDetailTableMarkdown(gradeRows, 50);
 
             if (gradeRows.length > 0) {
               assistantResponse = userIsTagalog
@@ -3866,9 +4117,9 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                   `- **Kabuuang Estudyante:** **${studentSummaries.length}** estudyante (${gradeRows.length} grade entries)\n` +
                   `- **Average Cohort GWA:** **${cohortAverageGwa}**\n` +
                   `- **Passing Rate:** **${cohortPassingRate}** (${cohortPassedSubs} naipasang asignatura)\n\n` +
-                  `#### Buod ng mga Marka ng mga Estudyante (Unang 20 rekord):\n` +
-                  `${gradesTableMarkdown}\n` +
-                  (studentSummaries.length > 20 ? `\n*... at ${studentSummaries.length - 20} pang mga estudyante sa database.*\n` : '\n') +
+                  `#### Talaan ng mga Marka (Unang 50 rekord):\n` +
+                  `${gradesDetailTableMarkdown}\n` +
+                  (gradeRows.length > 50 ? `\n*... at ${gradeRows.length - 50} pang mga rekord sa database.*\n` : '\n') +
                   `\n---\n*Ang buong talaan ng mga marka ay mai-da-download bilang **Excel Spreadsheet** gamit ang button sa ibaba.*\n\n` +
                   `Nais mo bang makita ang mga inirerekomendang asignatura para sa susunod na semestre para sa cohort na ito, o i-filter ang mga may bagsak na subject?`
                 : `### Official Student Grade Records Report\n\n` +
@@ -3880,9 +4131,9 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
                   `- **Total Students with Grades:** **${studentSummaries.length}** students (${gradeRows.length} grade entries)\n` +
                   `- **Average Cohort GWA:** **${cohortAverageGwa}**\n` +
                   `- **Passing Rate:** **${cohortPassingRate}** (${cohortPassedSubs} subjects passed)\n\n` +
-                  `#### Student Performance & GWA Summary (First 20 records):\n` +
-                  `${gradesTableMarkdown}\n` +
-                  (studentSummaries.length > 20 ? `\n*... and ${studentSummaries.length - 20} more students in the database.*\n` : '\n') +
+                  `#### Grade Records (First 50 entries):\n` +
+                  `${gradesDetailTableMarkdown}\n` +
+                  (gradeRows.length > 50 ? `\n*... and ${gradeRows.length - 50} more entries in the database.*\n` : '\n') +
                   `\n---\n*The complete grade records dataset has been exported and is ready to download as an **Excel Spreadsheet** using the download button below.*\n\n` +
                   `Would you like to view the recommended subjects for next semester for this cohort, or filter students with active deficiencies?`;
             } else {
@@ -4006,7 +4257,26 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
       }
       // 3. SINGLE-STUDENT or GENERAL QUERY
       else {
-        const targetStudent = multiStudents.length === 1 ? multiStudents[0] : await findTargetStudent(query, db, history);
+        // When we detected a pending single-student term clarification, look up the student
+        // directly by the saved student_id rather than parsing the semester string as a query.
+        let targetStudent;
+        if (skipToSingleStudent) {
+          // Fetch the student by their ID from the pending clarification
+          const { data: sRows } = await db
+            .from('students')
+            .select('*')
+            .or(`student_id.eq.${pendingClarificationStudentId},id.eq.${pendingClarificationStudentId}`)
+            .limit(1);
+          targetStudent = sRows?.[0] || null;
+          // Fall back to normal lookup if the direct query failed
+          if (!targetStudent) {
+            targetStudent = await findTargetStudent(pendingClarificationStudentId, db, history);
+          }
+        } else {
+          // For conversational/analytical questions, do NOT search for a student — let the
+          // AI handle it as a general inquiry instead (targetStudent stays null).
+          targetStudent = queryIsConversational ? null : (multiStudents.length === 1 ? multiStudents[0] : await findTargetStudent(query, db, history));
+        }
 
         if (targetStudent) {
           // Specific student found! Fetch their full records and generate requested file format
@@ -4180,7 +4450,33 @@ Would you like to explore specific prerequisite dependencies for these upcoming 
           } else if (isRecQuery) {
             queryIntent = 'recommendation';
           } else if (effectiveGradesQuery) {
-            queryIntent = 'grades';
+            // Only show recommendations alongside grades when the selected term is the
+            // student's MOST RECENT term on file (so recommendations are for the next
+            // upcoming semester). For older terms show grades only.
+            let isSelectedTermMostRecent = false;
+            if ((skipToSingleStudent || isFollowUpToGradesPrompt) && isFilteredByTerm && termAnalysis.academic_year) {
+              // Find the most recent academic_year + semester across all of this student's records
+              const semOrder = { '1': 1, '2': 2, 'summer': 3 };
+              let maxYear = '', maxSem = '';
+              records.forEach(r => {
+                const ay = String(r.academic_year || '').trim();
+                const sm = String(r.semester || '').trim();
+                if (!ay) return;
+                if (ay > maxYear || (ay === maxYear && (semOrder[sm] || 0) > (semOrder[maxSem] || 0))) {
+                  maxYear = ay;
+                  maxSem = sm;
+                }
+              });
+              isSelectedTermMostRecent =
+                termAnalysis.academic_year === maxYear &&
+                String(termAnalysis.semester) === String(maxSem);
+            }
+            // Show recommendations when:
+            //   • selected term is the student's most recent (grades + what's next), OR
+            //   • user selected "All Terms" as a follow-up (full cumulative view + what's next)
+            const showRecsWithGrades = isSelectedTermMostRecent ||
+              ((skipToSingleStudent || isFollowUpToGradesPrompt) && isExplicitAllTerms);
+            queryIntent = showRecsWithGrades ? 'comprehensive' : 'grades';
           } else {
             queryIntent = classifyStudentQueryIntent(query);
           }

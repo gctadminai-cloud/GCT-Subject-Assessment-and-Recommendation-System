@@ -22,7 +22,7 @@ async function syncAllStudentYearLevels() {
   while (true) {
     const { data: page, error: grErr } = await supabase
       .from('grade_records')
-      .select('student_id, year_level, semester')
+      .select('student_id, year_level, semester, academic_year')
       .range(from, from + pageSize - 1);
 
     if (grErr) {
@@ -65,7 +65,9 @@ async function syncAllStudentYearLevels() {
     }
 
     let maxYear = 1;
-    const sem2Counts = new Map();
+    // Track distinct (year_level, academic_year, semester) 2nd-sem terms
+    // to avoid counting multiple subjects in the same semester as multiple completed semesters
+    const sem2TermsSeen = new Map(); // year -> Set of "ay|sem" strings
     let hasSummerYear3 = false;
 
     stGrades.forEach(g => {
@@ -73,27 +75,23 @@ async function syncAllStudentYearLevels() {
       if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) {
         maxYear = y;
       }
-      const isSem2 = String(g.semester).toLowerCase().includes('second') || String(g.semester) === '2';
-      const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3';
+      const semStr = String(g.semester).toLowerCase().trim();
+      const isSem2 = semStr.includes('second') || semStr === '2' || semStr.includes('2nd');
+      const isSummer = semStr.includes('summer') || semStr === '3';
       if (isSem2 && Number.isFinite(y)) {
-        sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
+        const termKey = `${(g.academic_year || '').trim()}|${semStr}`;
+        if (!sem2TermsSeen.has(y)) sem2TermsSeen.set(y, new Set());
+        sem2TermsSeen.get(y).add(termKey);
       }
       if (isSummer && y === 3) {
         hasSummerYear3 = true;
       }
     });
 
+    // Year level = highest year_level found in grade records.
+    // The year_level column on each grade row already reflects the student's year at that time.
+    // Advancement to year 4 additionally requires completing Summer of year 3.
     let calculatedYear = maxYear;
-    // Year 1 -> 2: completing 2nd sem of Year 1
-    if ((sem2Counts.get(1) || 0) >= 3) {
-      calculatedYear = Math.max(calculatedYear, 2);
-    }
-    // Year 2 -> 3: completing 2nd sem of Year 2
-    if ((sem2Counts.get(2) || 0) >= 3) {
-      calculatedYear = Math.max(calculatedYear, 3);
-    }
-    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
-    // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
     if (hasSummerYear3 || maxYear >= 4) {
       calculatedYear = Math.max(calculatedYear, 4);
     }

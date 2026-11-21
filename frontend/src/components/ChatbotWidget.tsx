@@ -282,6 +282,7 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
                     {row.map((cell, cIdx) => {
                       const isPassed = /\bpassed\b/i.test(cell);
                       const isFailed = /\bfailed\b/i.test(cell);
+                      const isInc = /\b(inc|incomplete)\b/i.test(cell);
 
                       return (
                         <td
@@ -293,7 +294,7 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
                             borderRight: cIdx < row.length - 1 ? (isUser ? '1px solid rgba(255,255,255,0.1)' : '1px solid #F1F5F9') : 'none'
                           }}
                         >
-                          {isPassed || isFailed ? (
+                          {isPassed || isFailed || isInc ? (
                             <span
                               style={{
                                 display: 'inline-flex',
@@ -302,9 +303,9 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
                                 borderRadius: '9999px',
                                 fontSize: isCompact ? '0.68rem' : '0.72rem',
                                 fontWeight: 700,
-                                background: isPassed ? '#DCFCE7' : '#FEE2E2',
-                                color: isPassed ? '#166534' : '#991B1B',
-                                border: isPassed ? '1px solid #BBF7D0' : '1px solid #FECACA'
+                                background: isPassed ? '#DCFCE7' : isFailed ? '#FEE2E2' : '#FEF3C7',
+                                color: isPassed ? '#166534' : isFailed ? '#991B1B' : '#92400E',
+                                border: isPassed ? '1px solid #BBF7D0' : isFailed ? '1px solid #FECACA' : '1px solid #FDE68A'
                               }}
                             >
                               {cell}
@@ -328,19 +329,31 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
     // 2. Headings
     if (trimmed.startsWith('### ')) {
       const headingText = trimmed.replace(/^###\s*/, '');
+      const isImportSuccess = /import complete|saved to database|successfully saved/i.test(headingText);
       blocks.push(
         <div
           key={`h3-${i}`}
           style={{
             fontSize: isCompact ? '0.92rem' : '1.02rem',
             fontWeight: 800,
-            color: isUser ? '#FFFFFF' : '#0F172A',
-            margin: '0.75rem 0 0.35rem 0',
+            color: isUser ? '#FFFFFF' : (isImportSuccess ? '#065F46' : '#0F172A'),
+            margin: isImportSuccess ? '0.5rem 0 0.5rem 0' : '0.75rem 0 0.35rem 0',
             lineHeight: 1.35,
-            borderBottom: isUser ? '1px solid rgba(255,255,255,0.2)' : '1px solid #E2E8F0',
-            paddingBottom: '0.3rem'
+            borderBottom: isUser ? '1px solid rgba(255,255,255,0.2)' : (isImportSuccess ? '2px solid #6EE7B7' : '1px solid #E2E8F0'),
+            paddingBottom: '0.4rem',
+            ...(isImportSuccess && !isUser ? {
+              background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+              borderRadius: '8px',
+              padding: '0.6rem 0.9rem 0.5rem 0.9rem',
+              borderLeft: '4px solid #10B981',
+              borderBottom: '1px solid #A7F3D0',
+              marginBottom: '0.75rem'
+            } : {})
           }}
         >
+          {isImportSuccess && !isUser && (
+            <span style={{ marginRight: '0.5rem', fontSize: '1.05rem' }}>✓</span>
+          )}
           {renderInlineFormatting(headingText, isUser)}
         </div>
       );
@@ -350,15 +363,28 @@ const FormattedMessage: React.FC<FormattedMessageProps> = ({ text, isUser, isCom
 
     if (trimmed.startsWith('#### ')) {
       const headingText = trimmed.replace(/^####\s*/, '');
+      const isStudentHeader = /^Student \d+ of \d+:/i.test(headingText);
+      const isGradeRecordsHeader = /^Grade Records by Student/i.test(headingText);
       blocks.push(
         <div
           key={`h4-${i}`}
           style={{
             fontSize: isCompact ? '0.84rem' : '0.9rem',
             fontWeight: 700,
-            color: isUser ? '#F1F5F9' : '#1E293B',
-            margin: '0.6rem 0 0.25rem 0',
-            lineHeight: 1.35
+            color: isUser ? '#F1F5F9' : (isStudentHeader ? '#1D4ED8' : '#1E293B'),
+            margin: isStudentHeader ? '0.75rem 0 0.2rem 0' : '0.6rem 0 0.25rem 0',
+            lineHeight: 1.35,
+            ...(isStudentHeader && !isUser ? {
+              background: '#EFF6FF',
+              borderRadius: '6px',
+              padding: '0.45rem 0.75rem',
+              borderLeft: '3px solid #2563EB',
+            } : {}),
+            ...(isGradeRecordsHeader && !isUser ? {
+              color: '#374151',
+              borderBottom: '1px solid #E5E7EB',
+              paddingBottom: '0.25rem',
+            } : {})
           }}
         >
           {renderInlineFormatting(headingText, isUser)}
@@ -854,6 +880,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
       let importedStudentCount = 0;
       const affectedStudentIds = new Set<string>();
       const importSummaries: string[] = [];
+      const allGradeRecords: any[] = []; // accumulates every grade row across all uploaded files
 
       // Detect spreadsheet attachments (.xlsx, .xls, .csv)
       const spreadsheetAttachments = currentAttachments.filter(att =>
@@ -943,6 +970,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
                 body: JSON.stringify({ records: gradeRecordsPayload })
               });
               importedGradeCount += gradeRecordsPayload.length;
+              allGradeRecords.push(...gradeRecordsPayload);
               importSummaries.push(`Stored **${gradeRecordsPayload.length} grade records** from \`${att.name}\` into database`);
             }
 
@@ -993,15 +1021,52 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
       if (importSummaries.length > 0 && isPureUploadDirective(promptText)) {
         const studentList = Array.from(affectedStudentIds);
         const primaryStudentId = studentList[0] || '';
-        const studentListStr = studentList.join(', ') || 'N/A';
 
-        const directBotText = `### File Import Successfully Saved to Database\n\n` +
-          importSummaries.map(s => `- ${s}`).join('\n') +
-          `\n\n- **Target Student(s):** ${studentListStr}` +
-          `\n- **Database Tables Updated:** \`academic_records\` and \`grade_records\` (Supabase)` +
-          `\n- **Status:** Verified and synchronized across institutional records.` +
-          `\n\nAll grades and academic records from your uploaded spreadsheet have been successfully verified and saved.` +
-          `\n\n**Follow-up Question:** Would you like me to evaluate their full academic assessment, show their grades, check for any deficiencies, or generate recommended subjects for the next term?`;
+        // Build a per-student table (each student gets their own table)
+        // Columns: Student ID | Name | Subject | Grade | Status | Units | Academic Year
+        const studentRecordsMap = new Map<string, any[]>();
+        allGradeRecords.forEach((r: any) => {
+          const sid = String(r.student_id).trim();
+          if (!studentRecordsMap.has(sid)) studentRecordsMap.set(sid, []);
+          studentRecordsMap.get(sid)!.push(r);
+        });
+
+        const totalStudents = studentRecordsMap.size;
+        const totalRecords = allGradeRecords.length;
+        const uploadedFileNames = spreadsheetAttachments.map(a => a.name).join(', ');
+
+        const studentTables = Array.from(studentRecordsMap.entries()).map(([sid, rows], studentIdx) => {
+          const studentName = rows[0]?.studentName || '—';
+          const course = rows[0]?.course || 'BSIT';
+          const passCount = rows.filter((r: any) => r.grade !== null && r.grade !== undefined && Number(r.grade) > 0 && Number(r.grade) <= 3.0).length;
+          const failCount = rows.filter((r: any) => r.grade !== null && r.grade !== undefined && Number(r.grade) === 5.0).length;
+          const noGradeCount = rows.filter((r: any) => r.grade === null || r.grade === undefined).length;
+
+          const studentHeader = `#### Student ${studentIdx + 1} of ${totalStudents}: ${studentName} | ID: ${sid} | ${course}`;
+          const statsLine = `Subjects: **${rows.length}** total${passCount > 0 ? ` · **${passCount} Passed**` : ''}${failCount > 0 ? ` · **${failCount} Failed**` : ''}${noGradeCount > 0 ? ` · ${noGradeCount} No Grade` : ''}`;
+          const tableHeader =
+            `| Student ID | Name | Subject | Grade | Status | Units | Academic Year |\n` +
+            `| :--- | :--- | :--- | :---: | :---: | :---: | :--- |`;
+          const dataRows = rows.map((r: any) => {
+            const grade = r.grade !== null && r.grade !== undefined ? Number(r.grade) : null;
+            const gradeStr = grade !== null ? grade.toFixed(2) : '—';
+            const status = grade === null ? '—' : grade <= 3.0 && grade > 0 ? 'Passed' : grade === 5.0 ? 'Failed' : 'Inc';
+            return `| ${r.student_id} | ${r.studentName || '—'} | ${r.code || '—'} | ${gradeStr} | ${status} | ${r.units || '—'} | ${r.term || '—'} |`;
+          }).join('\n');
+          return `${studentHeader}\n${statsLine}\n\n${tableHeader}\n${dataRows}`;
+        }).join('\n\n---\n\n');
+
+        const directBotText =
+          `### Import Complete — ${totalStudents} Student${totalStudents !== 1 ? 's' : ''}, ${totalRecords} Grade Record${totalRecords !== 1 ? 's' : ''} Saved\n\n` +
+          `- **File:** \`${uploadedFileNames}\`` +
+          `\n- **Records Stored:** ${totalRecords} grade entr${totalRecords !== 1 ? 'ies' : 'y'} across ${totalStudents} student${totalStudents !== 1 ? 's' : ''}` +
+          `\n- **Tables Updated:** \`academic_records\` and \`grade_records\` (Supabase)` +
+          `\n- **Status:** Verified and synchronized across institutional records.\n\n` +
+          `---\n\n` +
+          `#### Grade Records by Student\n\n` +
+          `${studentTables}\n\n` +
+          `---\n\n` +
+          `All records have been verified and saved. Would you like me to evaluate their academic assessment, view grade sheets, check for deficiencies, or generate subject recommendations for the next term?`;
 
         const followUpSuggestions = primaryStudentId
           ? [
@@ -1050,9 +1115,16 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         .map(m => ({
           sender: m.sender,
           text: m.text,
+          studentAction: m.studentAction,
+          student_action: m.studentAction,
           student_id: m.studentAction?.student_id,
           student_name: m.studentAction?.student_name,
-          pending_action: m.studentAction?.pending_action
+          pending_action: m.studentAction?.pending_action,
+          cohort_type: m.studentAction?.cohort_type,
+          program: m.studentAction?.program,
+          year_level: m.studentAction?.year_level,
+          semester: m.studentAction?.semester,
+          active_academic_year: m.studentAction?.active_academic_year
         }));
 
       const res = await fetchApi(

@@ -314,7 +314,8 @@ export const AboutUsModule: React.FC = () => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
             gap: '0.85rem',
             marginTop: '0.35rem',
-            width: '100%'
+            width: '100%',
+            alignItems: 'stretch'
           }}>
             <div className="scroll-reveal delay-1" style={{
               background: 'rgba(15, 23, 42, 0.68)',
@@ -324,12 +325,13 @@ export const AboutUsModule: React.FC = () => {
               borderRadius: '14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.25rem'
+              gap: '0.25rem',
+              alignSelf: 'stretch'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <Cpu size={15} /> Automated Prerequisite Engine
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify', textAlignLast: 'justify', flexGrow: 1 }}>
                 Real-time validation of prerequisite chains and course eligibility across all semesters.
               </div>
             </div>
@@ -342,12 +344,13 @@ export const AboutUsModule: React.FC = () => {
               borderRadius: '14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.25rem'
+              gap: '0.25rem',
+              alignSelf: 'stretch'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <Sparkles size={15} /> Intelligent Advising
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify', textAlignLast: 'justify', flexGrow: 1 }}>
                 Automated course load suggestions tailored for regular and irregular student progression.
               </div>
             </div>
@@ -360,12 +363,13 @@ export const AboutUsModule: React.FC = () => {
               borderRadius: '14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.25rem'
+              gap: '0.25rem',
+              alignSelf: 'stretch'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 800, color: '#60A5FA' }}>
                 <ShieldCheck size={15} /> Registrar Directory
               </div>
-              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify' }}>
+              <div style={{ fontSize: '0.76rem', color: '#CBD5E1', lineHeight: 1.45, textAlign: 'justify', textAlignLast: 'justify', flexGrow: 1 }}>
                 Seamless integration with collegiate curricula, grade records, and academic policies.
               </div>
             </div>

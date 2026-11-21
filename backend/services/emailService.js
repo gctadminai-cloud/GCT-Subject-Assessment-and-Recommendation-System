@@ -541,6 +541,137 @@ async function sendWeeklyPasswordResetEarlyNotice(toEmail, recipientName, studen
   }
 }
 
+/**
+ * Send Grade Release Notification Email to a student
+ * Called whenever the registrar uploads or manually adds/edits grades.
+ *
+ * @param {string} toEmail         - Student's Gmail address
+ * @param {string} recipientName   - Student's full name (e.g. "JINWOO, SUNG")
+ * @param {string} studentId       - Student ID number (e.g. "8888")
+ * @param {Array}  subjects        - Array of { code, title, grade, term } objects for the released subjects
+ * @param {string} [customOrigin]  - Optional: request origin for portal URL
+ */
+async function sendGradeReleaseNotification(toEmail, recipientName, studentId, subjects = [], customOrigin) {
+  const mailTransporter = getTransporter();
+  const safeName = escapeHtml(recipientName || 'Student');
+  const safeId = escapeHtml(studentId || '');
+  const appUrl = getAppFrontendUrl(customOrigin);
+  const loginUrl = `${appUrl.replace(/\/+$/, '')}/#login`;
+
+  // Determine the term label from the first subject (they all share one term in a batch)
+  const termLabel = subjects.length > 0 ? escapeHtml(subjects[0].term || 'Current Term') : 'Current Term';
+  const subjectCount = subjects.length;
+
+  // Build HTML rows for the grade table
+  const gradeRows = subjects.map(s => {
+    const grade = s.grade !== null && s.grade !== undefined ? String(s.grade) : '—';
+    const passed = Number(s.grade) >= 1.0 && Number(s.grade) <= 3.0;
+    const statusColor = passed ? '#16a34a' : '#dc2626';
+    const statusLabel = passed ? 'Passed ✓' : 'Failed ✗';
+    return `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 10px 12px; font-size: 13px; font-weight: 600; color: #1e293b;">${escapeHtml(s.code || s.title || 'Subject')}</td>
+        <td style="padding: 10px 12px; font-size: 13px; color: #475569;">${escapeHtml(s.title || s.code || '')}</td>
+        <td style="padding: 10px 12px; font-size: 13px; font-weight: 700; color: #1e3a8a; text-align: center;">${escapeHtml(grade)}</td>
+        <td style="padding: 10px 12px; font-size: 12px; font-weight: 600; color: ${statusColor}; text-align: center;">${statusLabel}</td>
+      </tr>`;
+  }).join('');
+
+  const plainSubjectList = subjects.map(s =>
+    `  - ${s.code || s.title}: Grade ${s.grade !== null && s.grade !== undefined ? s.grade : 'N/A'}`
+  ).join('\n');
+
+  const mailOptions = {
+    from: getFromAddress(),
+    to: toEmail,
+    subject: `[GCT] Your Grades Have Been Released — ${termLabel}`,
+    text: `Hello ${recipientName},\n\nThis is to inform you that your grade${subjectCount > 1 ? 's have' : ' has'} been officially released for ${termLabel}.\n\nStudent ID: ${studentId}\nSubject${subjectCount > 1 ? 's' : ''} Released:\n${plainSubjectList}\n\nYou may log in to the GCT Student Portal to view your complete academic records and subject recommendations.\n\nPortal: ${loginUrl}\n\nIf you have questions about your grades, please go to the Registrar's Office/subject teacher.\n\nGarcia College of Technology\nRegistrar & Academic Services`,
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.5px;">GARCIA COLLEGE OF TECHNOLOGY</h2>
+          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">Subject Assessment &amp; Recommendation System</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 28px 24px; color: #1e293b;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+            <span style="font-size: 28px;">📋</span>
+            <h3 style="margin: 0; font-size: 18px; color: #1e3a8a;">Grade Release Notification</h3>
+          </div>
+
+          <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-top: 0;">
+            Hello <strong>${safeName}</strong>,
+          </p>
+          <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+            Your grade${subjectCount > 1 ? 's have' : ' has'} been officially released by the Registrar's Office for <strong>${termLabel}</strong>.
+          </p>
+
+          <!-- Student ID badge -->
+          <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 16px; margin-bottom: 20px; display: inline-block;">
+            <span style="font-size: 13px; color: #1e40af;">🎓 Student ID: <strong>${safeId}</strong></span>
+          </div>
+
+          <!-- Grade Table -->
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #1e3a8a; color: #ffffff;">
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; text-align: left;">Subject Code</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; text-align: left;">Subject Title</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; text-align: center;">Grade</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${gradeRows}
+            </tbody>
+          </table>
+
+          <!-- Note -->
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #15803d; line-height: 1.5; margin-bottom: 24px;">
+            💡 <strong>What's next?</strong> Log in to the Student Portal to view your full academic records and get your subject recommendations for the next semester.
+          </div>
+
+          <!-- Portal Button -->
+          <div style="text-align: center; margin: 20px 0 10px 0;">
+            <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background-color: #1e3a8a; color: #ffffff; font-weight: 700; font-size: 14px; text-decoration: none; padding: 12px 28px; border-radius: 8px; box-shadow: 0 4px 6px rgba(30, 58, 138, 0.2);">
+              View My Grades &rarr;
+            </a>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8;">
+          Garcia College of Technology &bull; Registrar &amp; Academic Services
+        </div>
+      </div>
+    `
+  };
+
+  console.log(`\n==================================================`);
+  console.log(`📋 [GRADE RELEASE EMAIL DISPATCH]`);
+  console.log(`📧 To: ${toEmail} (${recipientName})`);
+  console.log(`🎓 Student ID: ${studentId}`);
+  console.log(`📚 Subjects Released (${subjectCount}): ${subjects.map(s => s.code || s.title).join(', ')}`);
+  console.log(`📅 Term: ${termLabel}`);
+  console.log(`==================================================\n`);
+
+  if (!mailTransporter) {
+    console.log('ℹ️ SMTP not configured — grade release notification logged above only.');
+    return { success: true, delivered: false, simulated: true };
+  }
+
+  try {
+    const info = await mailTransporter.sendMail(mailOptions);
+    console.log('✅ Grade release notification sent:', info.messageId);
+    return { success: true, delivered: true, messageId: info.messageId };
+  } catch (error) {
+    console.warn('⚠️ Grade release email send error:', error.message);
+    return { success: false, delivered: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendPasswordResetOtp,
   sendRegistrationOtp,
@@ -548,6 +679,7 @@ module.exports = {
   sendWeeklyPasswordRenewalEmail,
   sendWeeklyPasswordResetEarlyNotice,
   buildStudentAccountResetEmail,
-  sendStudentAccountResetNotice
+  sendStudentAccountResetNotice,
+  sendGradeReleaseNotification
 };
 

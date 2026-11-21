@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { getPassingThreshold } = require('./settingsController');
 const { normalizeSubjCode } = require('../services/assessmentEngine');
+const { sendGradeReleaseNotification } = require('../services/emailService');
 
 // In-memory cache for static subjects catalog (reduces 1+ second DB query overhead per request)
 let cachedSubjectsData = null;
@@ -304,60 +305,22 @@ async function getAcademicRecords(req, res) {
 }
 
 async function syncStudentYearLevel(studentId) {
+  // IMPORTANT: Do NOT re-derive year_level from grade_records.
+  // grade_records.year_level can store stale/corrupt values (e.g. curriculum subject years).
+  // The students.year_level is the authoritative source — set during upload from the Excel file.
+  // This function now simply reads and returns the current students.year_level without overwriting it.
   try {
-    if (!studentId) return;
+    if (!studentId) return 1;
     const cleanId = String(studentId).replace(/^GCT-/i, '').trim();
-    const idVariants = [String(studentId).trim(), cleanId, `GCT-${cleanId}`];
-
-    // Fetch all current grade records for this student
-    const { data: gr } = await supabase
-      .from('grade_records')
-      .select('year_level, semester')
-      .in('student_id', idVariants);
-
-    if (!gr || gr.length === 0) return;
-
-    let maxYear = 1;
-    const sem2Counts = new Map();
-    let hasSummerYear3 = false;
-    gr.forEach(g => {
-      const y = Number(g.year_level || 1);
-      if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) maxYear = y;
-      const isSem2 = String(g.semester).toLowerCase().includes('second') || String(g.semester) === '2';
-      const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3';
-      if (isSem2 && Number.isFinite(y)) {
-        sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
-      }
-      if (isSummer && y === 3) {
-        hasSummerYear3 = true;
-      }
-    });
-
-    let calculatedYear = maxYear;
-    // Year 1 -> 2: completing 2nd sem of Year 1
-    if ((sem2Counts.get(1) || 0) >= 3) {
-      calculatedYear = Math.max(calculatedYear, 2);
-    }
-    // Year 2 -> 3: completing 2nd sem of Year 2
-    if ((sem2Counts.get(2) || 0) >= 3) {
-      calculatedYear = Math.max(calculatedYear, 3);
-    }
-    // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
-    // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
-    if (hasSummerYear3 || maxYear >= 4) {
-      calculatedYear = Math.max(calculatedYear, 4);
-    }
-    calculatedYear = Math.min(4, Math.max(1, calculatedYear));
-
-    // Update students table in Supabase so it accurately advances or reverts based on data
-    await supabase
+    const { data: st } = await supabase
       .from('students')
-      .update({ year_level: calculatedYear })
-      .in('student_id', idVariants);
-
-    return calculatedYear;
+      .select('year_level')
+      .eq('student_id', cleanId)
+      .limit(1);
+    return Number(st?.[0]?.year_level || 1);
   } catch (e) {
     console.warn('Sync student year level notice:', e);
+    return 1;
   }
 }
 
@@ -512,6 +475,35 @@ async function createOrUpdateRecord(req, res) {
       }
     };
 
+    // 4. Send grade release email notification to the student (fire-and-forget — never block the response)
+    try {
+      const { data: studentRow } = await supabase
+        .from('students')
+        .select('full_name, email')
+        .eq('student_id', String(student_id).trim())
+        .limit(1);
+      const st = studentRow?.[0];
+      const studentEmail = st?.email;
+      if (studentEmail && studentEmail.includes('@')) {
+        const subjectInfo = {
+          code: subData?.[0]?.code || cleanSubNoDoubleSpaces,
+          title: subData?.[0]?.title || req.body.title || cleanSubNoDoubleSpaces,
+          grade: numericGrade,
+          term
+        };
+        // Fire-and-forget — don't await so we don't delay the API response
+        sendGradeReleaseNotification(
+          studentEmail,
+          st.full_name || `Student ${student_id}`,
+          String(student_id).trim(),
+          [subjectInfo],
+          req.headers.origin
+        ).catch(err => console.warn('Grade release email error (non-fatal):', err.message));
+      }
+    } catch (emailErr) {
+      console.warn('Grade release email lookup error (non-fatal):', emailErr.message);
+    }
+
     res.json(record);
   } catch (error) {
     console.error('Create/Update Record Error:', error);
@@ -575,7 +567,9 @@ async function batchUpdateRecords(req, res) {
       const matchedDbSub = subMap.get(norm);
       const cleanSub = matchedDbSub ? matchedDbSub.code : rawSub.replace(/\s+/g, ' ');
       const subUnits = Number(r.units || matchedDbSub?.units || 3);
-      const subYear = Number(r.year_level || r.year || matchedDbSub?.year_level || yearLevel || 1);
+      // Use the student's year level from the uploaded file as the primary value.
+      // Fall back to the curriculum subject's year level only if the file has no year info.
+      const subYear = Number(r.year_level || r.year || yearLevel || matchedDbSub?.year_level || 1);
 
       // Grade parsing
       const rawGrade = r.raw_grade || r.rawGrade || (r.grade !== undefined && r.grade !== null ? String(r.grade) : '');
@@ -672,7 +666,10 @@ async function batchUpdateRecords(req, res) {
         
         const updateFields = {
           program: stData.program || exists[0].program || 'BSIT',
-          year_level: stData.year_level || exists[0].year_level || 1,
+          // Do NOT overwrite year_level for existing students during a grade upload.
+          // The registrar controls year_level explicitly via the student profile.
+          // Grade uploads only carry curriculum subject year info, NOT enrollment year.
+          year_level: exists[0].year_level || 1,
           status: 'approved',
           verified: true
         };
@@ -719,6 +716,7 @@ async function batchUpdateRecords(req, res) {
             raw_grade: gr.raw_grade,
             units: gr.units,
             semester: gr.semester,
+            year_level: gr.year_level,
             needs_review: false
           }).eq('id', rowId);
         } else {
@@ -736,9 +734,56 @@ async function batchUpdateRecords(req, res) {
       }
     }
 
-    // 5. Sync student year levels
-    for (const sid of affectedStudentIds) {
-      await syncStudentYearLevel(sid);
+    // Student year_level is already set correctly during step 2 (from the uploaded file).
+    // Do NOT recompute from grade_records.year_level — those may store curriculum subject years,
+    // not the student's actual enrolment year.
+
+    // 5. Send grade release email notifications to all affected students (fire-and-forget)
+    try {
+      const affectedSids = Array.from(affectedStudentIds);
+      if (affectedSids.length > 0) {
+        // Fetch student emails in one query
+        const { data: studentRows } = await supabase
+          .from('students')
+          .select('student_id, full_name, email')
+          .in('student_id', affectedSids);
+
+        const studentEmailMap = new Map();
+        (studentRows || []).forEach(r => {
+          if (r.email && r.email.includes('@')) {
+            studentEmailMap.set(String(r.student_id).trim(), r);
+          }
+        });
+
+        // Group uploaded grade records by student_id for the email body
+        const subjectsByStudent = new Map();
+        academicRecordsPayload.forEach(ar => {
+          const sid = String(ar.student_id).trim();
+          if (!subjectsByStudent.has(sid)) subjectsByStudent.set(sid, []);
+          subjectsByStudent.get(sid).push({
+            code: ar.subject_id,
+            title: ar.subject_id,
+            grade: ar.grade,
+            term: ar.term
+          });
+        });
+
+        // Fire emails per student — all non-blocking
+        const reqOrigin = req.headers.origin;
+        for (const [sid, studentInfo] of studentEmailMap.entries()) {
+          const subjects = subjectsByStudent.get(sid) || [];
+          if (subjects.length === 0) continue;
+          sendGradeReleaseNotification(
+            studentInfo.email,
+            studentInfo.full_name || `Student ${sid}`,
+            sid,
+            subjects,
+            reqOrigin
+          ).catch(err => console.warn(`Grade release email error for ${sid} (non-fatal):`, err.message));
+        }
+      }
+    } catch (emailErr) {
+      console.warn('Batch grade release email error (non-fatal):', emailErr.message);
     }
 
     res.json({

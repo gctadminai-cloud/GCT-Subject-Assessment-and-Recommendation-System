@@ -95,7 +95,7 @@ async function getAllStudents(req, res) {
     let studentAcademicYears = new Map();
 
     const now = Date.now();
-    if (global._cachedStudentSummaries && (now - global._cachedStudentSummariesTime < 180000)) {
+    if (global._cachedStudentSummaries && (now - global._cachedStudentSummariesTime < 10000)) {
       studentStandingYears = global._cachedStudentSummaries.standingYears;
       studentActiveSemesters = global._cachedStudentSummaries.activeSemesters;
       studentSemestersByAy = global._cachedStudentSummaries.semestersByAy;
@@ -131,7 +131,9 @@ async function getAllStudents(req, res) {
 
         studentGradesMap.forEach((grades, sid) => {
           let maxYear = 1;
-          const sem2Counts = new Map();
+          // Track distinct (year_level, academic_year, semester) combinations that are 2nd semester
+          // Using a Set to avoid counting multiple subjects in the same semester as multiple semesters
+          const sem2TermsSeen = new Map(); // year -> Set of "ay|sem" strings
           let hasSummerYear3 = false;
 
           let maxAyYr = 0;
@@ -149,8 +151,11 @@ async function getAllStudents(req, res) {
             const isSem2 = raw.includes('second') || raw === '2' || raw.includes('2nd');
             const isSummer = raw.includes('summer') || raw === '3';
 
+            // Count distinct 2nd-semester terms per year level (not individual subject rows)
             if (isSem2 && Number.isFinite(y)) {
-              sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
+              const termKey = `${ay}|${raw}`;
+              if (!sem2TermsSeen.has(y)) sem2TermsSeen.set(y, new Set());
+              sem2TermsSeen.get(y).add(termKey);
             }
             if (isSummer) {
               hasSummer = true;
@@ -184,11 +189,11 @@ async function getAllStudents(req, res) {
             }
           });
 
+          // Year level = highest year_level found in grade records.
+          // We do NOT infer advancement from semester completion — the year_level
+          // column on each grade record row already reflects the student's year at that time.
+          // Advancement to year 4 additionally requires Summer of year 3.
           let calculatedYear = maxYear;
-          if ((sem2Counts.get(1) || 0) >= 3) calculatedYear = Math.max(calculatedYear, 2);
-          if ((sem2Counts.get(2) || 0) >= 3) calculatedYear = Math.max(calculatedYear, 3);
-          // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
-          // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
           if (hasSummerYear3 || maxYear >= 4) calculatedYear = Math.max(calculatedYear, 4);
           calculatedYear = Math.min(4, Math.max(1, calculatedYear));
           studentStandingYears.set(sid, calculatedYear);
@@ -229,23 +234,10 @@ async function getAllStudents(req, res) {
       const hasAccount = Boolean(acct);
       const defCount = activeDeficiencyCounts.get(r.student_id) || 0;
       const cleanSId = String(r.student_id).replace(/^GCT-/i, '');
-      const hasGrades = studentStandingYears.has(r.student_id) || studentStandingYears.has(cleanSId);
-      const dbY = Number(r.year_level || 1);
-      const computedStanding = hasGrades
-        ? (studentStandingYears.get(r.student_id) || studentStandingYears.get(cleanSId) || dbY)
-        : dbY;
-      // When grade records exist, student's actual academic standing is computed from attended terms
-      const effectiveYearLevel = hasGrades ? computedStanding : dbY;
-
-      // Keep database students.year_level synchronized with accurate standing
-      if (hasGrades && effectiveYearLevel !== dbY) {
-        supabase
-          .from('students')
-          .update({ year_level: effectiveYearLevel })
-          .eq('id', r.id)
-          .then(() => {})
-          .catch(() => {});
-      }
+      // Use the year_level stored in the students table (set by the registrar or upload).
+      // Do NOT recompute from grade_records.year_level — those reflect curriculum subject years,
+      // not necessarily the student's current enrolment year.
+      const effectiveYearLevel = Number(r.year_level || 1);
 
       return {
         id: r.id || r.student_id,
@@ -384,52 +376,10 @@ async function getStudentById(req, res) {
     const idBackUrl = null;
     const selfieUrl = null;
 
-    // Calculate accurate standing year level from actual grade data
-    let effectiveYear = Number(row.year_level || 1);
-    try {
-      const { data: gr } = await supabase
-        .from('grade_records')
-        .select('year_level, semester')
-        .in('student_id', idVariants);
-
-      if (gr && gr.length > 0) {
-        let maxYear = 1;
-        const sem2Counts = new Map();
-        let hasSummerYear3 = false;
-        gr.forEach(g => {
-          const y = Number(g.year_level || 1);
-          if (Number.isFinite(y) && y >= 1 && y <= 4 && y > maxYear) maxYear = y;
-          const isSem2 = String(g.semester).toLowerCase().includes('second') || String(g.semester) === '2';
-          const isSummer = String(g.semester).toLowerCase().includes('summer') || String(g.semester) === '3';
-          if (isSem2 && Number.isFinite(y)) {
-            sem2Counts.set(y, (sem2Counts.get(y) || 0) + 1);
-          }
-          if (isSummer && y === 3) {
-            hasSummerYear3 = true;
-          }
-        });
-
-        effectiveYear = maxYear;
-        // Year 1 -> 2: completing 2nd sem of Year 1
-        if ((sem2Counts.get(1) || 0) >= 3) {
-          effectiveYear = Math.max(effectiveYear, 2);
-        }
-        // Year 2 -> 3: completing 2nd sem of Year 2
-        if ((sem2Counts.get(2) || 0) >= 3) {
-          effectiveYear = Math.max(effectiveYear, 3);
-        }
-        // Year 3 -> 4: requires completing 3rd Year Summer OR taking Year 4 subjects (maxYear >= 4).
-        // Completing 3rd Year 2nd Sem keeps the student in 3rd Year because Summer is still required!
-        if (hasSummerYear3 || maxYear >= 4) {
-          effectiveYear = Math.max(effectiveYear, 4);
-        }
-        effectiveYear = Math.min(4, Math.max(1, effectiveYear));
-
-        if (Number(row.year_level) !== effectiveYear) {
-          supabase.from('students').update({ year_level: effectiveYear }).eq('id', row.id).then(() => {}).catch(() => {});
-        }
-      }
-    } catch (e) {}
+    // Use the year_level stored in the students table (set by the registrar or upload).
+    // Do NOT recompute from grade_records.year_level — those reflect curriculum subject years,
+    // not the student's current enrolment year level.
+    const effectiveYear = Number(row.year_level || 1);
 
     res.json({
       id: row.id || row.student_id,
